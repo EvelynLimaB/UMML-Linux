@@ -10,8 +10,9 @@ import re
 import winreg
 import struct
 import webbrowser
+from tkinter import colorchooser
 from pathlib import Path
-modloader_version = "1.3.8"
+modloader_version = "1.3.9"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -315,7 +316,7 @@ class ModLoaderGUI:
         misc_menu.add_cascade(label="Character", menu=character_menu)
 
         character_menu.add_command(
-            label="Proportion",
+            label="Attribute",
             command=self.open_chara_settings
         )
 
@@ -1676,250 +1677,396 @@ class ModLoaderGUI:
 
         tk.Button(win, text="Save All", command=save_all_training).pack(pady=10)
 
-
     def open_chara_settings(self):
         messagebox.showwarning("Tazuna saying", 
                                "don't make everyone naughty")
         db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
         if not os.path.isfile(db_path):
-            messagebox.showerror("Error", f"Database not found: {db_path}")
+            messagebox.showerror("Error", "master.mdb not found")
             return
 
-        try:
-            conn = sqlite3.connect(db_path)
-            c = conn.cursor()
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
 
-            # get all characters
-            c.execute("SELECT id, sex, height, shape, skin, bust, scale FROM chara_data")
-            chara_rows = c.fetchall()
+        # ensure backup table exists
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS chara_data_bak AS
+            SELECT * FROM chara_data
+        """)
+        conn.commit()
 
-            chara_data_list = []
-            for cid, sex, height, shape, skin, bust, scale in chara_rows:
-                # name from text_data category=6
-                c.execute("SELECT text FROM text_data WHERE `index`=? AND category=6", (cid,))
-                row = c.fetchone()
-                name_text = row[0] if row else f"Chara {cid}"
+        # load characters
+        c.execute("SELECT * FROM chara_data ORDER BY id")
+        rows = c.fetchall()
 
-                chara_data_list.append((cid, name_text, sex, height, shape, skin, bust, scale))
+        # get column names dynamically
+        c.execute("PRAGMA table_info(chara_data)")
+        columns = [col[1] for col in c.fetchall()]
 
-            conn.close()
-        except Exception as e:
-            messagebox.showerror("DB Error", str(e))
-            return
+        col_index = {name: i for i, name in enumerate(columns)}
 
-        # --- build window ---
         win = tk.Toplevel(self.root)
         win.title("Character Settings")
-        win.geometry("1320x600")
+        win.geometry("900x700")
 
         canvas = tk.Canvas(win)
         scrollbar = tk.Scrollbar(win, orient="vertical", command=canvas.yview)
-        scroll_frame = tk.Frame(canvas)
+        frame = tk.Frame(canvas)
 
-        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # keep references for saving
         chara_vars = {}
 
-        for cid, name_text, sex, height, shape, skin, bust, scale in chara_data_list:
-            row_frame = tk.Frame(scroll_frame)
-            row_frame.pack(fill="x", pady=2)
+        for row in rows:
+            cid = row[col_index["id"]]
 
-            # id + name
-            tk.Label(row_frame, text=f"{cid} - {name_text}", anchor="w", width=30).pack(side="left")
+            # get name
+            c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
+            name_row = c.fetchone()
+            name = name_row[0] if name_row else f"Chara {cid}"
 
-            # gender dropdown
-            gender_var = tk.StringVar(value="Male" if sex == 1 else "Female")
-            gender_combo = ttk.Combobox(row_frame, textvariable=gender_var,
-                                        values=["Male", "Female"], state="readonly", width=8)
-            gender_combo.pack(side="left", padx=5)
+            container = tk.Frame(frame, relief="groove", bd=1)
+            container.pack(fill="x", pady=4, padx=5)
 
-            # Height
-            tk.Label(row_frame, text="Height:", width=5).pack(side="left")
-            height_var = tk.StringVar(value=str(height))
-            tk.Entry(row_frame, textvariable=height_var, width=6).pack(side="left", padx=2)
+            header_btn = tk.Button(
+                container,
+                text=f"▶ {cid} - {name}",
+                anchor="w",
+                relief="flat"
+            )
+            header_btn.pack(fill="x")
 
-            # Shape
-            tk.Label(row_frame, text="Shape:", width=5).pack(side="left")
-            shape_var = tk.StringVar(value=str(shape))
-            tk.Entry(row_frame, textvariable=shape_var, width=6).pack(side="left", padx=2)
+            detail = tk.Frame(container)
 
-            # Skin
-            tk.Label(row_frame, text="Skin:", width=5).pack(side="left")
-            skin_var = tk.StringVar(value=str(skin))
-            tk.Entry(row_frame, textvariable=skin_var, width=6).pack(side="left", padx=2)
+            # ---------------- DROPDOWNS ---------------- #
 
-            # Bust
-            tk.Label(row_frame, text="Bust:", width=5).pack(side="left")
-            bust_var = tk.StringVar(value=str(bust))
-            tk.Entry(row_frame, textvariable=bust_var, width=6).pack(side="left", padx=2)
-            # Scale
-            tk.Label(row_frame, text="Scale:", width=5).pack(side="left")
-            scale_var = tk.StringVar(value=str(scale))
-            tk.Entry(row_frame, textvariable=scale_var, width=6).pack(side="left", padx=2)
-            # store in dict for save
-            chara_vars[cid] = (gender_var, height_var, shape_var, skin_var, bust_var, scale_var)
-            
-        # --- Set All Values panel ---
-        setall_frame = tk.LabelFrame(win, text="Set All Values")
-        setall_frame.pack(fill="x", padx=10, pady=5)
+            def add_dropdown(label, column, options_dict):
+                tk.Label(detail, text=label, width=20, anchor="w").pack()
+                var = tk.StringVar()
+                current_val = row[col_index[column]]
+                display = options_dict.get(current_val, list(options_dict.values())[0])
+                var.set(display)
 
-        # Sex dropdown
-        sex_var = tk.StringVar(value="No Change")
-        sex_combo = ttk.Combobox(setall_frame, textvariable=sex_var,
-                                 values=["No Change", "Male", "Female"],
-                                 state="readonly", width=10)
-        sex_combo.pack(side="left", padx=5)
+                combo = ttk.Combobox(detail, textvariable=var,
+                                     values=list(options_dict.values()),
+                                     state="readonly", width=30)
+                combo.pack()
+                return var
 
-        # Height
-        tk.Label(setall_frame, text="Height").pack(side="left", padx=2)
-        height_var = tk.StringVar(value="-1")
-        tk.Entry(setall_frame, textvariable=height_var, width=6).pack(side="left", padx=2)
+            sex_var = add_dropdown("Sex", "sex", {
+                1: "Male",
+                2: "Female"
+            })
 
-        # Shape
-        tk.Label(setall_frame, text="Shape").pack(side="left", padx=2)
-        shape_var = tk.StringVar(value="-1")
-        tk.Entry(setall_frame, textvariable=shape_var, width=6).pack(side="left", padx=2)
+            height_var = add_dropdown("Height", "height", {
+                0: "0 - Shorter",
+                1: "1 - Default",
+                2: "2 - Taller"
+            })
 
-        # Skin
-        tk.Label(setall_frame, text="Skin").pack(side="left", padx=2)
-        skin_var = tk.StringVar(value="-1")
-        tk.Entry(setall_frame, textvariable=skin_var, width=6).pack(side="left", padx=2)
+            shape_var = add_dropdown("Shape", "shape", {
+                0: "0 - Standard",
+                1: "1 - Slim",
+                2: "2 - Thicc"
+            })
 
-        # Bust
-        tk.Label(setall_frame, text="Bust").pack(side="left", padx=2)
-        bust_var = tk.StringVar(value="-1")
-        tk.Entry(setall_frame, textvariable=bust_var, width=6).pack(side="left", padx=2)
-            
-        tk.Label(setall_frame, text="Scale").pack(side="left", padx=2)
-        scale_var = tk.StringVar(value="-1")
-        tk.Entry(setall_frame, textvariable=scale_var, width=6).pack(side="left", padx=2)
+            skin_var = add_dropdown("Skin", "skin", {
+                0: "0 - White",
+                1: "1 - Peach",
+                2: "2 - Yellow",
+                3: "3 - Brown"
+            })
 
-        def apply_set_all():
-            for cid, vars_tuple in chara_vars.items():
-                g, h, s, sk, b, sc = vars_tuple
-                # sex
-                if sex_var.get() != "No Change":
-                    g.set(sex_var.get())
-                # numeric values
-                if height_var.get().isdigit() and int(height_var.get()) >= 0:
-                    h.set(height_var.get())
-                if shape_var.get().isdigit() and int(shape_var.get()) >= 0:
-                    s.set(shape_var.get())
-                if skin_var.get().isdigit() and int(skin_var.get()) >= 0:
-                    sk.set(skin_var.get())
-                if bust_var.get().isdigit() and int(bust_var.get()) >= 0:
-                    b.set(bust_var.get())
-                if scale_var.get().isdigit() and int(scale_var.get()) >= 0:
-                    sc.set(scale_var.get())
+            bust_var = add_dropdown("Bust", "bust", {
+                0: "0 - Very Small",
+                1: "1 - Small",
+                2: "2 - Medium",
+                3: "3 - Large",
+                4: "4 - Very Large"
+            })
 
-        tk.Button(setall_frame, text="Apply", command=apply_set_all).pack(side="left", padx=10)
+            socks_var = add_dropdown("Socks", "socks", {
+                0: "0 - None",
+                1: "1 - HighSocksWhite",
+                2: "2 - HighSocksBlack",
+                3: "3 - KneeSocksWhite",
+                4: "4 - KneeSocksBlack",
+                5: "5 - TightsWhite",
+                6: "6 - TightsBlack",
+                7: "7 - TightsBrown"
+            })
 
-        def save_all_character():
-            try:
-                # --- validate models from meta.db ---
-                meta_path = self.meta_path
-                if not os.path.isfile(meta_path):
-                    messagebox.showerror("Error", "meta database not found.")
-                    return
+            race_var = add_dropdown("Race Running Type", "race_running_type", {
+                0: "0 - Base",
+                1: "1 - Pitch",
+                2: "2 - Stride"
+            })
 
-                conn_meta = sqlite3.connect(meta_path)
-                c_meta = conn_meta.cursor()
-                c_meta.execute("SELECT CAST(n AS TEXT) FROM a WHERE n LIKE '3d/chara/body/bdy0002_00/pfb_bdy%'") # use school uniform
-                model_rows = [row[0] for row in c_meta.fetchall()]
-                conn_meta.close()
-                # extract available combos (height_shape_bust)
-                available = set()
-                for path in model_rows:
-                    parts = path.split("_")
-                    if len(parts) >= 3:
-                        combo = "_".join(parts[-3:])
-                        available.add(combo)
-                #print(available)
-                # --- open master.mdb for updating ---
-                conn = sqlite3.connect(db_path)
-                c = conn.cursor()
+            eyebrow_var = add_dropdown("Chibi Eyebrow Shader", "mini_mayu_shader_type", {
+                0: "0 - Unlit",
+                1: "1 - Toon",
+                2: "2 - NolineToon",
+                3: "3 - DitherToon"
+            })
 
-                for cid, vars_tuple in chara_vars.items():
-                    gender_var, height_var, shape_var, skin_var, bust_var, scale_var = vars_tuple
-                    sex_val = 1 if gender_var.get() == "Male" else 2
-                    height_val = int(height_var.get()) if height_var.get().isdigit() else 0
-                    shape_val = int(shape_var.get()) if shape_var.get().isdigit() else 0
-                    skin_val = int(skin_var.get()) if skin_var.get().isdigit() else 0
-                    bust_val = int(bust_var.get()) if bust_var.get().isdigit() else 0
-                    scale_val = int(scale_var.get()) if scale_var.get().isdigit() else 0
+            # ---------------- CHECKBOX LOGIC ---------------- #
 
-                    combo = f"{height_val}_{shape_val}_{bust_val}"
-                    if combo not in available:
-                        if not messagebox.askyesno(
-                            "Unavailable Body Type",
-                            f"Character ID {cid} has unavailable body type: {combo}\n\n"
-                            "Save anyway?"
-                        ):
-                            conn.close()
-                            return
-                    c.execute(
-                        "UPDATE chara_data SET sex=?, height=?, shape=?, skin=?, bust=?, scale=? WHERE id=?",
-                        (sex_val, height_val, shape_val, skin_val, bust_val, scale_val, cid)
-                    )
+            current_tail = row[col_index["tail_model_id"]]
 
-                conn.commit()
-                conn.close()
-                messagebox.showinfo("Success", "All character settings saved successfully.")
+            c.execute("SELECT tail_model_id FROM chara_data_bak WHERE id=?", (cid,))
+            tail_backup = c.fetchone()[0]
 
-            except Exception as e:
-                messagebox.showerror("DB Error", str(e))
-        notes_text = (
-            "height: adjusts base proportions of the body.\n"
-            "        Higher values make the waist and torso look slimmer.\n"
-            "  0 = shorter stature, smaller bones, compact proportions\n"
-            "  1 = default/medium height (most common)\n"
-            "  2 = taller, longer limbs/torso\n"
-            "\n"
-            "shape: controls body type/build\n"
-            "  0 = Standard\n"
-            "  1 = Cunny\n"
-            "  2 = Thicc\n"
-            "\n"
-            "skin: controls body skin tone (face not affected)\n"
-            "  0 = White\n"
-            "  1 = Peach\n"
-            "  2 = Yellow\n"
-            "  3 = Brown\n"
-            "\n"
-            "bust: adjusts breast size\n"
-            "  0 = Very Small\n"
-            "  1 = Small\n"
-            "  2 = Medium\n"
-            "  3 = Large\n"
-            "  4 = Very Large\n"
-            "\n"
-            "scale: global model scaling factor\n"
-            "        Larger values = taller overall character height.\n"
-            "\n"
-            "note: reference used in common dress expect scale\n"
-            "      (links character model to shared outfit data)\n"
-        )
+            tail_var = tk.BooleanVar()
 
-        notes_label = tk.Label(
-            win,
-            text=notes_text,
-            justify="left",
-            anchor="w",
-            relief="groove",
-            bd=1,
-            padx=6,
-            pady=4
-        )
-        notes_label.pack(fill="x", padx=10, pady=5)
+            tail_cb = tk.Checkbutton(
+                detail,
+                text="Enable Tail",
+                variable=tail_var
+            )
+            tail_cb.pack(anchor="w")
 
-        # Save button
-        tk.Button(win, text="Save All", command=save_all_character).pack(pady=10)
+            # ----- state logic -----
+
+            if current_tail == -1 and tail_backup == -1:
+                # nothing exists → disable
+                tail_var.set(False)
+                tail_cb.config(state="disabled")
+
+            elif current_tail == -1:
+                # currently disabled
+                tail_var.set(False)
+
+            else:
+                # currently enabled
+                tail_var.set(True)
+
+            current_attach = row[col_index["attachment_model_id"]]
+
+            c.execute("SELECT attachment_model_id FROM chara_data_bak WHERE id=?", (cid,))
+            attach_backup = c.fetchone()[0]
+
+            attach_var = tk.BooleanVar()
+
+            attach_cb = tk.Checkbutton(
+                detail,
+                text="Custom Nail",
+                variable=attach_var
+            )
+            attach_cb.pack(anchor="w")
+
+            if current_attach == -1 and attach_backup == -1:
+                attach_var.set(False)
+                attach_cb.config(state="disabled")
+
+            elif current_attach == -1:
+                attach_var.set(False)
+
+            else:
+                attach_var.set(True)
+
+            # ---------------- COLOR PICKER ---------------- #
+
+            color_columns = [
+                "image_color_main",
+                "image_color_sub",
+                "ui_color_main",
+                "ui_color_sub",
+                "ui_training_color_1",
+                "ui_training_color_2",
+                "ui_border_color",
+                "ui_num_color_1",
+                "ui_num_color_2",
+                "ui_turn_color",
+                "ui_wipe_color_1",
+                "ui_wipe_color_2",
+                "ui_wipe_color_3",
+                "ui_speech_color_1",
+                "ui_speech_color_2",
+                "ui_nameplate_color_1",
+                "ui_nameplate_color_2",
+            ]
+
+            color_vars = {}
+
+            color_frame = tk.LabelFrame(detail, text="Colors")
+            color_frame.pack(fill="x", pady=5)
+
+            for col in color_columns:
+                row_color = tk.Frame(color_frame)
+                row_color.pack(fill="x", pady=2)
+
+                tk.Label(row_color, text=col, width=25, anchor="w").pack(side="left")
+
+                current_hex = row[col_index[col]]
+
+                if not current_hex:
+                    current_hex = "#FFFFFF"
+                else:
+                    current_hex = current_hex.strip().replace("#", "")
+
+                    # ensure valid hex length
+                    if len(current_hex) < 6:
+                        current_hex = current_hex.zfill(6)
+
+                    # keep only first 6 if somehow longer
+                    current_hex = current_hex[:6]
+
+                    current_hex = "#" + current_hex.upper()
+
+                var = tk.StringVar(value=current_hex)
+
+                btn = tk.Button(row_color, width=4, bg=current_hex)
+
+                def pick_color(v=var, b=btn):
+                    chosen = colorchooser.askcolor(color=v.get())
+                    if chosen[1]:
+                        v.set(chosen[1])
+                        b.config(bg=chosen[1])
+
+                btn.config(command=pick_color)
+                btn.pack(side="left", padx=5)
+
+                color_vars[col] = var
+
+            # ---------------- RANDOM TIME FIELDS ---------------- #
+
+            time_columns = [
+                "ear_random_time_min",
+                "ear_random_time_max",
+                "tail_random_time_min",
+                "tail_random_time_max",
+                "story_ear_random_time_min",
+                "story_ear_random_time_max",
+                "story_tail_random_time_min",
+                "story_tail_random_time_max",
+            ]
+
+            time_vars = {}
+
+            time_frame = tk.LabelFrame(detail, text="Random Motion Timers")
+            time_frame.pack(fill="x", pady=5)
+
+            for col in time_columns:
+                row_time = tk.Frame(time_frame)
+                row_time.pack(fill="x", pady=2)
+
+                tk.Label(row_time, text=col, width=30, anchor="w").pack(side="left")
+
+                var = tk.StringVar(value=str(row[col_index[col]]))
+                tk.Entry(row_time, textvariable=var, width=10).pack(side="left")
+
+                time_vars[col] = var
+
+            chara_vars[cid] = (
+                sex_var, height_var, shape_var, skin_var, bust_var,
+                socks_var, race_var, eyebrow_var,
+                tail_var, attach_var,
+                color_vars, time_vars
+            )
+
+            # toggle logic
+            def toggle(d=detail, b=header_btn):
+                if d.winfo_ismapped():
+                    d.pack_forget()
+                    b.config(text=b.cget("text").replace("▼", "▶"))
+                else:
+                    d.pack(fill="x", padx=20, pady=5)
+                    b.config(text=b.cget("text").replace("▶", "▼"))
+
+            header_btn.config(command=toggle)
+
+        conn.close()
+
+        tk.Button(win, text="Save All", command=lambda: self.save_chara_expanded(chara_vars)).pack(pady=10)
+
+    def save_chara_expanded(self, chara_vars):
+        db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+
+        for cid, vars_tuple in chara_vars.items():
+
+            (
+                sex_var, height_var, shape_var, skin_var, bust_var,
+                socks_var, race_var, eyebrow_var,
+                tail_var, attach_var,
+                color_vars, time_vars
+            ) = vars_tuple
+
+            # ---------------- DROPDOWNS ---------------- #
+
+            sex_val = 1 if sex_var.get() == "Male" else 2
+            height_val = int(height_var.get().split(" - ")[0])
+            shape_val = int(shape_var.get().split(" - ")[0])
+            skin_val = int(skin_var.get().split(" - ")[0])
+            bust_val = int(bust_var.get().split(" - ")[0])
+            socks_val = int(socks_var.get().split(" - ")[0])
+            race_val = int(race_var.get().split(" - ")[0])
+            eyebrow_val = int(eyebrow_var.get().split(" - ")[0])
+
+            # ---------------- TAIL / ATTACHMENT ---------------- #
+
+            # tail
+            c.execute("SELECT tail_model_id FROM chara_data_bak WHERE id=?", (cid,))
+            tail_backup = c.fetchone()[0]
+
+            tail_model_val = tail_backup if tail_var.get() else -1
+
+            # nail
+            c.execute("SELECT attachment_model_id FROM chara_data_bak WHERE id=?", (cid,))
+            attach_backup = c.fetchone()[0]
+
+            attachment_val = attach_backup if attach_var.get() else -1
+
+            # ---------------- UPDATE BASE FIELDS ---------------- #
+
+            c.execute("""
+                UPDATE chara_data
+                SET sex=?, height=?, shape=?, skin=?, bust=?,
+                    socks=?, race_running_type=?, mini_mayu_shader_type=?,
+                    tail_model_id=?, attachment_model_id=?
+                WHERE id=?
+            """, (
+                sex_val, height_val, shape_val, skin_val, bust_val,
+                socks_val, race_val, eyebrow_val,
+                tail_model_val, attachment_val,
+                cid
+            ))
+
+            # ---------------- COLORS ---------------- #
+
+            for col, var in color_vars.items():
+                hex_value = var.get().replace("#", "").upper().zfill(6)
+
+                c.execute(f"""
+                    UPDATE chara_data
+                    SET {col}=?
+                    WHERE id=?
+                """, (hex_value, cid))
+
+            # ---------------- RANDOM TIMES ---------------- #
+
+            for col, var in time_vars.items():
+                try:
+                    value = int(var.get())
+                except:
+                    value = 0
+
+                c.execute(f"""
+                    UPDATE chara_data
+                    SET {col}=?
+                    WHERE id=?
+                """, (value, cid))
+
+        conn.commit()
+        conn.close()
+
+        messagebox.showinfo("Success", "All character settings saved.")
 
     def preview_assets(self):
         preview_dir = os.path.join(self.mod_path.get(), "preview")
