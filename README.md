@@ -15,19 +15,17 @@ Launch UMML.py, and use the browse button at the top right to specify the path t
 - Click Restore assets to restore from the backup.
   
 To test UMML, use the [Example Mod](https://gamebanana.com/mods/613507).
-The mod is still under development, so please wait a little longer for the completed version.
 
-# Supplementary Note
-"assets" refer to Unity assets.
-
-"preview" refer to preview image for the mod.
-
+# Note
 The author assumes no responsibility for any damages resulting from the use of this application.
 Please use it at your own risk.
 You've been warned!
 
 # Credits
-[noccu](https://github.com/noccu) for [hachimi-tools](https://github.com/noccu/hachimi-tools) meta_decrypt
+[tumugu](https://github.com/tumugu) for original mod loader.
 
-[kairusds](https://github.com/kairusds) for [umamusu-utils](https://github.com/kairusds/umamusu-utils/) decrypt_assets
+[noccu](https://github.com/noccu) for [hachimi-tools](https://github.com/noccu/hachimi-tools) meta_decrypt.
 
+[kairusds](https://github.com/kairusds) for [umamusu-utils](https://github.com/kairusds/umamusu-utils/) decrypt_assets.
+
+[teiosteppa](https://github.com/teiosteppa) for [umamusume-model-replace](https://github.com/teiosteppa/umamusume-model-replace) reference.

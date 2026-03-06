@@ -543,34 +543,52 @@ class ModLoaderGUI:
                   AND target_type=?
             """, (val, dst_cid, ts, tc, tt))
 
-        excluded_cols = {
-            "birth_year",
-            "birth_month",
-            "birth_day",
-            "last_year",
-            "personal_dress",
-            "tail_model_id", # white tex issue
-            "attachment_model_id", # won't work
-            "start_date",
-            "chara_category",
-            "love_rank_limit"
-        }
-
-        # get column names dynamically
-        c.execute("PRAGMA table_info(chara_data)")
-        columns = [row[1] for row in c.fetchall()]
-
-        update_cols = [col for col in columns if col not in excluded_cols and col != "id"]
+        columns_to_copy = [
+            "sex",
+            "image_color_main",
+            "image_color_sub",
+            "ui_color_main",
+            "ui_color_sub",
+            "ui_training_color_1",
+            "ui_training_color_2",
+            "ui_border_color",
+            "ui_num_color_1",
+            "ui_num_color_2",
+            "ui_turn_color",
+            "ui_wipe_color_1",
+            "ui_wipe_color_2",
+            "ui_wipe_color_3",
+            "ui_speech_color_1",
+            "ui_speech_color_2",
+            "ui_nameplate_color_1",
+            "ui_nameplate_color_2",
+            "height",
+            "bust",
+            "scale",
+            "skin",
+            "shape",
+            "socks",
+            "race_running_type",
+            "ear_random_time_min",
+            "ear_random_time_max",
+            "tail_random_time_min",
+            "tail_random_time_max",
+            "story_ear_random_time_min",
+            "story_ear_random_time_max",
+            "story_tail_random_time_min",
+            "story_tail_random_time_max",
+            "mini_mayu_shader_type"
+        ]
 
         # read source values
         c.execute(
-            f"SELECT {', '.join(update_cols)} FROM chara_data_bak WHERE id=?",
+            f"SELECT {', '.join(columns_to_copy)} FROM chara_data_bak WHERE id=?",
             (src_cid,)
         )
         src_values = c.fetchone()
 
         if src_values:
-            set_clause = ", ".join([f"{col}=?" for col in update_cols])
+            set_clause = ", ".join([f"{col}=?" for col in columns_to_copy])
 
             c.execute(
                 f"UPDATE chara_data SET {set_clause} WHERE id=?",
