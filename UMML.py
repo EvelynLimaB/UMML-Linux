@@ -157,7 +157,7 @@ def load_settings():
         / "Cygames"
         / "umamusume"
     )
-
+    print(f"Steam EN path: {base_path_steam_en}")
     base_path_steam_jp = None
     if steam_game_path_jpn:
         base_path_steam_jp = (
@@ -165,7 +165,7 @@ def load_settings():
             / "UmamusumePrettyDerby_Jpn_Data"
             / "Persistent"
         )
-
+    print(f"Steam JP path: {base_path_steam_jp}")
     base_path_dmm_jp = None
     if dmm_game_path_jpn:
         base_path_dmm_jp = (
@@ -173,7 +173,7 @@ def load_settings():
             / "umamusume_Data"
             / "Persistent"
         )
-
+    print(f"DMM Game path: {dmm_game_path_jpn}")
     root = tk.Tk()
     root.withdraw()
 
