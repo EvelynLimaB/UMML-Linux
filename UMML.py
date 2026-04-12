@@ -477,7 +477,7 @@ class ModLoaderGUI:
                 enc_key = int(row[0])
             else:
                 # input files are meta paths
-                c.execute("SELECT h, e FROM a WHERE n=? AND e!=0", (meta_path,))
+                c.execute("SELECT h, e FROM a WHERE n=?", (meta_path,))
                 row = c.fetchone()
                 if not row:
                     missing_meta += 1
@@ -487,19 +487,22 @@ class ModLoaderGUI:
 
             output_path = os.path.join(dst_root, hash_name)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            # for audio / usm
+            if enc_key == 0:
+                shutil.copy(input_path, output_path)
+            else:
+                with open(input_path, "rb") as f:
+                    data = bytearray(f.read())
 
-            with open(input_path, "rb") as f:
-                data = bytearray(f.read())
+                if len(data) > 256:
+                    key = derive_asset_key(enc_key)
+                    if key:
+                        klen = len(key)
+                        for i in range(256, len(data)):
+                            data[i] ^= key[i % klen]
 
-            if enc_key != 0 and len(data) > 256:
-                key = derive_asset_key(enc_key)
-                if key:
-                    klen = len(key)
-                    for i in range(256, len(data)):
-                        data[i] ^= key[i % klen]
-
-            with open(output_path, "wb") as f:
-                f.write(data)
+                with open(output_path, "wb") as f:
+                    f.write(data)
             decoded_count += 1
 
         conn.close()
@@ -2259,7 +2262,6 @@ class ModLoaderGUI:
                 continue
 
             shutil.copy(src, dst)
-            decoded_count += 1
             self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
             self.progress_bar["value"] = i
             self.root.update_idletasks()
