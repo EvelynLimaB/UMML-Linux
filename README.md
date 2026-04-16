@@ -1,43 +1,31 @@
-# UmaMusume_Mod_Loader
-**UmaMusume_Mod_Loader**はウマ娘のModを簡単に読み込めるプログラムです。  
-数回クリックするだけで、バックアップを取ってModを読み込んだり、バックアップから復元したりできます。
+# UMML
+UMML is a program that allows you to easily load mods.
+With just a few clicks, you can back up, load mods, and restore from backups.
 
-Modを作っている方は、置き換えるAssetBundleファイルとsetting.ymlを用意すれば、このプログラムでも読み込ませられます。  
-また、sql文を用意するとmaster.mdbの書き換えも可能です。
+If you're creating mods, you can use this program by preparing the replacement AssetBundle file and a setting.json.
 
-# ダウンロードするときに
-必ず**Releases**からダウンロードしてください。  
-間違っても、<> Codeを押してから、Download ZIPを押してダウンロードするようなことはしないでください。
+# When Downloading
+Be sure to download by going to Code and selecting Download ZIP.
 
-# 使用する前に
-Windows10での動作を確認しています。  
-また、ウマ娘のダウンロード先はCドライブのデフォルトを想定しています。  
-それ以外の場合はUmaMusume_Mod_Loader_GUI.exeの同階層にある  
-setting.ymlのumamusume_pathを変えるとパスを変更できます。  
-動作テストを行っていないので、パスの変更が動作していない可能性があります。  
-もし動作を確認できたり、確認できなかった場合は連絡していただけますと幸いです。  
+# How To Use
+Launch UMML.py, and use the browse button at the top right to specify the path to your mod. (Be sure to unzip the mod folder beforehand.)
 
-このプログラムを実行する前に、ウマ娘のデータ一括ダウンロードを行ってください。  
-置き換え先のデータがない場合、バックアップが行えないため、エラーで終了してしまいます。
-# 使用方法
-UmaMusume_Mod_Loader_GUI.exeを起動し、右上の参照ボタンでModのパスを指定します。（先にModのフォルダは解凍しておいてください）
+- Click the Load assets button at the bottom to load the mod's assets.
 
-下にある、**assetsロードボタン**を押すと、Modの**assets**を読み込めます。  
-**assetsアンロード**を押すと、バックアップから復元します。  
-また**masterロードボタン**を押すと、Modの**master**を読み込めます。  
-**masterアンロード**を押すと、ウマ娘のmasterをリセットします。
+- Click Restore assets to restore from the backup.
+  
+To test UMML, use the [Example Mod](https://gamebanana.com/mods/613507).
 
-UmaMusume_Mod_Loader_GUIの動作テストには、**UmaMusume_Mod_Loader_GUI v1.1.0**の**Example_mod.zip**をご使用ください。  
-Modは開発途中ですので完成まで少々お待ちください。
-# 連絡したい場合
-このレポジトリ自体そこまで広める予定はないので...  
-ここには書かないでおきます。  
-DiscordのDMにてお願いします。
-# 補足
-assetsは3Dモデルやテクスチャのことです。  
-masterはウマ娘の様々なデータ（衣装のidや文字etc...）が格納されているファイルのことです。  
-（間違ってたらｽﾐﾏｾﾝ）
+# Note
+The author assumes no responsibility for any damages resulting from the use of this application.
+Please use it at your own risk.
+You've been warned!
 
-このアプリケーションを利用した事によるいかなる損害も作者は**一切の責任**を負いません。  
-自己の責任の上で使用して下さい。  
-言いましたからね！？
+# Credits
+[tumugu](https://github.com/tumugu) for original mod loader.
+
+[noccu](https://github.com/noccu) for [hachimi-tools](https://github.com/noccu/hachimi-tools) meta_decrypt.
+
+[kairusds](https://github.com/kairusds) for [umamusu-utils](https://github.com/kairusds/umamusu-utils/) decrypt_assets.
+
+[teiosteppa](https://github.com/teiosteppa) for [umamusume-model-replace](https://github.com/teiosteppa/umamusume-model-replace) reference.
