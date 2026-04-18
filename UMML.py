@@ -12,7 +12,7 @@ import struct
 import webbrowser
 from tkinter import colorchooser
 from pathlib import Path
-modloader_version = "1.4.0"
+modloader_version = "1.4.1"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -419,39 +419,6 @@ class ModLoaderGUI:
 
         # DRIVE FROM MOD FILES
         all_paths = list(self.scan_full_path(src_root))
-        fixed_paths = []
-
-        for rel_path in all_paths:
-            if use_hash:
-                fixed_paths.append((rel_path, rel_path))
-                continue
-            src = os.path.join(src_root, rel_path)
-
-            # default: keep original
-            final_path = rel_path
-
-            # ONLY if it's a file directly under src_root
-            if os.path.isfile(src) and "/" not in rel_path and "\\" not in rel_path:
-                try:
-                    with open(src, "rb") as f:
-                        env = UnityPy.load(f)
-
-                    for obj in env.objects:
-                        if obj.type.name == "AssetBundle":
-                            data = obj.read()
-                            if data.m_Name:
-                                final_path = os.path.splitext(data.m_Name)[0]
-                                #print(f"replaced {rel_path} with {final_path}")
-                                break
-                except Exception:
-                    pass
-            else:
-                #print(f"skipping path replace, result: {src} for src and {final_path} for final path")
-                pass
-
-            fixed_paths.append((rel_path, final_path))
-
-        all_paths = fixed_paths
         total = len(all_paths)
         self.progress_bar["maximum"] = total
         self.progress_bar["value"] = 0
@@ -459,7 +426,7 @@ class ModLoaderGUI:
         decoded_count = 0
         missing_meta = 0
 
-        for i, (rel_path, meta_path) in enumerate(all_paths, start=1):
+        for i, rel_path in enumerate(all_paths, start=1):
             input_path = os.path.join(src_root, rel_path)
             self.progress_label.config(
                 text=f"Encrypting Asset {i} / {total}"
@@ -479,8 +446,32 @@ class ModLoaderGUI:
                 enc_key = int(row[0])
             else:
                 # input files are meta paths
-                c.execute("SELECT h, e FROM a WHERE n=?", (meta_path,))
+                c.execute("SELECT h, e FROM a WHERE n=?", (rel_path,))
                 row = c.fetchone()
+                # fallback unity
+                if not row:
+                    #print(f"{rel_path} not found, looking up")
+                    try:
+                        with open(input_path, "rb") as f:
+                            header = f.read(8)
+                            if header.startswith(b"UnityFS"):
+                                f.seek(0)
+                                env = UnityPy.load(f)
+
+                                for obj in env.objects:
+                                    if obj.type.name == "AssetBundle":
+                                        data = obj.read()
+                                        if data.m_Name:
+                                            resolved_name = os.path.splitext(data.m_Name)[0]
+                                            # retry lookup
+                                            c.execute("SELECT h, e FROM a WHERE n=?", (resolved_name,))
+                                            row = c.fetchone()
+                                            if row:
+                                                #print(f"{row} is found!, breaking")
+                                                break
+                    except Exception:
+                        pass
+                # FINAL CHECK
                 if not row:
                     missing_meta += 1
                     continue
