@@ -3,16 +3,14 @@ import json
 import shutil
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk, colorchooser
 import sqlite3
 import subprocess
 import re
 import winreg
 import struct
-import webbrowser
-from tkinter import colorchooser
 from pathlib import Path
-modloader_version = "1.4.1"
+modloader_version = "1.4.2"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -22,6 +20,7 @@ try:
     import UnityPy
     import vdf
     import apsw
+    import yaml
 except ImportError:
     rootuni = tk.Tk()
     rootuni.withdraw()
@@ -34,6 +33,7 @@ except ImportError:
             install_package("unitypy")
             install_package("vdf")
             install_package("apsw-sqlite3mc")
+            install_package("pyyaml")
             messagebox.showinfo(
                 "Installed",
                 "Please restart the application."
@@ -51,6 +51,7 @@ except ImportError:
 print("[OK] UnityPy ready")
 print("[OK] vdf ready")
 print("[OK] apsw-sqlite3mc ready")
+print("[OK] pyyaml")
 
 def find_dmm_umamusume():
     try:
@@ -370,7 +371,7 @@ class ModLoaderGUI:
         control_frame.pack(fill="x", padx=10, pady=5)
         self.assets_load_btn = tk.Button(control_frame, text="Load Assets", state="disabled", command=self.load_assets)
         self.assets_load_btn.pack(side="left", padx=5)
-        self.assets_load_raw_btn = tk.Button(control_frame, text="Load Assets (raw)", command=self.load_assets_manual)
+        self.assets_load_raw_btn = tk.Button(control_frame, text="Load Assets (manual)", command=self.load_assets_manual)
         self.assets_load_raw_btn.pack(side="left", padx=5)
         #self.assets_unload_btn = tk.Button(control_frame, text="Unload Assets", state="disabled", command=self.unload_assets)
         #self.assets_unload_btn.pack(side="left", padx=5)
@@ -388,7 +389,7 @@ class ModLoaderGUI:
         self.progress_bar.pack()
         
     # from kairusds/umamusu-utils
-    def decrypt_assets_internal(self, src_root, dst_root, use_hash=False):
+    def decrypt_assets_internal(self, src_root, dst_root, use_hash=False, filter_path=None):
         AB_KEY = b'\x53\x2B\x46\x31\xE4\xA7\xB9\x47\x3E\x7C\xFB'
 
         def derive_asset_key(key_long):
@@ -419,6 +420,17 @@ class ModLoaderGUI:
 
         # DRIVE FROM MOD FILES
         all_paths = list(self.scan_full_path(src_root))
+
+        # ---------------- FILTER ----------------
+        if filter_path:
+            filtered = []
+            for p in all_paths:
+                parts = p.replace("\\", "/").split("/")
+                if filter_path in parts:
+                    filtered.append(p)
+            all_paths = filtered
+            #print(f"filtered: {all_paths}")
+            
         total = len(all_paths)
         self.progress_bar["maximum"] = total
         self.progress_bar["value"] = 0
@@ -683,6 +695,13 @@ class ModLoaderGUI:
             
         def normalize_mchr(path, cid, sid):
             return path.replace(f"mchr{cid}_{sid}", "mchrXXXX_XX")
+
+        def swap_bytes(data, a, b):
+            placeholder = b"__TMP_SWAP__"
+            data = data.replace(a, placeholder)
+            data = data.replace(b, a)
+            data = data.replace(placeholder, b)
+            return data
             
         # ---- CHIBI SOFTLOCK WARNING ----
         if do_body and do_head and not do_chibi_head:
@@ -700,12 +719,10 @@ class ModLoaderGUI:
         tmp_root = "UMML_tmp"
         raw_dir = os.path.join(tmp_root, "raw")
         dec_dir = os.path.join(tmp_root, "dec")
-        decfinal_dir = os.path.join(tmp_root, "dec_final")
 
         shutil.rmtree(tmp_root, ignore_errors=True)
         os.makedirs(raw_dir, exist_ok=True)
         os.makedirs(dec_dir, exist_ok=True)
-        os.makedirs(decfinal_dir, exist_ok=True)
 
         # -------- GET CHARACTER INFO --------
         master = sqlite3.connect(
@@ -908,13 +925,19 @@ class ModLoaderGUI:
                 return
         
         # -------- COPY GAME FILES --------
+        save_folder = filedialog.askdirectory(title="Select folder to save mod")
+        if not save_folder:
+            shutil.rmtree(tmp_root, ignore_errors=True)
+            return
         meta.close()
         meta = sqlite3.connect(self.meta_path)
         c = meta.cursor()
 
         copied = 0
 
-        for asset_name in assets_src:
+        all_assets = assets_src | assets_dst
+
+        for asset_name in all_assets:
             # get hash from meta
             c.execute("SELECT h FROM a WHERE n=?", (asset_name,))
             row = c.fetchone()
@@ -938,7 +961,7 @@ class ModLoaderGUI:
         print(f"Copied {copied} assets")
 
         # -------- DECRYPT --------
-        decoded_count, missing_meta = self.decrypt_assets_internal(raw_dir, dec_dir, use_hash=True)
+        decoded_count, missing_meta = self.decrypt_assets_internal(raw_dir, dec_dir, use_hash=True, filter_path=None)
 
         # -------- MODIFY BUNDLES --------
         for file in os.listdir(dec_dir):
@@ -955,88 +978,72 @@ class ModLoaderGUI:
                 pass
 
             if do_body:
-                data = data.replace(
-                    f"bdy{chara_src}_{sub_src}".encode(),
-                    f"bdy{chara_dst}_{sub_dst}".encode()
-                )
+                a = f"bdy{chara_src}_{sub_src}".encode()
+                b = f"bdy{chara_dst}_{sub_dst}".encode()
+                data = swap_bytes(data, a, b)
 
             if do_head:
-                data = data.replace(
-                    f"chr{chara_src}_{sub_head_src}".encode(),
-                    f"chr{chara_dst}_{sub_head_dst}".encode()
-                )
+                a = f"chr{chara_src}_{sub_head_src}".encode()
+                b = f"chr{chara_dst}_{sub_head_dst}".encode()
+                data = swap_bytes(data, a, b)
+                
             if do_chibi_body:
-                data = data.replace(
-                    f"mbdy{chara_src}_{sub_src}".encode(),
-                    f"mbdy{chara_dst}_{sub_dst}".encode()
-                )
+                a = f"mbdy{chara_src}_{sub_src}".encode()
+                b = f"mbdy{chara_dst}_{sub_dst}".encode()
+                data = swap_bytes(data, a, b)
 
             if do_chibi_head:
-                data = data.replace(
-                    f"mchr{chara_src}_{sub_head_src}".encode(),
-                    f"mchr{chara_dst}_{sub_head_dst}".encode()
-                )
+                a = f"mchr{chara_src}_{sub_head_src}".encode()
+                b = f"mchr{chara_dst}_{sub_head_dst}".encode()
+                data = swap_bytes(data, a, b)
             if do_tail:
                 if swap_tail_assets:
-                    data = data.replace(
-                        f"tex_tail{src_tail_str}_00_{chara_src}".encode(),
-                        f"tex_tail{dst_tail_str}_00_{chara_dst}".encode()
-                    )
+                    a = f"tex_tail{src_tail_str}_00_{chara_src}".encode()
+                    b = f"tex_tail{dst_tail_str}_00_{chara_dst}".encode()
+                    data = swap_bytes(data, a, b)
 
             with open(path, "wb") as f:
                 f.write(data)
 
-        # -------- INSTALL (LOAD ASSETS LOGIC) --------
-        decoded_count, missing_meta = self.decrypt_assets_internal(dec_dir, decfinal_dir, use_hash=False)
-        assets = os.listdir(decfinal_dir)
-        os.makedirs(self.backup_path, exist_ok=True)
+        # -------- EXPORT AS MOD --------
+        mod_name = os.path.basename(save_folder.rstrip("/\\"))
+        assets_out = os.path.join(save_folder, "assets")
 
-        self.progress_bar["maximum"] = len(assets)
-        self.progress_bar["value"] = 0
+        os.makedirs(assets_out, exist_ok=True)
+        assets = os.listdir(dec_dir)
 
-        for i, asset in enumerate(assets, start=1):
-            src = os.path.join(decfinal_dir, asset)
-            dst = os.path.join(self.dat_path, asset[:2], asset)
-            backup = os.path.join(self.backup_path, asset[:2], asset)
+        decoded_count = 0
 
-            if os.path.isfile(dst):
-                if not os.path.isfile(backup):
-                    os.makedirs(os.path.dirname(backup), exist_ok=True)
-                    shutil.move(dst, backup)
-                else:
-                    os.remove(dst)
-            else:
-                messagebox.showerror(
-                    "Error",
-                    "Missing target file in dat folder.\nRun game once with full download."
-                )
-                return
+        for i, file in enumerate(assets, start=1):
+            src = os.path.join(dec_dir, file)
+            dst = os.path.join(assets_out, file)
 
-            shutil.copy(src, dst)
+            shutil.copy2(src, dst)
 
-            self.progress_label.config(text=f"Swapping {i}/{len(assets)}")
+            self.progress_label.config(text=f"Exporting {i}/{len(assets)}")
             self.progress_bar["value"] = i
             self.root.update_idletasks()
 
+            decoded_count += 1
+            
+        # create setting.json
+        setting_data = {
+            "mod_version": "1.0.0",
+            "title": mod_name,
+            "description": ["generated from swap character"],
+            "modloader_version": modloader_version
+        }
+
+        with open(os.path.join(save_folder, "setting.json"), "w", encoding="utf-8") as f:
+            json.dump(setting_data, f, indent=4, ensure_ascii=False)
+
         shutil.rmtree(tmp_root, ignore_errors=True)
-        if do_attribute:
-            self.swap_character_attributes(chara_src, chara_dst)
-        if do_tail:
-            if src_tail == -1:
-                db = sqlite3.connect(os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb"))
-                cur = db.cursor()
 
-                cur.execute("""
-                    UPDATE chara_data
-                    SET tail_model_id=?
-                    WHERE id=?
-                """, (dst_tail, chara_src))
-
-                db.commit()
-                db.close()
         messagebox.showinfo(
             "Success",
-            f"{decoded_count} assets swapped.\n{missing_meta} missing in meta."
+            f"Mod exported successfully.\n"
+            f"{decoded_count} assets generated.\n"
+            f"{missing_meta} missing in meta."
         )
 
     def force_translate_english(self):
@@ -1950,6 +1957,7 @@ class ModLoaderGUI:
             # ---------------- RANDOM TIME FIELDS ---------------- #
 
             time_columns = [
+                "scale",
                 "ear_random_time_min",
                 "ear_random_time_max",
                 "tail_random_time_min",
@@ -1962,7 +1970,7 @@ class ModLoaderGUI:
 
             time_vars = {}
 
-            time_frame = tk.LabelFrame(detail, text="Random Motion Timers")
+            time_frame = tk.LabelFrame(detail, text="Parameter")
             time_frame.pack(fill="x", pady=5)
 
             for col in time_columns:
@@ -2130,23 +2138,36 @@ class ModLoaderGUI:
         #self.assets_unload_btn.config(state="disabled")
 
     def reload(self):
-        mods_setting_path = os.path.join(self.mod_path.get(), "setting.json")
+        mod_folder = self.mod_path.get()
 
-        if not os.path.isfile(mods_setting_path):
-            messagebox.showerror("Error", "No 'setting.json' found in selected mod folder.")
-            self.reset_mod_info()
-            return
+        json_path = os.path.join(mod_folder, "setting.json")
+        yml_path = os.path.join(mod_folder, "setting.yml")
 
-        try:
-            with open(mods_setting_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load setting.json:\n{e}")
-            self.reset_mod_info()
-            return
+        data = None
 
-        if not all(k in data for k in required_keys):
-            messagebox.showerror("Error", "'setting.json' is missing required keys.")
+        # --- try JSON first ---
+        if os.path.isfile(json_path):
+            try:
+                with open(json_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load setting.json:\n{e}")
+                self.reset_mod_info()
+                return
+
+        # --- fallback to YAML ---
+        elif os.path.isfile(yml_path):
+            try:
+                with open(yml_path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load setting.yml:\n{e}")
+                self.reset_mod_info()
+                return
+
+        # --- no config found ---
+        else:
+            messagebox.showerror("Error", "No setting.json or setting.yml found.")
             self.reset_mod_info()
             return
 
@@ -2171,89 +2192,166 @@ class ModLoaderGUI:
         #self.assets_unload_btn.config(state="normal" if assets_exist else "disabled")
 
     def load_assets_manual(self):
-        # ---------------- MODE SELECT ----------------
-        choice = messagebox.askyesnocancel(
-            "Load Assets",
-            "Yes = Load Folder\nNo = Load Files\nCancel = Abort"
-        )
-
-        if choice is None:
-            return  # cancel
-
-        # ---------------- PICK PATH ----------------
-        if choice:  # YES → folder
-            path = filedialog.askdirectory(title="Select Asset Folder")
-            if not path:
-                return
-            rel_paths = self.scan_full_path(path)
-            assets = [os.path.join(path, p) for p in rel_paths]
-
-        else:  # NO → files
-            files = filedialog.askopenfilenames(title="Select Asset Files")
-            if not files:
-                return
-            assets = list(files)
-
-        if not assets:
-            messagebox.showinfo("uhh", "there nothing inside.")
+        path = filedialog.askdirectory(title="Select Asset Folder")
+        if not path:
             return
 
-        # ---------------- CONFIRM ----------------
+        has_pcs = messagebox.askyesnocancel(
+            "Ask",
+            "Does the mod contain Unencrypted PC assets (PC-s)?"
+        )
+
+        if has_pcs is None:
+            return
+
+        if has_pcs:
+            mode = "decrypt"
+            filter_folder = "PC-s"
+        else:
+            is_mod_encrypted = messagebox.askyesnocancel(
+                "Ask",
+                "Are these assets already encrypted / made for engine update?"
+            )
+
+            if is_mod_encrypted is None:
+                return
+
+            if is_mod_encrypted:
+                mode = "direct"
+            else:
+                mode = "decrypt"
+                filter_folder = "DMM"
+                        
+        # ---------------- LOAD ---------------- if is_mod_encrypted is true
         confirm = messagebox.askyesno(
             "Confirm",
-            f"Load {len(assets)} assets?"
+            f"Load assets now?"
         )
 
         if not confirm:
             return
+            
+        if mode == "direct":
+            rel_paths = self.scan_full_path(path)
+            assets = [os.path.join(path, p) for p in rel_paths]
 
-        # ---------------- LOAD ----------------
-        os.makedirs(self.backup_path, exist_ok=True)
+            if not assets:
+                messagebox.showinfo("uhh", "there nothing inside.")
+                return
+                
+            os.makedirs(self.backup_path, exist_ok=True)
 
-        self.progress_bar["maximum"] = len(assets)
-        self.progress_bar["value"] = 0
+            self.progress_bar["maximum"] = len(assets)
+            self.progress_bar["value"] = 0
 
-        loaded_count = 0
-        missing_count = 0
+            loaded_count = 0
+            missing_count = 0
 
-        for i, src in enumerate(assets, start=1):
-            filename = os.path.basename(src)
+            for i, src in enumerate(assets, start=1):
+                filename = os.path.basename(src)
 
-            # optional filter
-            if len(filename) < 32:
-                continue
+                # optional filter
+                if len(filename) < 32:
+                    continue
 
-            dst = os.path.join(self.dat_path, filename[:2], filename)
-            backup = os.path.join(self.backup_path, filename[:2], filename)
+                dst = os.path.join(self.dat_path, filename[:2], filename)
+                backup = os.path.join(self.backup_path, filename[:2], filename)
 
-            if os.path.isfile(dst):
-                if not os.path.isfile(backup):
-                    os.makedirs(os.path.dirname(backup), exist_ok=True)
-                    shutil.move(dst, backup)
+                if os.path.isfile(dst):
+                    if not os.path.isfile(backup):
+                        os.makedirs(os.path.dirname(backup), exist_ok=True)
+                        shutil.move(dst, backup)
+                    else:
+                        os.remove(dst)
                 else:
-                    os.remove(dst)
-            else:
-                missing_count += 1
-                continue
+                    missing_count += 1
+                    continue
 
+                try:
+                    shutil.copy(src, dst)
+                    loaded_count += 1
+                except Exception:
+                    missing_count += 1
+                    continue
+
+                self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
+                self.progress_bar["value"] = i
+                self.root.update_idletasks()
+
+            self.progress_label.config(text="Waiting")
+
+            messagebox.showinfo(
+                "Success",
+                f"{loaded_count} assets loaded successfully.\n"
+                f"{missing_count} assets missing in dat folder."
+            )
+            return
+        # ---------------- LOAD ---------------- if is_mod_encrypted is false
+        elif mode == "decrypt":
+            asset_folder = os.path.join(path, ".assets_cache")
             try:
+                decoded_count, missing_meta = self.decrypt_assets_internal(path, asset_folder, use_hash=False, filter_path=filter_folder)
+            except Exception as e:
+                messagebox.showerror(
+                    "Decrypt Error",
+                    "Failed to decrypt assets.\n"
+                    "This mod may be incompatible with the current game version or region.\n\n"
+                    f"{e}"
+                )
+                return
+
+            if not os.listdir(asset_folder):
+                messagebox.showinfo("uhh", "there nothing inside.")
+                shutil.rmtree(asset_folder, ignore_errors=True)
+                return
+                
+            # --- Step 2: load assets from decrypted cache ---
+            if not os.path.isdir(asset_folder):
+                messagebox.showerror("Error", f"Asset cache not found: {asset_folder}")
+                return
+
+            os.makedirs(self.backup_path, exist_ok=True)
+            assets = os.listdir(asset_folder)
+
+            self.progress_bar["maximum"] = len(assets)
+            self.progress_bar["value"] = 0
+
+            for i, asset in enumerate(assets, start=1):
+                src = os.path.join(asset_folder, asset)
+                dst = os.path.join(self.dat_path, asset[:2], asset)
+                backup = os.path.join(self.backup_path, asset[:2], asset)
+
+                if os.path.isfile(dst):
+                    if not os.path.isfile(backup):
+                        os.makedirs(os.path.dirname(backup), exist_ok=True)
+                        shutil.move(dst, backup)  # backup only once
+                    else:
+                        os.remove(dst)
+                else:
+                    messagebox.showerror(
+                        "Error",
+                        "Missing target file in dat folder.\nRun Uma Musume once with full data download first."
+                    )
+                    # cleanup cache before returning
+                    if os.path.exists(asset_folder):
+                        shutil.rmtree(asset_folder, ignore_errors=True)
+                    return
+
                 shutil.copy(src, dst)
-                loaded_count += 1
-            except Exception:
-                missing_count += 1
-                continue
+                self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
+                self.progress_bar["value"] = i
+                self.root.update_idletasks()
 
-            self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
-            self.progress_bar["value"] = i
-            self.root.update_idletasks()
-
-        self.progress_label.config(text="Waiting")
-
-        messagebox.showinfo(
-            "Success",
-            f"{loaded_count} assets loaded successfully.\n"
-            f"{missing_count} assets missing in dat folder."
-        )
+            # --- Step 3: cleanup ---
+            if os.path.exists(asset_folder):
+                shutil.rmtree(asset_folder, ignore_errors=True)
+            self.progress_label.config(text="Waiting")
+            messagebox.showinfo(
+                "Success",
+                f"{decoded_count} assets loaded successfully.\n"
+                f"{missing_meta} assets were not found in meta database."
+            )
+            return
 
     def load_assets(self):
         folder = self.mod_path.get()
@@ -2263,7 +2361,7 @@ class ModLoaderGUI:
         asset_folder_v = os.path.join(folder, "assets")
         asset_folder = os.path.join(folder, "assets_cache")
         try:
-            decoded_count, missing_meta = self.decrypt_assets_internal(asset_folder_v, asset_folder, use_hash=False)
+            decoded_count, missing_meta = self.decrypt_assets_internal(asset_folder_v, asset_folder, use_hash=False, filter_path=None)
         except Exception as e:
             messagebox.showerror(
                 "Decrypt Error",
@@ -2364,16 +2462,29 @@ class ModLoaderGUI:
         name_map = {}
         if os.path.isfile(meta_path):
             try:
-                conn = sqlite3.connect(meta_path)
-                c = conn.cursor()
-                for f in backup_files:
-                    fname = os.path.basename(f)   # only filename
-                    c.execute("SELECT n FROM a WHERE h=?", (fname,))
-                    row = c.fetchone()
-                    if row:
-                        name_map[f] = row[0]
-                    else:
-                        name_map[f] = fname
+                hashes = [os.path.basename(f) for f in backup_files]
+                name_map = {}
+
+                if hashes:
+                    try:
+                        conn = sqlite3.connect(meta_path)
+                        c = conn.cursor()
+
+                        # SQLite has limit (~999), so chunk it
+                        chunk_size = 900
+                        for i in range(0, len(hashes), chunk_size):
+                            chunk = hashes[i:i + chunk_size]
+                            placeholders = ",".join(["?"] * len(chunk))
+
+                            c.execute(f"SELECT h, n FROM a WHERE h IN ({placeholders})", chunk)
+
+                            for h, n in c.fetchall():
+                                name_map[h] = n
+
+                        conn.close()
+
+                    except Exception as e:
+                        messagebox.showwarning("Meta DB", f"Failed batch lookup:\n{e}")
                 conn.close()
             except Exception as e:
                 messagebox.showwarning("Meta DB", f"Failed to read meta database:\n{e}")
@@ -2390,10 +2501,12 @@ class ModLoaderGUI:
         scrollbar.pack(side="right", fill="y")
 
         listbox = tk.Listbox(frame, selectmode="extended", yscrollcommand=scrollbar.set, width=100, height=20)
-        entries = [(f, name_map.get(f, os.path.basename(f))) for f in backup_files]
+        entries = [
+            (f, name_map.get(os.path.basename(f), os.path.basename(f)))
+            for f in backup_files
+        ]
         entries.sort(key=lambda x: x[1].lower())  # sort by friendly name
-        for f, display_name in entries:
-            listbox.insert(tk.END, display_name)
+        listbox.insert(tk.END, *[display_name for _, display_name in entries])
         listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=listbox.yview)
 
