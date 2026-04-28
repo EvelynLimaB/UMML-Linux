@@ -715,23 +715,7 @@ class ModLoaderGUI:
             concert_map[label] = mid
 
         # ---------------- CHARA DROPDOWN ---------------- #
-        c.execute("SELECT id FROM chara_data ORDER BY id")
-        chara_ids = [r[0] for r in c.fetchall()]
-
-        chara_options = []
-        chara_map = {}
-
-        for cid in chara_ids:
-            c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
-            name = c.fetchone()
-            name = name[0] if name else f"Chara {cid}"
-
-            label = f"{cid} - {name}"
-            chara_options.append(label)
-            chara_map[label] = cid
-
-        # ---------------- DRESS DROPDOWN ---------------- #
-        c.execute("SELECT id FROM dress_data")
+        c.execute("SELECT id FROM dress_data WHERE id BETWEEN 100000 AND 1000000 ORDER BY id")
         dress_ids = [r[0] for r in c.fetchall()]
 
         dress_options = []
@@ -749,6 +733,42 @@ class ModLoaderGUI:
             label = f"{did} - {name} - {detail}"
             dress_options.append(label)
             dress_map[label] = did
+
+        # ---------------- DRESS DROPDOWN ---------------- #
+        c.execute("SELECT id FROM dress_data WHERE id BETWEEN 0 AND 1000")
+        base_ids = [r[0] for r in c.fetchall()]
+
+        base_options = []
+        base_map = {}
+
+        for oid in base_ids:
+            c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (oid,))
+            name = c.fetchone()
+            name = name[0] if name else f"ID {oid}"
+
+            c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (oid,))
+            detail = c.fetchone()
+            detail = detail[0] if detail else "N/A"
+
+            label = f"{oid} - {name} - {detail}"
+            base_options.append(label)
+            base_map[label] = oid
+            
+        # chara dropdown    
+        c.execute("SELECT id FROM chara_data ORDER BY id")
+        chara_ids = [r[0] for r in c.fetchall()]
+
+        chara_options = []
+        chara_map = {}
+
+        for cid in chara_ids:
+            c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
+            name = c.fetchone()
+            name = name[0] if name else f"Chara {cid}"
+
+            label = f"{cid} - {name}"
+            chara_options.append(label)
+            chara_map[label] = cid
 
         # ---------------- TOP CONTROLS ---------------- #
         top = tk.Frame(win)
@@ -803,12 +823,12 @@ class ModLoaderGUI:
                 tk.Label(r, text=f"{i}", width=5).pack(side="left")
 
                 # chara
-                chara_var = tk.StringVar(value=chara_options[0])
-                ttk.Combobox(r, textvariable=chara_var, values=chara_options, state="readonly", width=25).pack(side="left", padx=5)
+                chara_var = tk.StringVar(value=dress_options[0])
+                ttk.Combobox(r, textvariable=chara_var, values=dress_options, state="readonly", width=25).pack(side="left", padx=5)
 
                 # dress
-                dress_var = tk.StringVar(value=dress_options[0])
-                ttk.Combobox(r, textvariable=dress_var, values=dress_options, state="readonly", width=35).pack(side="left", padx=5)
+                dress_var = tk.StringVar(value=base_options[0])
+                ttk.Combobox(r, textvariable=dress_var, values=base_options, state="readonly", width=35).pack(side="left", padx=5)
 
                 # vocal
                 vocal_var = tk.StringVar(value=chara_options[0])
