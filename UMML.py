@@ -354,6 +354,14 @@ class ModLoaderGUI:
             command=self.open_swap_character
         )
 
+        story_menu = tk.Menu(misc_menu, tearoff=0)
+        misc_menu.add_cascade(label="Story", menu=story_menu)
+
+        story_menu.add_command(
+            label="Concert",
+            command=self.open_story_concert
+        )
+
         mod_frame = tk.LabelFrame(self.root, text="Mod Loader")
         mod_frame.pack(fill="x", padx=10, pady=5)
         tk.Entry(mod_frame, textvariable=self.mod_path, width=60).pack(side="left", padx=5)
@@ -605,6 +613,214 @@ class ModLoaderGUI:
 
         conn.commit()
         conn.close()
+
+    def open_story_concert(self):
+        def get_story_display_name(c, set_id):
+            # find matching main_story_data row
+            c.execute("""
+                SELECT id
+                FROM main_story_data
+                WHERE story_type_1=2 AND story_id_1=?
+                   OR story_type_2=2 AND story_id_2=?
+                   OR story_type_3=2 AND story_id_3=?
+                   OR story_type_4=2 AND story_id_4=?
+                   OR story_type_5=2 AND story_id_5=?
+                LIMIT 1
+            """, (set_id, set_id, set_id, set_id, set_id))
+
+            row = c.fetchone()
+            if not row:
+                return f"{set_id} - Unknown"
+
+            main_story_id = row[0]
+
+            # get display text
+            c.execute("""
+                SELECT text FROM text_data
+                WHERE category=94 AND `index`=?
+            """, (main_story_id,))
+            text_row = c.fetchone()
+
+            name = text_row[0] if text_row else "Unknown"
+            return f"{set_id} - {name}"
+        db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
+
+        if not os.path.isfile(db_path):
+            messagebox.showerror("Error", "master.mdb not found")
+            return
+
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+
+        win = tk.Toplevel(self.root)
+        win.title("Story Concert")
+        win.geometry("400x500")
+
+        canvas = tk.Canvas(win)
+        scrollbar = tk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        frame = tk.Frame(canvas)
+
+        frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        canvas.create_window((0, 0), window=frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # --- get set_id list ---
+        c.execute("SELECT DISTINCT set_id FROM story_live_position ORDER BY set_id")
+        set_ids = [row[0] for row in c.fetchall()]
+
+        for set_id in set_ids:
+            row_frame = tk.Frame(frame)
+            row_frame.pack(fill="x", pady=2)
+
+            display_text = get_story_display_name(c, set_id)
+
+            tk.Label(row_frame, text=display_text, width=40, anchor="w").pack(side="left")
+
+            tk.Button(
+                row_frame,
+                text="Edit Concert",
+                command=lambda sid=set_id: self.open_edit_concert(sid)
+            ).pack(side="left", padx=5)
+
+        conn.close()
+
+    def open_edit_concert(self, set_id):
+        db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
+
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Edit Concert - Set {set_id}")
+        win.geometry("900x600")
+
+        # ---------------- GET CONCERT LIST ---------------- #
+        c.execute("SELECT music_id FROM live_data WHERE has_live=1 ORDER BY music_id")
+        music_ids = [r[0] for r in c.fetchall()]
+
+        concert_options = []
+        concert_map = {}
+
+        for mid in music_ids:
+            c.execute("SELECT text FROM text_data WHERE category=16 AND `index`=?", (mid,))
+            name = c.fetchone()
+            name = name[0] if name else "Unknown"
+
+            label = f"{mid} - {name}"
+            concert_options.append(label)
+            concert_map[label] = mid
+
+        # ---------------- CHARA DROPDOWN ---------------- #
+        c.execute("SELECT id FROM chara_data ORDER BY id")
+        chara_ids = [r[0] for r in c.fetchall()]
+
+        chara_options = []
+        chara_map = {}
+
+        for cid in chara_ids:
+            c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
+            name = c.fetchone()
+            name = name[0] if name else f"Chara {cid}"
+
+            label = f"{cid} - {name}"
+            chara_options.append(label)
+            chara_map[label] = cid
+
+        # ---------------- DRESS DROPDOWN ---------------- #
+        c.execute("SELECT id FROM dress_data")
+        dress_ids = [r[0] for r in c.fetchall()]
+
+        dress_options = []
+        dress_map = {}
+
+        for did in dress_ids:
+            c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (did,))
+            name = c.fetchone()
+            name = name[0] if name else "Unknown"
+
+            c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (did,))
+            detail = c.fetchone()
+            detail = detail[0] if detail else ""
+
+            label = f"{did} - {name} - {detail}"
+            dress_options.append(label)
+            dress_map[label] = did
+
+        # ---------------- TOP CONTROLS ---------------- #
+        top = tk.Frame(win)
+        top.pack(fill="x", pady=5)
+
+        tk.Label(top, text="Music").pack(side="left")
+
+        music_var = tk.StringVar(value=concert_options[0] if concert_options else "")
+        music_combo = ttk.Combobox(top, textvariable=music_var, values=concert_options, state="readonly", width=50)
+        music_combo.pack(side="left", padx=5)
+
+        # ---------------- SCROLL AREA ---------------- #
+        canvas = tk.Canvas(win)
+        scrollbar = tk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        table_frame = tk.Frame(canvas)
+
+        table_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=table_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # ---------------- BUILD ROWS ---------------- #
+        row_widgets = []
+
+        def rebuild_rows(*args):
+            for w in table_frame.winfo_children():
+                w.destroy()
+
+            selected = music_var.get()
+            music_id = concert_map.get(selected)
+            if not music_id:
+                return
+
+            c.execute("""
+                SELECT live_member_number 
+                FROM live_data 
+                WHERE music_id=? AND has_live=1
+            """, (music_id,))
+            row = c.fetchone()
+
+            if not row:
+                return
+
+            member_count = row[0]
+
+            for i in range(1, member_count + 1):
+                r = tk.Frame(table_frame)
+                r.pack(fill="x", pady=2)
+
+                tk.Label(r, text=f"{i}", width=5).pack(side="left")
+
+                # chara
+                chara_var = tk.StringVar(value=chara_options[0])
+                ttk.Combobox(r, textvariable=chara_var, values=chara_options, state="readonly", width=25).pack(side="left", padx=5)
+
+                # dress
+                dress_var = tk.StringVar(value=dress_options[0])
+                ttk.Combobox(r, textvariable=dress_var, values=dress_options, state="readonly", width=35).pack(side="left", padx=5)
+
+                # vocal
+                vocal_var = tk.StringVar(value=chara_options[0])
+                ttk.Combobox(r, textvariable=vocal_var, values=chara_options, state="readonly", width=25).pack(side="left", padx=5)
+
+        # trigger rebuild
+        music_combo.bind("<<ComboboxSelected>>", rebuild_rows)
+
+        # initial build
+        rebuild_rows()
+
+        win.protocol("WM_DELETE_WINDOW", lambda: (conn.close(), win.destroy()))
 
     def open_swap_character(self):
         master_db = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
