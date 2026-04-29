@@ -149,6 +149,7 @@ def find_game_path(app_id):
 
 def load_settings():
     steam_game_path_jpn = find_game_path(3564400)
+    steam_game_path_en = find_game_path(3224770)
     dmm_game_path_jpn = find_dmm_umamusume()
 
     base_path_steam_en = (
@@ -158,6 +159,7 @@ def load_settings():
         / "Cygames"
         / "umamusume"
     )
+    game_dir = steam_game_path_en
     print(f"Steam EN path: {base_path_steam_en}")
     base_path_steam_jp = None
     if steam_game_path_jpn:
@@ -166,6 +168,7 @@ def load_settings():
             / "UmamusumePrettyDerby_Jpn_Data"
             / "Persistent"
         )
+        game_dir = steam_game_path_jpn
     print(f"Steam JP path: {base_path_steam_jp}")
     base_path_dmm_jp = None
     if dmm_game_path_jpn:
@@ -174,6 +177,7 @@ def load_settings():
             / "umamusume_Data"
             / "Persistent"
         )
+        game_dir = dmm_game_path_jpn
     print(f"DMM Game path: {dmm_game_path_jpn}")
     root = tk.Tk()
     root.withdraw()
@@ -236,7 +240,7 @@ def load_settings():
     dat = os.path.join(base_path, "dat")
     backup = os.path.join(base_path, "dat.backup")
 
-    return dat, backup, region
+    return dat, backup, region, game_dir
     
 # using ref from noccu/hachimi-tools
 def load_or_decrypt_meta_simple(dat_path, region):
@@ -291,12 +295,25 @@ def load_or_decrypt_meta_simple(dat_path, region):
 
     return meta_dec
     
-class ModLoaderGUI:
+class ModLoaderGUI:    
+    def load_hachimi_dict(self):
+        path = os.path.join(self.game_dir, "hachimi", "localized_data", "text_data_dict.json")
+        #print(f"{path}")
+        if not os.path.isfile(path):
+            self.hachimi_dict = {}
+            return
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                self.hachimi_dict = json.load(f)
+        except:
+            self.hachimi_dict = {}
+            
     def __init__(self, root):
         self.root = root
         self.root.title("UMML GUI")
 
-        self.dat_path, self.backup_path, self.region = load_settings()
+        self.dat_path, self.backup_path, self.region, self.game_dir = load_settings()
         # bind function (optional but matches your request)
         self.meta_path_load = load_or_decrypt_meta_simple
         # resolve meta path ONCE at startup
@@ -305,7 +322,7 @@ class ModLoaderGUI:
         self.mod_path = tk.StringVar()
         self.title_text = tk.StringVar()
         self.version_text = tk.StringVar()
-
+        self.load_hachimi_dict()
         self.create_widgets()
 
     def create_widgets(self):
@@ -395,6 +412,15 @@ class ModLoaderGUI:
         self.progress_label.pack(anchor="w")
         self.progress_bar = ttk.Progressbar(progress_frame, orient="horizontal", length=400, mode="determinate")
         self.progress_bar.pack()
+
+    def hachimi_translation_redirect(self, category, index, default_text):
+        if not hasattr(self, "hachimi_dict") or not self.hachimi_dict:
+            return default_text
+
+        cat = str(category)
+        idx = str(index)
+
+        return self.hachimi_dict.get(cat, {}).get(idx, default_text)
         
     # from kairusds/umamusu-utils
     def decrypt_assets_internal(self, src_root, dst_root, use_hash=False, filter_path=None):
@@ -641,7 +667,8 @@ class ModLoaderGUI:
             """, (main_story_id,))
             text_row = c.fetchone()
 
-            name = text_row[0] if text_row else "Unknown"
+            name_og = text_row[0] if text_row else "Unknown"
+            name = self.hachimi_translation_redirect(94, main_story_id, name_og)
             return f"{set_id} - {name}"
         db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
 
@@ -733,8 +760,8 @@ class ModLoaderGUI:
         for mid in music_ids:
             c.execute("SELECT text FROM text_data WHERE category=16 AND `index`=?", (mid,))
             name = c.fetchone()
-            name = name[0] if name else "Unknown"
-
+            name_og = name[0] if name else "Unknown"
+            name = self.hachimi_translation_redirect(16, mid, name_og)
             label = f"{mid} - {name}"
             concert_options.append(label)
             concert_map[label] = mid
@@ -749,12 +776,12 @@ class ModLoaderGUI:
         for did in dress_ids:
             c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (did,))
             name = c.fetchone()
-            name = name[0] if name else "Unknown"
-
+            name_og = name[0] if name else "Unknown"
+            name = self.hachimi_translation_redirect(14, did, name_og)
             c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (did,))
             detail = c.fetchone()
-            detail = detail[0] if detail else ""
-
+            detail_og = detail[0] if detail else ""
+            detail = self.hachimi_translation_redirect(15, did, detail_og)
             label = f"{did} - {name} - {detail}"
             dress_options.append(label)
             dress_map[label] = did
@@ -769,12 +796,12 @@ class ModLoaderGUI:
         for oid in base_ids:
             c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (oid,))
             name = c.fetchone()
-            name = name[0] if name else f"ID {oid}"
-
+            name_og = name[0] if name else f"ID {oid}"
+            name = self.hachimi_translation_redirect(14, oid, name_og)
             c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (oid,))
             detail = c.fetchone()
-            detail = detail[0] if detail else "N/A"
-
+            detail_og = detail[0] if detail else "N/A"
+            detail = self.hachimi_translation_redirect(15, oid, detail_og)
             label = f"{oid} - {name} - {detail}"
             base_options.append(label)
             base_map[label] = oid
@@ -789,8 +816,8 @@ class ModLoaderGUI:
         for cid in chara_ids:
             c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
             name = c.fetchone()
-            name = name[0] if name else f"Chara {cid}"
-
+            name_og = name[0] if name else f"Chara {cid}"
+            name = self.hachimi_translation_redirect(6, cid, name_og)
             label = f"{cid} - {name}"
             chara_options.append(label)
             chara_map[label] = cid
@@ -938,12 +965,12 @@ class ModLoaderGUI:
         for oid in ids:
             c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (oid,))
             name = c.fetchone()
-            name = name[0] if name else "Unknown"
-
+            name_og = name[0] if name else "Unknown"
+            name = self.hachimi_translation_redirect(14, oid, name_og)
             c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (oid,))
             detail = c.fetchone()
-            detail = detail[0] if detail else ""
-
+            detail_og = detail[0] if detail else ""
+            detail = self.hachimi_translation_redirect(15, oid, detail_og)
             options.append(f"{oid} - {name} - {detail}")
 
         conn.close()
@@ -1540,7 +1567,8 @@ class ModLoaderGUI:
         for cid in chara_ids:
             c.execute("SELECT text FROM text_data WHERE `index`=? AND category=6", (cid,))
             row = c.fetchone()
-            chara_names[cid] = row[0] if row else f"Chara {cid}"
+            chara_names_og = row[0] if row else f"Chara {cid}"
+            chara_names[cid] = self.hachimi_translation_redirect(6, cid, chara_names_og)
 
         win = tk.Toplevel(self.root)
         win.title("Personality Settings")
@@ -1667,13 +1695,13 @@ class ModLoaderGUI:
                 # name (cat 14)
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=14", (oid,))
                 name_row = c.fetchone()
-                name_text = name_row[0] if name_row else f"Dress {oid}"
-
+                name_text_og = name_row[0] if name_row else f"Dress {oid}"
+                name_text = self.hachimi_translation_redirect(14, oid, name_text_og)
                 # detail (cat 15)
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=15", (oid,))
                 detail_row = c.fetchone()
-                detail_text = detail_row[0] if detail_row else "N/A"
-
+                detail_text_og = detail_row[0] if detail_row else "N/A"
+                detail_text = self.hachimi_translation_redirect(15, oid, detail_text_og)
                 dress_data_list.append((oid, name_text, detail_text, gender, body, sub, setting, head_sub))
 
             conn.close()
@@ -1891,8 +1919,8 @@ class ModLoaderGUI:
                 # training name (category 138)
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=138", (tid,))
                 name_row = c.fetchone()
-                name_text = name_row[0] if name_row else f"Training {tid}"
-
+                name_text_og = name_row[0] if name_row else f"Training {tid}"
+                name_text = self.hachimi_translation_redirect(138, tid, name_text_og)
                 training_data.append((tid, name_text, dress_id, cutin_id, cmd_type))
 
             # --- build dropdown options from dress_data (id 0–1000) ---
@@ -1905,13 +1933,13 @@ class ModLoaderGUI:
                 # Name
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=14", (oid,))
                 name_row = c.fetchone()
-                name_text = name_row[0] if name_row else f"ID {oid}"
-
+                name_text_og = name_row[0] if name_row else f"ID {oid}"
+                name_text = self.hachimi_translation_redirect(14, oid, name_text_og)
                 # Detail
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=15", (oid,))
                 detail_row = c.fetchone()
-                detail_text = detail_row[0] if detail_row else "N/A"
-
+                detail_text_og = detail_row[0] if detail_row else "N/A"
+                detail_text = self.hachimi_translation_redirect(15, oid, detail_text_og)
                 label = f"{oid} - {name_text} - {detail_text}"
                 options.append(label)
                 option_map[oid] = label
@@ -2069,7 +2097,8 @@ class ModLoaderGUI:
             # get name
             c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
             name_row = c.fetchone()
-            name = name_row[0] if name_row else f"Chara {cid}"
+            name_og = name_row[0] if name_row else f"Chara {cid}"
+            name = self.hachimi_translation_redirect(6, cid, name_og)
 
             container = tk.Frame(frame, relief="groove", bd=1)
             container.pack(fill="x", pady=4, padx=5)
@@ -2648,14 +2677,7 @@ class ModLoaderGUI:
                     else:
                         os.remove(dst)
                 else:
-                    messagebox.showerror(
-                        "Error",
-                        "Missing target file in dat folder.\nRun Uma Musume once with full data download first."
-                    )
-                    # cleanup cache before returning
-                    if os.path.exists(asset_folder):
-                        shutil.rmtree(asset_folder, ignore_errors=True)
-                    return
+                    missing_meta += 1
 
                 shutil.copy(src, dst)
                 self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
@@ -2719,15 +2741,7 @@ class ModLoaderGUI:
                 else:
                     os.remove(dst)
             else:
-                messagebox.showerror(
-                    "Error",
-                    "Missing target file in dat folder.\nRun Uma Musume once with full data download first."
-                )
-                # cleanup cache before returning
-                if os.path.exists(asset_folder):
-                    shutil.rmtree(asset_folder, ignore_errors=True)
-                return
-
+                missing_meta += 1
             shutil.copy(src, dst)
             self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
             self.progress_bar["value"] = i
