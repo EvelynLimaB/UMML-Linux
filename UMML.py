@@ -717,29 +717,31 @@ class ModLoaderGUI:
 
     def open_edit_concert(self, set_id):
         
-        def get_values(chara_var, dress_var, vocal_var):
-            # LEFT (dress 100000+)
-            left_label = chara_var.get()
-            did = dress_map.get(left_label, 0)
+        def get_values(chara_var, dress_var, dress2_var, vocal_var):
+            # --- chara ---
+            chara_label = chara_var.get()
+            chara_id = chara_map.get(chara_label, 0)
 
-            # split chara_id
-            c.execute("SELECT chara_id FROM dress_data WHERE id=?", (did,))
-            row = c.fetchone()
-            base_cid = row[0] if row else 0
+            # --- main dress ---
+            dress_label = dress_var.get()
+            dress_id = 0
+            if dress_label and dress_label != "None":
+                dress_id = int(dress_label.split(" - ")[0])
 
-            # CENTER (dress)
-            if dress_var.get() == "Default":
-                final_dress = did
-            else:
-                final_dress = base_map.get(dress_var.get(), 0)
+            # --- second dress ---
+            dress2_label = dress2_var.get()
+            second_dress_id = 0
+            if dress2_label and dress2_label != "None":
+                second_dress_id = int(dress2_label.split(" - ")[0])
 
-            # RIGHT (vocal)
+            # --- vocal ---
             if vocal_var.get() == "Default":
-                final_vocal = base_cid
+                vocal_id = chara_id
             else:
-                final_vocal = chara_map.get(vocal_var.get(), 0)
+                vocal_id = chara_map.get(vocal_var.get(), 0)
 
-            return base_cid, final_dress, final_vocal
+            return chara_id, dress_id, second_dress_id, vocal_id
+
         
         db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
 
@@ -952,8 +954,8 @@ class ModLoaderGUI:
                     dc["values"] = options
                     d2c["values"] = options
 
-                    dc.set(options[0])
-                    d2c.set(options[0])
+                    dc.set(options[-1])
+                    d2c.set(options[-1])
 
                 chara_combo.bind("<<ComboboxSelected>>", update_dress_options)
                 update_dress_options()
@@ -976,9 +978,11 @@ class ModLoaderGUI:
             max_id = c.fetchone()[0] or 0
             next_id = max_id + 1
 
-            for idx, (chara_var, dress_var, vocal_var) in enumerate(row_widgets, start=1):
+            for idx, (chara_var, dress_var, dress2_var, vocal_var) in enumerate(row_widgets, start=1):
 
-                chara_id, dress_id, vocal_id = get_values(chara_var, dress_var, vocal_var)
+                chara_id, dress_id, second_dress_id, vocal_id = get_values(
+                    chara_var, dress_var, dress2_var, vocal_var
+                )
 
                 c.execute("""
                     INSERT INTO story_live_position (
@@ -988,7 +992,7 @@ class ModLoaderGUI:
                         second_dress_id, second_dress_color,
                         vocal_chara_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?)
                 """, (
                     next_id,
                     set_id,
@@ -997,6 +1001,7 @@ class ModLoaderGUI:
                     1,
                     chara_id,
                     dress_id,
+                    second_dress_id,
                     vocal_id
                 ))
 
@@ -1004,6 +1009,7 @@ class ModLoaderGUI:
 
             conn.commit()
             messagebox.showinfo("Done", "Concert saved.")
+            
         music_combo.bind("<<ComboboxSelected>>", rebuild_rows)
         # initial build
         rebuild_rows()
