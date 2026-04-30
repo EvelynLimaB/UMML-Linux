@@ -871,36 +871,94 @@ class ModLoaderGUI:
             member_count = row[0]
 
             for i in range(1, member_count + 1):
+
                 r = tk.Frame(table_frame)
                 r.pack(fill="x", pady=2)
 
                 tk.Label(r, text=f"{i}", width=5).pack(side="left")
 
-                # chara (LEFT) → dress 100000+
-                chara_var = tk.StringVar(value=dress_options[0])
-                ttk.Combobox(
-                    r, textvariable=chara_var,
-                    values=dress_options,
-                    state="readonly", width=50
-                ).pack(side="left", padx=5)
+                # --- Character ---
+                chara_var = tk.StringVar(value=chara_options[0])
+                chara_combo = ttk.Combobox(
+                    r,
+                    textvariable=chara_var,
+                    values=chara_options,
+                    state="readonly",
+                    width=30
+                )
+                chara_combo.pack(side="left", padx=5)
 
-                # dress (CENTER)
-                dress_var = tk.StringVar(value="Default")
-                ttk.Combobox(
-                    r, textvariable=dress_var,
-                    values=base_options_with_default,
-                    state="readonly", width=50
-                ).pack(side="left", padx=5)
+                # --- Main Dress ---
+                dress_var = tk.StringVar()
+                dress_combo = ttk.Combobox(
+                    r,
+                    textvariable=dress_var,
+                    state="readonly",
+                    width=30
+                )
+                dress_combo.pack(side="left", padx=5)
 
-                # vocal (RIGHT)
+                # --- Second Dress ---
+                dress2_var = tk.StringVar()
+                dress2_combo = ttk.Combobox(
+                    r,
+                    textvariable=dress2_var,
+                    state="readonly",
+                    width=30
+                )
+                dress2_combo.pack(side="left", padx=5)
+
+                # --- Vocal ---
                 vocal_var = tk.StringVar(value="Default")
-                ttk.Combobox(
-                    r, textvariable=vocal_var,
+                vocal_combo = ttk.Combobox(
+                    r,
+                    textvariable=vocal_var,
                     values=chara_options_with_default,
-                    state="readonly", width=40
-                ).pack(side="left", padx=5)
+                    state="readonly",
+                    width=30
+                )
+                vocal_combo.pack(side="left", padx=5)
 
-                row_widgets.append((chara_var, dress_var, vocal_var))
+                def update_dress_options(event=None, cv=chara_var, dc=dress_combo, d2c=dress2_combo):
+                    selected = cv.get()
+                    cid = chara_map.get(selected)
+
+                    if not cid:
+                        return
+
+                    c.execute("SELECT id FROM dress_data WHERE id BETWEEN 0 AND 1000 AND use_live=0")
+                    base_ids = [r[0] for r in c.fetchall()]
+
+                    c.execute("SELECT id FROM dress_data WHERE chara_id=?", (cid,))
+                    chara_ids = [r[0] for r in c.fetchall()]
+
+                    ids = base_ids + chara_ids
+
+                    options = []
+                    for did in ids:
+                        c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (did,))
+                        name = c.fetchone()
+                        name = name[0] if name else "Unknown"
+
+                        c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (did,))
+                        detail = c.fetchone()
+                        detail = detail[0] if detail else ""
+
+                        options.append(f"{did} - {name} - {detail}")
+
+                    if not options:
+                        options = ["None"]
+
+                    dc["values"] = options
+                    d2c["values"] = options
+
+                    dc.set(options[0])
+                    d2c.set(options[0])
+
+                chara_combo.bind("<<ComboboxSelected>>", update_dress_options)
+                update_dress_options()
+
+                row_widgets.append((chara_var, dress_var, dress2_var, vocal_var))
 
         # trigger rebuild
         def save_concert():
@@ -947,7 +1005,6 @@ class ModLoaderGUI:
             conn.commit()
             messagebox.showinfo("Done", "Concert saved.")
         music_combo.bind("<<ComboboxSelected>>", rebuild_rows)
-
         # initial build
         rebuild_rows()
         tk.Button(win, text="Save", command=save_concert).pack(pady=10)     
