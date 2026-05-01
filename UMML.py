@@ -2607,37 +2607,82 @@ class ModLoaderGUI:
         self.assets_load_btn.config(state="normal" if assets_exist else "disabled")
         #self.assets_unload_btn.config(state="normal" if assets_exist else "disabled")
 
+    def platform_check_manual(self, base_path):
+        rel_paths = self.scan_full_path(base_path)
+
+        found = {
+            "PC-s": False,
+            "DMM": False,
+            "GLO": False,
+        }
+        for p in rel_paths:
+            parts = p.replace("\\", "/").split("/")
+            for key in found:
+                if key in parts:
+                    found[key] = True
+
+        # ---------------- PLATFORM DETECTED ----------------
+
+        if any(found.values()):
+            # --- PC-s priority ---
+            region_warn = None
+            if found["PC-s"]:
+                return "decrypt", "PC-s"
+
+            # --- DMM / GLO ---
+            if self.region == "Global":
+                if found["GLO"]:
+                    folder_type = "GLO"
+                else:
+                    folder_type = "DMM"
+                    region_warn = "GLO not found but "
+            else:
+                folder_type = "DMM"
+                
+            choice = messagebox.askyesnocancel(
+                "Encryption Check",
+                f"{region_warn}{folder_type} detected.\n\n"
+                "Are these assets already encrypted?"
+            )
+
+            if choice is None:
+                return None
+            if choice:
+                if region_warn is not None:
+                    messagebox.showwarning("Sorry", "can't use encrypted asset for Global")
+                    return None
+                return "direct", folder_type
+            else:
+                return "decrypt", folder_type
+
+        # ---------------- NOT PLATFORM MOD ----------------
+
+        choice = messagebox.askyesnocancel(
+            "Non-platform Mod",
+            "No platform folders detected.\n\n"
+            "Are these assets already encrypted?"
+        )
+
+        if choice is None:
+            return None
+
+        if choice:
+            return "direct", None
+        else:
+            return "decrypt", None
+
     def load_assets_manual(self):
         path = filedialog.askdirectory(title="Select Asset Folder")
         if not path:
             return
 
-        has_pcs = messagebox.askyesnocancel(
-            "Ask",
-            "Does the mod contain Unencrypted PC assets (PC-s)?"
-        )
+        result = self.platform_check_manual(path)
 
-        if has_pcs is None:
+        if result is None:
             return
 
-        if has_pcs:
-            mode = "decrypt"
-            filter_folder = "PC-s"
-        else:
-            is_mod_encrypted = messagebox.askyesnocancel(
-                "Ask",
-                "Are these assets already encrypted / made for engine update?"
-            )
-
-            if is_mod_encrypted is None:
-                return
-
-            if is_mod_encrypted:
-                mode = "direct"
-            else:
-                mode = "decrypt"
-                filter_folder = "DMM"
-                        
+        mode, filter_folder = result     
+        
         # ---------------- LOAD ---------------- if is_mod_encrypted is true
         confirm = messagebox.askyesno(
             "Confirm",
@@ -2649,6 +2694,15 @@ class ModLoaderGUI:
             
         if mode == "direct":
             rel_paths = self.scan_full_path(path)
+            
+            if filter_folder:
+                filtered = []
+                for p in rel_paths:
+                    parts = p.replace("\\", "/").split("/")
+                    if filter_folder in parts:
+                        filtered.append(p)
+                rel_paths = filtered
+                
             assets = [os.path.join(path, p) for p in rel_paths]
 
             if not assets:
