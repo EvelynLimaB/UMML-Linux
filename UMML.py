@@ -10,7 +10,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.2"
+modloader_version = "1.4.3"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -755,11 +755,14 @@ class ModLoaderGUI:
         # ---------------- GET CONCERT LIST ---------------- #
         c.execute("SELECT music_id FROM live_data WHERE has_live=1 ORDER BY music_id")
         music_ids = [r[0] for r in c.fetchall()]
-
+        c.execute("SELECT music_id FROM live_data WHERE music_type=99")
+        music_ids_backdance = [r[0] for r in c.fetchall()]
+        collected_music_id = music_ids + music_ids_backdance
+        
         concert_options = []
         concert_map = {}
 
-        for mid in music_ids:
+        for mid in collected_music_id:
             c.execute("SELECT text FROM text_data WHERE category=16 AND `index`=?", (mid,))
             name = c.fetchone()
             name_og = name[0] if name else "Unknown"
@@ -863,7 +866,7 @@ class ModLoaderGUI:
             c.execute("""
                 SELECT live_member_number 
                 FROM live_data 
-                WHERE music_id=? AND has_live=1
+                WHERE music_id=?
             """, (music_id,))
             row = c.fetchone()
 
