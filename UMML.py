@@ -10,7 +10,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.2"
+modloader_version = "1.4.3"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -149,6 +149,7 @@ def find_game_path(app_id):
 
 def load_settings():
     steam_game_path_jpn = find_game_path(3564400)
+    steam_game_path_en = find_game_path(3224770)
     dmm_game_path_jpn = find_dmm_umamusume()
 
     base_path_steam_en = (
@@ -158,6 +159,7 @@ def load_settings():
         / "Cygames"
         / "umamusume"
     )
+    game_dir = steam_game_path_en
     print(f"Steam EN path: {base_path_steam_en}")
     base_path_steam_jp = None
     if steam_game_path_jpn:
@@ -166,6 +168,7 @@ def load_settings():
             / "UmamusumePrettyDerby_Jpn_Data"
             / "Persistent"
         )
+        game_dir = steam_game_path_jpn
     print(f"Steam JP path: {base_path_steam_jp}")
     base_path_dmm_jp = None
     if dmm_game_path_jpn:
@@ -174,6 +177,7 @@ def load_settings():
             / "umamusume_Data"
             / "Persistent"
         )
+        game_dir = dmm_game_path_jpn
     print(f"DMM Game path: {dmm_game_path_jpn}")
     root = tk.Tk()
     root.withdraw()
@@ -236,7 +240,7 @@ def load_settings():
     dat = os.path.join(base_path, "dat")
     backup = os.path.join(base_path, "dat.backup")
 
-    return dat, backup, region
+    return dat, backup, region, game_dir
     
 # using ref from noccu/hachimi-tools
 def load_or_decrypt_meta_simple(dat_path, region):
@@ -291,12 +295,25 @@ def load_or_decrypt_meta_simple(dat_path, region):
 
     return meta_dec
     
-class ModLoaderGUI:
+class ModLoaderGUI:    
+    def load_hachimi_dict(self):
+        path = os.path.join(self.game_dir, "hachimi", "localized_data", "text_data_dict.json")
+        #print(f"{path}")
+        if not os.path.isfile(path):
+            self.hachimi_dict = {}
+            return
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                self.hachimi_dict = json.load(f)
+        except:
+            self.hachimi_dict = {}
+            
     def __init__(self, root):
         self.root = root
         self.root.title("UMML GUI")
 
-        self.dat_path, self.backup_path, self.region = load_settings()
+        self.dat_path, self.backup_path, self.region, self.game_dir = load_settings()
         # bind function (optional but matches your request)
         self.meta_path_load = load_or_decrypt_meta_simple
         # resolve meta path ONCE at startup
@@ -305,7 +322,7 @@ class ModLoaderGUI:
         self.mod_path = tk.StringVar()
         self.title_text = tk.StringVar()
         self.version_text = tk.StringVar()
-
+        self.load_hachimi_dict()
         self.create_widgets()
 
     def create_widgets(self):
@@ -354,6 +371,14 @@ class ModLoaderGUI:
             command=self.open_swap_character
         )
 
+        story_menu = tk.Menu(misc_menu, tearoff=0)
+        misc_menu.add_cascade(label="Story", menu=story_menu)
+
+        story_menu.add_command(
+            label="Concert",
+            command=self.open_story_concert
+        )
+
         mod_frame = tk.LabelFrame(self.root, text="Mod Loader")
         mod_frame.pack(fill="x", padx=10, pady=5)
         tk.Entry(mod_frame, textvariable=self.mod_path, width=60).pack(side="left", padx=5)
@@ -387,6 +412,15 @@ class ModLoaderGUI:
         self.progress_label.pack(anchor="w")
         self.progress_bar = ttk.Progressbar(progress_frame, orient="horizontal", length=400, mode="determinate")
         self.progress_bar.pack()
+
+    def hachimi_translation_redirect(self, category, index, default_text):
+        if not hasattr(self, "hachimi_dict") or not self.hachimi_dict:
+            return default_text
+
+        cat = str(category)
+        idx = str(index)
+
+        return self.hachimi_dict.get(cat, {}).get(idx, default_text)
         
     # from kairusds/umamusu-utils
     def decrypt_assets_internal(self, src_root, dst_root, use_hash=False, filter_path=None):
@@ -606,6 +640,389 @@ class ModLoaderGUI:
         conn.commit()
         conn.close()
 
+    def open_story_concert(self):
+        def get_story_display_name(c, set_id):
+            # find matching main_story_data row
+            c.execute("""
+                SELECT id
+                FROM main_story_data
+                WHERE story_type_1=2 AND story_id_1=?
+                   OR story_type_2=2 AND story_id_2=?
+                   OR story_type_3=2 AND story_id_3=?
+                   OR story_type_4=2 AND story_id_4=?
+                   OR story_type_5=2 AND story_id_5=?
+                LIMIT 1
+            """, (set_id, set_id, set_id, set_id, set_id))
+
+            row = c.fetchone()
+            if not row:
+                return f"{set_id} - Unknown"
+
+            main_story_id = row[0]
+
+            # get display text
+            c.execute("""
+                SELECT text FROM text_data
+                WHERE category=94 AND `index`=?
+            """, (main_story_id,))
+            text_row = c.fetchone()
+
+            name_og = text_row[0] if text_row else "Unknown"
+            name = self.hachimi_translation_redirect(94, main_story_id, name_og)
+            return f"{set_id} - {name}"
+        db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
+
+        if not os.path.isfile(db_path):
+            messagebox.showerror("Error", "master.mdb not found")
+            return
+
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+
+        win = tk.Toplevel(self.root)
+        win.title("Story Concert")
+        win.geometry("400x500")
+
+        canvas = tk.Canvas(win)
+        scrollbar = tk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        frame = tk.Frame(canvas)
+
+        frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        canvas.create_window((0, 0), window=frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # --- get set_id list ---
+        c.execute("SELECT DISTINCT set_id FROM story_live_position ORDER BY set_id")
+        set_ids = [row[0] for row in c.fetchall()]
+
+        for set_id in set_ids:
+            row_frame = tk.Frame(frame)
+            row_frame.pack(fill="x", pady=2)
+
+            display_text = get_story_display_name(c, set_id)
+
+            tk.Label(row_frame, text=display_text, width=40, anchor="w").pack(side="left")
+
+            tk.Button(
+                row_frame,
+                text="Edit Concert",
+                command=lambda sid=set_id: self.open_edit_concert(sid)
+            ).pack(side="left", padx=5)
+
+        conn.close()
+
+    def open_edit_concert(self, set_id):
+        
+        def get_values(chara_var, dress_var, dress2_var, vocal_var):
+            # --- chara ---
+            chara_label = chara_var.get()
+            chara_id = chara_map.get(chara_label, 0)
+
+            # --- main dress ---
+            dress_label = dress_var.get()
+            dress_id = 0
+            if dress_label and dress_label != "None":
+                dress_id = int(dress_label.split(" - ")[0])
+
+            # --- second dress ---
+            dress2_label = dress2_var.get()
+            second_dress_id = 0
+            if dress2_label and dress2_label != "None":
+                second_dress_id = int(dress2_label.split(" - ")[0])
+
+            # --- vocal ---
+            if vocal_var.get() == "Default":
+                vocal_id = chara_id
+            else:
+                vocal_id = chara_map.get(vocal_var.get(), 0)
+
+            return chara_id, dress_id, second_dress_id, vocal_id
+
+        
+        db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
+
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Edit Concert - Set {set_id}")
+        win.geometry("1250x600")
+
+        # ---------------- GET CONCERT LIST ---------------- #
+        c.execute("SELECT music_id FROM live_data WHERE has_live=1 ORDER BY music_id")
+        music_ids = [r[0] for r in c.fetchall()]
+        c.execute("SELECT music_id FROM live_data WHERE music_type=99")
+        music_ids_backdance = [r[0] for r in c.fetchall()]
+        collected_music_id = music_ids + music_ids_backdance
+        
+        concert_options = []
+        concert_map = {}
+
+        for mid in collected_music_id:
+            c.execute("SELECT text FROM text_data WHERE category=16 AND `index`=?", (mid,))
+            name = c.fetchone()
+            name_og = name[0] if name else "Unknown"
+            name = self.hachimi_translation_redirect(16, mid, name_og)
+            label = f"{mid} - {name}"
+            concert_options.append(label)
+            concert_map[label] = mid
+
+        # ---------------- CHARA DROPDOWN ---------------- #
+        c.execute("SELECT id FROM dress_data WHERE id BETWEEN 100000 AND 1000000 ORDER BY id")
+        dress_ids = [r[0] for r in c.fetchall()]
+
+        dress_options = []
+        dress_map = {}
+
+        for did in dress_ids:
+            c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (did,))
+            name = c.fetchone()
+            name_og = name[0] if name else "Unknown"
+            name = self.hachimi_translation_redirect(14, did, name_og)
+            c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (did,))
+            detail = c.fetchone()
+            detail_og = detail[0] if detail else ""
+            detail = self.hachimi_translation_redirect(15, did, detail_og)
+            label = f"{did} - {name} - {detail}"
+            dress_options.append(label)
+            dress_map[label] = did
+
+        # ---------------- DRESS DROPDOWN ---------------- #
+        c.execute("SELECT id FROM dress_data WHERE id BETWEEN 0 AND 1000 AND use_live = 0")
+        base_ids = [r[0] for r in c.fetchall()]
+
+        base_options = []
+        base_map = {}
+
+        for oid in base_ids:
+            c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (oid,))
+            name = c.fetchone()
+            name_og = name[0] if name else f"ID {oid}"
+            name = self.hachimi_translation_redirect(14, oid, name_og)
+            c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (oid,))
+            detail = c.fetchone()
+            detail_og = detail[0] if detail else "N/A"
+            detail = self.hachimi_translation_redirect(15, oid, detail_og)
+            label = f"{oid} - {name} - {detail}"
+            base_options.append(label)
+            base_map[label] = oid
+            
+        # chara dropdown    
+        c.execute("SELECT id FROM chara_data ORDER BY id")
+        chara_ids = [r[0] for r in c.fetchall()]
+
+        chara_options = []
+        chara_map = {}
+
+        for cid in chara_ids:
+            c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
+            name = c.fetchone()
+            name_og = name[0] if name else f"Chara {cid}"
+            name = self.hachimi_translation_redirect(6, cid, name_og)
+            label = f"{cid} - {name}"
+            chara_options.append(label)
+            chara_map[label] = cid
+
+        # ---------------- TOP CONTROLS ---------------- #
+        top = tk.Frame(win)
+        top.pack(fill="x", pady=5)
+
+        tk.Label(top, text="Music").pack(side="left")
+
+        music_var = tk.StringVar(value=concert_options[0] if concert_options else "")
+        music_combo = ttk.Combobox(top, textvariable=music_var, values=concert_options, state="readonly", width=50)
+        music_combo.pack(side="left", padx=5)
+
+        # ---------------- SCROLL AREA ---------------- #
+        canvas = tk.Canvas(win)
+        scrollbar = tk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        table_frame = tk.Frame(canvas)
+
+        table_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=table_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # ---------------- BUILD ROWS ---------------- #
+        base_options_with_default = ["Default"] + base_options
+        chara_options_with_default = ["Default"] + chara_options
+        row_widgets = []
+        def rebuild_rows(*args):
+            row_widgets.clear()
+            for w in table_frame.winfo_children():
+                w.destroy()
+
+            selected = music_var.get()
+            music_id = concert_map.get(selected)
+            if not music_id:
+                return
+
+            c.execute("""
+                SELECT live_member_number 
+                FROM live_data 
+                WHERE music_id=?
+            """, (music_id,))
+            row = c.fetchone()
+
+            if not row:
+                return
+
+            member_count = row[0]
+
+            for i in range(1, member_count + 1):
+
+                r = tk.Frame(table_frame)
+                r.pack(fill="x", pady=2)
+
+                tk.Label(r, text=f"{i}", width=5).pack(side="left")
+
+                # --- Character ---
+                tk.Label(r, text=f"Chara", width=5).pack(side="left")
+                chara_var = tk.StringVar(value=chara_options[0])
+                chara_combo = ttk.Combobox(
+                    r,
+                    textvariable=chara_var,
+                    values=chara_options,
+                    state="readonly",
+                    width=25
+                )
+                chara_combo.pack(side="left", padx=5)
+
+                # --- Main Dress ---
+                tk.Label(r, text=f"Main Dress", width=10).pack(side="left")
+                dress_var = tk.StringVar()
+                dress_combo = ttk.Combobox(
+                    r,
+                    textvariable=dress_var,
+                    state="readonly",
+                    width=40
+                )
+                dress_combo.pack(side="left", padx=5)
+
+                # --- Second Dress ---
+                tk.Label(r, text=f"Second Dress", width=10).pack(side="left")
+                dress2_var = tk.StringVar()
+                dress2_combo = ttk.Combobox(
+                    r,
+                    textvariable=dress2_var,
+                    state="readonly",
+                    width=40
+                )
+                dress2_combo.pack(side="left", padx=5)
+
+                # --- Vocal ---
+                tk.Label(r, text=f"Vocal", width=5).pack(side="left")
+                vocal_var = tk.StringVar(value="Default")
+                vocal_combo = ttk.Combobox(
+                    r,
+                    textvariable=vocal_var,
+                    values=chara_options_with_default,
+                    state="readonly",
+                    width=25
+                )
+                vocal_combo.pack(side="left", padx=5)
+
+                def update_dress_options(event=None, cv=chara_var, dc=dress_combo, d2c=dress2_combo):
+                    selected = cv.get()
+                    cid = chara_map.get(selected)
+
+                    if not cid:
+                        return
+
+                    c.execute("SELECT id FROM dress_data WHERE id BETWEEN 0 AND 1000 AND use_live=0")
+                    base_ids = [r[0] for r in c.fetchall()]
+
+                    c.execute("SELECT id FROM dress_data WHERE chara_id=?", (cid,))
+                    chara_ids = [r[0] for r in c.fetchall()]
+
+                    ids = base_ids + chara_ids
+
+                    options = []
+                    for did in ids:
+                        c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (did,))
+                        name = c.fetchone()
+                        name_og = name[0] if name else "Unknown"
+                        name = self.hachimi_translation_redirect(14, did, name_og)
+                        c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (did,))
+                        detail = c.fetchone()
+                        detail_og = detail[0] if detail else ""
+                        detail = self.hachimi_translation_redirect(15, did, detail_og)
+                        options.append(f"{did} - {name} - {detail}")
+
+                    if not options:
+                        options = ["None"]
+
+                    dc["values"] = options
+                    d2c["values"] = options
+
+                    dc.set(options[-1])
+                    d2c.set(options[-1])
+
+                chara_combo.bind("<<ComboboxSelected>>", update_dress_options)
+                update_dress_options()
+
+                row_widgets.append((chara_var, dress_var, dress2_var, vocal_var))
+
+        # trigger rebuild
+        def save_concert():
+            selected = music_var.get()
+            music_id = concert_map.get(selected)
+
+            if not music_id:
+                return
+
+            # delete old
+            c.execute("DELETE FROM story_live_position WHERE set_id=?", (set_id,))
+
+            # get next ID
+            c.execute("SELECT MAX(id) FROM story_live_position")
+            max_id = c.fetchone()[0] or 0
+            next_id = max_id + 1
+
+            for idx, (chara_var, dress_var, dress2_var, vocal_var) in enumerate(row_widgets, start=1):
+
+                chara_id, dress_id, second_dress_id, vocal_id = get_values(
+                    chara_var, dress_var, dress2_var, vocal_var
+                )
+
+                c.execute("""
+                    INSERT INTO story_live_position (
+                        id, set_id, music_id, position_id,
+                        chara_type, chara_id,
+                        dress_id, dress_color,
+                        second_dress_id, second_dress_color,
+                        vocal_chara_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?)
+                """, (
+                    next_id,
+                    set_id,
+                    music_id,
+                    idx,
+                    1,
+                    chara_id,
+                    dress_id,
+                    second_dress_id,
+                    vocal_id
+                ))
+
+                next_id += 1
+
+            conn.commit()
+            messagebox.showinfo("Done", "Concert saved.")
+            
+        music_combo.bind("<<ComboboxSelected>>", rebuild_rows)
+        # initial build
+        rebuild_rows()
+        tk.Button(win, text="Save", command=save_concert).pack(pady=10)     
+        win.protocol("WM_DELETE_WINDOW", lambda: (conn.close(), win.destroy()))   
+
     def open_swap_character(self):
         master_db = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
 
@@ -618,12 +1035,12 @@ class ModLoaderGUI:
         for oid in ids:
             c.execute("SELECT text FROM text_data WHERE category=14 AND `index`=?", (oid,))
             name = c.fetchone()
-            name = name[0] if name else "Unknown"
-
+            name_og = name[0] if name else "Unknown"
+            name = self.hachimi_translation_redirect(14, oid, name_og)
             c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (oid,))
             detail = c.fetchone()
-            detail = detail[0] if detail else ""
-
+            detail_og = detail[0] if detail else ""
+            detail = self.hachimi_translation_redirect(15, oid, detail_og)
             options.append(f"{oid} - {name} - {detail}")
 
         conn.close()
@@ -1220,7 +1637,8 @@ class ModLoaderGUI:
         for cid in chara_ids:
             c.execute("SELECT text FROM text_data WHERE `index`=? AND category=6", (cid,))
             row = c.fetchone()
-            chara_names[cid] = row[0] if row else f"Chara {cid}"
+            chara_names_og = row[0] if row else f"Chara {cid}"
+            chara_names[cid] = self.hachimi_translation_redirect(6, cid, chara_names_og)
 
         win = tk.Toplevel(self.root)
         win.title("Personality Settings")
@@ -1347,13 +1765,13 @@ class ModLoaderGUI:
                 # name (cat 14)
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=14", (oid,))
                 name_row = c.fetchone()
-                name_text = name_row[0] if name_row else f"Dress {oid}"
-
+                name_text_og = name_row[0] if name_row else f"Dress {oid}"
+                name_text = self.hachimi_translation_redirect(14, oid, name_text_og)
                 # detail (cat 15)
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=15", (oid,))
                 detail_row = c.fetchone()
-                detail_text = detail_row[0] if detail_row else "N/A"
-
+                detail_text_og = detail_row[0] if detail_row else "N/A"
+                detail_text = self.hachimi_translation_redirect(15, oid, detail_text_og)
                 dress_data_list.append((oid, name_text, detail_text, gender, body, sub, setting, head_sub))
 
             conn.close()
@@ -1571,8 +1989,8 @@ class ModLoaderGUI:
                 # training name (category 138)
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=138", (tid,))
                 name_row = c.fetchone()
-                name_text = name_row[0] if name_row else f"Training {tid}"
-
+                name_text_og = name_row[0] if name_row else f"Training {tid}"
+                name_text = self.hachimi_translation_redirect(138, tid, name_text_og)
                 training_data.append((tid, name_text, dress_id, cutin_id, cmd_type))
 
             # --- build dropdown options from dress_data (id 0–1000) ---
@@ -1585,13 +2003,13 @@ class ModLoaderGUI:
                 # Name
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=14", (oid,))
                 name_row = c.fetchone()
-                name_text = name_row[0] if name_row else f"ID {oid}"
-
+                name_text_og = name_row[0] if name_row else f"ID {oid}"
+                name_text = self.hachimi_translation_redirect(14, oid, name_text_og)
                 # Detail
                 c.execute("SELECT text FROM text_data WHERE `index`=? AND category=15", (oid,))
                 detail_row = c.fetchone()
-                detail_text = detail_row[0] if detail_row else "N/A"
-
+                detail_text_og = detail_row[0] if detail_row else "N/A"
+                detail_text = self.hachimi_translation_redirect(15, oid, detail_text_og)
                 label = f"{oid} - {name_text} - {detail_text}"
                 options.append(label)
                 option_map[oid] = label
@@ -1749,7 +2167,8 @@ class ModLoaderGUI:
             # get name
             c.execute("SELECT text FROM text_data WHERE category=6 AND `index`=?", (cid,))
             name_row = c.fetchone()
-            name = name_row[0] if name_row else f"Chara {cid}"
+            name_og = name_row[0] if name_row else f"Chara {cid}"
+            name = self.hachimi_translation_redirect(6, cid, name_og)
 
             container = tk.Frame(frame, relief="groove", bd=1)
             container.pack(fill="x", pady=4, padx=5)
@@ -2191,37 +2610,82 @@ class ModLoaderGUI:
         self.assets_load_btn.config(state="normal" if assets_exist else "disabled")
         #self.assets_unload_btn.config(state="normal" if assets_exist else "disabled")
 
+    def platform_check_manual(self, base_path):
+        rel_paths = self.scan_full_path(base_path)
+
+        found = {
+            "PC-s": False,
+            "DMM": False,
+            "GLO": False,
+        }
+        for p in rel_paths:
+            parts = p.replace("\\", "/").split("/")
+            for key in found:
+                if key in parts:
+                    found[key] = True
+
+        # ---------------- PLATFORM DETECTED ----------------
+
+        if any(found.values()):
+            # --- PC-s priority ---
+            region_warn = None
+            if found["PC-s"]:
+                return "decrypt", "PC-s"
+
+            # --- DMM / GLO ---
+            if self.region == "Global":
+                if found["GLO"]:
+                    folder_type = "GLO"
+                else:
+                    folder_type = "DMM"
+                    region_warn = "GLO not found but "
+            else:
+                folder_type = "DMM"
+                
+            choice = messagebox.askyesnocancel(
+                "Encryption Check",
+                f"{region_warn}{folder_type} detected.\n\n"
+                "Are these assets already encrypted?"
+            )
+
+            if choice is None:
+                return None
+            if choice:
+                if region_warn is not None:
+                    messagebox.showwarning("Sorry", "can't use encrypted asset for Global")
+                    return None
+                return "direct", folder_type
+            else:
+                return "decrypt", folder_type
+
+        # ---------------- NOT PLATFORM MOD ----------------
+
+        choice = messagebox.askyesnocancel(
+            "Non-platform Mod",
+            "No platform folders detected.\n\n"
+            "Are these assets already encrypted?"
+        )
+
+        if choice is None:
+            return None
+
+        if choice:
+            return "direct", None
+        else:
+            return "decrypt", None
+
     def load_assets_manual(self):
         path = filedialog.askdirectory(title="Select Asset Folder")
         if not path:
             return
 
-        has_pcs = messagebox.askyesnocancel(
-            "Ask",
-            "Does the mod contain Unencrypted PC assets (PC-s)?"
-        )
+        result = self.platform_check_manual(path)
 
-        if has_pcs is None:
+        if result is None:
             return
 
-        if has_pcs:
-            mode = "decrypt"
-            filter_folder = "PC-s"
-        else:
-            is_mod_encrypted = messagebox.askyesnocancel(
-                "Ask",
-                "Are these assets already encrypted / made for engine update?"
-            )
-
-            if is_mod_encrypted is None:
-                return
-
-            if is_mod_encrypted:
-                mode = "direct"
-            else:
-                mode = "decrypt"
-                filter_folder = "DMM"
-                        
+        mode, filter_folder = result     
+        
         # ---------------- LOAD ---------------- if is_mod_encrypted is true
         confirm = messagebox.askyesno(
             "Confirm",
@@ -2233,6 +2697,15 @@ class ModLoaderGUI:
             
         if mode == "direct":
             rel_paths = self.scan_full_path(path)
+            
+            if filter_folder:
+                filtered = []
+                for p in rel_paths:
+                    parts = p.replace("\\", "/").split("/")
+                    if filter_folder in parts:
+                        filtered.append(p)
+                rel_paths = filtered
+                
             assets = [os.path.join(path, p) for p in rel_paths]
 
             if not assets:
@@ -2328,14 +2801,7 @@ class ModLoaderGUI:
                     else:
                         os.remove(dst)
                 else:
-                    messagebox.showerror(
-                        "Error",
-                        "Missing target file in dat folder.\nRun Uma Musume once with full data download first."
-                    )
-                    # cleanup cache before returning
-                    if os.path.exists(asset_folder):
-                        shutil.rmtree(asset_folder, ignore_errors=True)
-                    return
+                    missing_meta += 1
 
                 shutil.copy(src, dst)
                 self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
@@ -2399,15 +2865,7 @@ class ModLoaderGUI:
                 else:
                     os.remove(dst)
             else:
-                messagebox.showerror(
-                    "Error",
-                    "Missing target file in dat folder.\nRun Uma Musume once with full data download first."
-                )
-                # cleanup cache before returning
-                if os.path.exists(asset_folder):
-                    shutil.rmtree(asset_folder, ignore_errors=True)
-                return
-
+                missing_meta += 1
             shutil.copy(src, dst)
             self.progress_label.config(text=f"Loading Asset {i} / {len(assets)}")
             self.progress_bar["value"] = i
