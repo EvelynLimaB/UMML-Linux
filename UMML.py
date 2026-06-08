@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.4"
+modloader_version = "1.4.5"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -948,19 +948,45 @@ class ModLoaderGUI:
         def get_values(chara_var, dress_var, dress2_var, vocal_var):
             # --- chara ---
             chara_label = chara_var.get()
-            chara_id = chara_map.get(chara_label, 0)
 
-            # --- main dress ---
+            if "[NPC]" in chara_label:
+                chara_type = 2
+                chara_id = mob_map.get(chara_label, 0)
+            else:
+                chara_type = 1
+                chara_id = chara_map.get(chara_label, 0)
+                
+            # ---------------- MAIN DRESS ---------------- #
             dress_label = dress_var.get()
+
             dress_id = 0
+            dress_color = 0
+
             if dress_label and dress_label != "None":
                 dress_id = int(dress_label.split(" - ")[0])
 
-            # --- second dress ---
+                if "[Color " in dress_label:
+                    dress_color = int(
+                        dress_label.split("[Color ")[1]
+                        .split("]")[0]
+                    )
+
+            # ---------------- SECOND DRESS ---------------- #
             dress2_label = dress2_var.get()
+
             second_dress_id = 0
+            second_dress_color = 0
+
             if dress2_label and dress2_label != "None":
-                second_dress_id = int(dress2_label.split(" - ")[0])
+                second_dress_id = int(
+                    dress2_label.split(" - ")[0]
+                )
+
+                if "[Color " in dress2_label:
+                    second_dress_color = int(
+                        dress2_label.split("[Color ")[1]
+                        .split("]")[0]
+                    )
 
             # --- vocal ---
             vocal_label = vocal_var.get()
@@ -969,7 +995,15 @@ class ModLoaderGUI:
                 vocal_id = 0
             else:
                 vocal_id = chara_map.get(vocal_label, 0)
-            return chara_id, dress_id, second_dress_id, vocal_id
+            return (
+                chara_type,
+                chara_id,
+                dress_id,
+                dress_color,
+                second_dress_id,
+                second_dress_color,
+                vocal_id
+            )
 
         
         db_path = os.path.join(os.path.dirname(self.dat_path), "master", "master.mdb")
@@ -979,7 +1013,7 @@ class ModLoaderGUI:
 
         win = tk.Toplevel(self.root)
         win.title(f"Edit Concert - Set {set_id}")
-        win.geometry("1250x600")
+        win.geometry("1500x600")
 
         # ---------------- GET CONCERT LIST ---------------- #
         c.execute("SELECT music_id FROM live_data WHERE has_live=1 ORDER BY music_id")
@@ -1018,6 +1052,35 @@ class ModLoaderGUI:
             chara_options.append(label)
             chara_map[label] = cid
 
+        # --- NPC ---
+        c.execute("SELECT mob_id FROM mob_data ORDER BY mob_id")
+        mob_ids = [r[0] for r in c.fetchall()]
+
+        mob_map = {}
+
+        for cid in mob_ids:
+            c.execute("""
+                SELECT text
+                FROM text_data
+                WHERE category=59 AND `index`=?
+            """, (cid,))
+
+            name = c.fetchone()
+            name_og = name[0] if name else f"NPC {cid}"
+            name = self.hachimi_translation_redirect(
+                59,
+                cid,
+                name_og
+            )
+
+            label = f"{cid} - [NPC] {name}"
+
+            # add directly to chara dropdown
+            chara_options.append(label)
+
+            # separate map for save logic
+            mob_map[label] = cid
+            
         # ---------------- TOP CONTROLS ---------------- #
         top = tk.Frame(win)
         top.pack(fill="x", pady=5)
@@ -1079,7 +1142,7 @@ class ModLoaderGUI:
                     textvariable=chara_var,
                     values=chara_options,
                     state="readonly",
-                    width=25
+                    width=35
                 )
                 chara_combo.pack(side="left", padx=5)
                 chara_var.set(random.choice(chara_options))
@@ -1090,7 +1153,7 @@ class ModLoaderGUI:
                     r,
                     textvariable=dress_var,
                     state="readonly",
-                    width=40
+                    width=55
                 )
                 dress_combo.pack(side="left", padx=5)
 
@@ -1101,7 +1164,7 @@ class ModLoaderGUI:
                     r,
                     textvariable=dress2_var,
                     state="readonly",
-                    width=40
+                    width=55
                 )
                 dress2_combo.pack(side="left", padx=5)
 
@@ -1151,9 +1214,6 @@ class ModLoaderGUI:
                     selected = cv.get()
                     cid = chara_map.get(selected)
 
-                    if not cid:
-                        return
-
                     c.execute("SELECT id FROM dress_data WHERE id BETWEEN 0 AND 1000")
                     base_ids = [r[0] for r in c.fetchall()]
 
@@ -1189,11 +1249,22 @@ class ModLoaderGUI:
                         name = c.fetchone()
                         name_og = name[0] if name else "Unknown"
                         name = self.hachimi_translation_redirect(14, did, name_og)
-                        c.execute("SELECT text FROM text_data WHERE category=15 AND `index`=?", (did,))
-                        detail = c.fetchone()
-                        detail_og = detail[0] if detail else ""
-                        detail = self.hachimi_translation_redirect(15, did, detail_og)
-                        options.append(f"{did} - {name} - {detail}")
+                        c.execute(
+                            "SELECT color_num FROM dress_data WHERE id=?",
+                            (did,)
+                        )
+                        color_row = c.fetchone()
+                        color_num = color_row[0] if color_row else 1
+
+                        if color_num <= 1:
+                            options.append(
+                                f"{did} - {name}"
+                            )
+                        else:
+                            for color in range(color_num):
+                                options.append(
+                                    f"{did} - {name} [Color {color}]"
+                                )
 
                     if not options:
                         options = ["None"]
@@ -1202,7 +1273,7 @@ class ModLoaderGUI:
                     d2c["values"] = options
 
                     dc.set(options[-1])
-                    d2c.set(options[8])
+                    d2c.set(options[11])
 
 
                 chara_combo.bind("<<ComboboxSelected>>", update_dress_options)
@@ -1253,7 +1324,7 @@ class ModLoaderGUI:
 
             for idx, (chara_var, dress_var, dress2_var, vocal_var) in enumerate(row_widgets, start=1):
 
-                chara_id, dress_id, second_dress_id, vocal_id = get_values(
+                chara_type, chara_id, dress_id, dress_color, second_dress_id, second_dress_color, vocal_id = get_values(
                     chara_var, dress_var, dress2_var, vocal_var
                 )
 
@@ -1265,16 +1336,18 @@ class ModLoaderGUI:
                         second_dress_id, second_dress_color,
                         vocal_chara_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     next_id,
                     set_id,
                     music_id,
                     idx,
-                    1,
+                    chara_type,
                     chara_id,
                     dress_id,
+                    dress_color,
                     second_dress_id,
+                    second_dress_color,
                     vocal_id
                 ))
 
