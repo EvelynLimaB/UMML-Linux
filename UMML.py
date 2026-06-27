@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.5"
+modloader_version = "1.4.5-fix"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -54,6 +54,32 @@ print("[OK] UnityPy ready")
 print("[OK] vdf ready")
 print("[OK] apsw-sqlite3mc ready")
 print("[OK] pyyaml")
+
+def resolve_case_sensitive_path(path_obj):
+    """
+    Try exact path first.
+    If missing, try common Umamusume casing variants.
+    """
+    if path_obj and os.path.isdir(path_obj):
+        return str(path_obj)
+
+    path_str = str(path_obj)
+
+    replacements = [
+        ("umamusume", "Umamusume"),
+        ("Umamusume", "umamusume"),
+        ("umamusume_Data", "Umamusume_Data"),
+        ("Umamusume_Data", "umamusume_Data"),
+    ]
+
+    for old, new in replacements:
+        alt = path_str.replace(old, new)
+
+        if alt != path_str and os.path.isdir(alt):
+            print(f"Resolved case mismatch:\n{path_str}\n-> {alt}")
+            return alt
+
+    return str(path_obj)
 
 def find_dmm_umamusume():
     try:
@@ -203,8 +229,8 @@ def load_settings():
     # Global
     # --------------------
     if choice_region:
-        base_path = base_path_steam_en
-        game_dir = steam_game_path_en
+        base_path = resolve_case_sensitive_path(base_path_steam_en)
+        game_dir = resolve_case_sensitive_path(steam_game_path_en)
         region = "Global"
 
     # --------------------
@@ -221,11 +247,11 @@ def load_settings():
             sys.exit(0)
 
         if choice_platform:  # DMM
-            base_path = base_path_dmm_jp
-            game_dir = dmm_game_path_jpn
+            base_path = resolve_case_sensitive_path(base_path_dmm_jp)
+            game_dir = resolve_case_sensitive_path(dmm_game_path_jpn)
         else:  # Steam
-            base_path = base_path_steam_jp
-            game_dir = steam_game_path_jpn
+            base_path = resolve_case_sensitive_path(base_path_steam_jp)
+            game_dir = resolve_case_sensitive_path(steam_game_path_jpn)
 
         region = "Japan"
 
@@ -2984,7 +3010,7 @@ class ModLoaderGUI:
             choice = messagebox.askyesnocancel(
                 "Encryption Check",
                 f"{region_warn}{folder_type} detected.\n\n"
-                "Are these assets already encrypted?"
+                "Are you loading unencrypted / legacy assets?"
             )
 
             if choice is None:
@@ -2993,25 +3019,25 @@ class ModLoaderGUI:
                 if region_warn != "":
                     messagebox.showwarning("Sorry", "can't use encrypted asset for Global")
                     return None
-                return "direct", folder_type
-            else:
                 return "decrypt", folder_type
+            else:
+                return "direct", folder_type
 
         # ---------------- NOT PLATFORM MOD ----------------
 
         choice = messagebox.askyesnocancel(
             "Non-platform Mod",
             "No platform folders detected.\n\n"
-            "Are these assets already encrypted?"
+            "Are you loading unencrypted / legacy assets?"
         )
 
         if choice is None:
             return None
 
         if choice:
-            return "direct", None
-        else:
             return "decrypt", None
+        else:
+            return "direct", None
 
     def load_assets_manual(self):
         path = filedialog.askdirectory(title="Select Asset Folder")
