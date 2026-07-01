@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.5-fix"
+modloader_version = "1.4.5-fix2"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -282,7 +282,7 @@ def load_or_decrypt_meta_simple(dat_path, region):
         raise RuntimeError("meta file not found")
 
     # ---------------- DB KEYS ---------------- #
-    DB_KEY_GLOBAL = "a713a5c79dbc9497c0a88669"
+    DB_KEY_GLOBAL = "c753a5e8f5f78294f7fef57df4a14ffbf9a896cea1d4e09947e0d904e7fde8eaf0"
     DB_KEY_JP = "9c2bab97bcf8c0c4f1a9ea7881a213f6c9ebf9d8d4c6a8e43ce5a259bde7e9fd"
 
     DB_KEY = DB_KEY_GLOBAL if region == "Global" else DB_KEY_JP
@@ -436,7 +436,13 @@ class ModLoaderGUI:
         menubar.add_cascade(label="Misc", menu=misc_menu)
         character_menu = tk.Menu(misc_menu, tearoff=0)
         misc_menu.add_cascade(label="Character", menu=character_menu)
+        asset_menu = tk.Menu(misc_menu, tearoff=0)
+        misc_menu.add_cascade(label="Asset", menu=asset_menu)
 
+        asset_menu.add_command(
+            label="Clean Up",
+            command=self.clean_unused_assets
+        )
         character_menu.add_command(
             label="Attribute",
             command=self.open_chara_settings
@@ -516,6 +522,85 @@ class ModLoaderGUI:
         self.progress_label.pack(anchor="w")
         self.progress_bar = ttk.Progressbar(progress_frame, orient="horizontal", length=400, mode="determinate")
         self.progress_bar.pack()
+
+    def clean_unused_assets(self):
+        if not os.path.isdir(self.dat_path):
+            messagebox.showerror("Error", "Game data folder not found.")
+            return
+
+        self.progress_label.config(text="Scanning assets...")
+        self.root.update_idletasks()
+
+        # Scan every file in dat
+        dat_assets = {
+            p.replace("\\", "/")
+            for p in self.scan_full_path(self.dat_path)
+        }
+
+        # Read every valid hash from meta
+        valid_assets = set()
+
+        try:
+            conn = sqlite3.connect(self.meta_path)
+            c = conn.cursor()
+
+            c.execute("SELECT h FROM a")
+            for (h,) in c.fetchall():
+                valid_assets.add(f"{h[:2]}/{h}")
+
+            conn.close()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to read meta database.\n\n{e}")
+            return
+
+        # Files not referenced by meta
+        orphan_assets = sorted(dat_assets - valid_assets)
+
+        self.progress_label.config(text="Waiting")
+
+        if not orphan_assets:
+            messagebox.showinfo(
+                "Clean Up",
+                "No unused assets were found."
+            )
+            return
+
+        if not messagebox.askyesno(
+            "Clean Up",
+            f"Found {len(orphan_assets)} unused asset(s).\n\n"
+            "These files are not referenced by the current meta database.\n"
+            "They are usually leftovers from old game updates or removed mods.\n\n"
+            "Delete them?"
+        ):
+            return
+
+        self.progress_bar["maximum"] = len(orphan_assets)
+        self.progress_bar["value"] = 0
+
+        deleted = 0
+        failed = 0
+
+        for i, rel_path in enumerate(orphan_assets, start=1):
+            try:
+                os.remove(os.path.join(self.dat_path, rel_path))
+                deleted += 1
+            except Exception:
+                failed += 1
+
+            self.progress_label.config(
+                text=f"Deleting {i} / {len(orphan_assets)}"
+            )
+            self.progress_bar["value"] = i
+            self.root.update_idletasks()
+
+        self.progress_label.config(text="Waiting")
+
+        messagebox.showinfo(
+            "Done",
+            f"Deleted {deleted} unused asset(s).\n"
+            f"Failed to delete {failed} asset(s)."
+        )
 
     def hachimi_translation_redirect(self, category, index, default_text):
         if not hasattr(self, "hachimi_dict") or not self.hachimi_dict:
@@ -3324,10 +3409,15 @@ class ModLoaderGUI:
         scrollbar.pack(side="right", fill="y")
 
         listbox = tk.Listbox(frame, selectmode="extended", yscrollcommand=scrollbar.set, width=100, height=20)
-        entries = [
-            (f, name_map.get(os.path.basename(f), os.path.basename(f)))
-            for f in backup_files
-        ]
+        entries = []
+
+        for f in backup_files:
+            h = os.path.basename(f)
+            if h in name_map:
+                display = name_map[h]
+            else:
+                display = f"[Unknown] {h}"
+            entries.append((f, display))
         entries.sort(key=lambda x: x[1].lower())  # sort by friendly name
         listbox.insert(tk.END, *[display_name for _, display_name in entries])
         listbox.pack(side="left", fill="both", expand=True)
@@ -3343,6 +3433,7 @@ class ModLoaderGUI:
                 return
 
             restored = 0
+            cannot_restored = 0
             for idx in sel:
                 rel_path = entries[idx][0]
                 backup_file = os.path.join(self.backup_path, rel_path)
@@ -3350,24 +3441,37 @@ class ModLoaderGUI:
                 os.makedirs(os.path.dirname(dat_file), exist_ok=True)
                 if os.path.exists(dat_file):
                     os.remove(dat_file)
-                shutil.move(backup_file, dat_file)
-                restored += 1
-            messagebox.showinfo("Done", f"Restored {restored} selected file(s).")
+                    shutil.move(backup_file, dat_file)
+                    restored += 1
+                else:
+                    cannot_restored += 1
+            messagebox.showinfo(
+                "Done",
+                f"Restored {restored} selected file(s).\n"
+                f"{cannot_restored} could not be restored because the original hash no longer exists in the current game data."
+            )
 
         def restore_all():
             if not messagebox.askyesno("Confirm", "Restore all original assets? This will overwrite all modified files."):
                 return
 
             restored = 0
+            cannot_restored = 0
             for rel_path, _ in entries:
                 backup_file = os.path.join(self.backup_path, rel_path)
                 dat_file = os.path.join(self.dat_path, rel_path)
                 os.makedirs(os.path.dirname(dat_file), exist_ok=True)
                 if os.path.exists(dat_file):
                     os.remove(dat_file)
-                shutil.move(backup_file, dat_file)
-                restored += 1
-            messagebox.showinfo("Done", f"Restored {restored} file(s).")
+                    shutil.move(backup_file, dat_file)
+                    restored += 1
+                else:
+                    cannot_restored += 1
+            messagebox.showinfo(
+                "Done",
+                f"Restored {restored} file(s).\n"
+                f"{cannot_restored} could not be restored because the original hash no longer exists in the current game data."
+            )
 
         btn_frame = tk.Frame(win)
         btn_frame.pack(pady=10)
