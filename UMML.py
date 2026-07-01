@@ -282,7 +282,7 @@ def load_or_decrypt_meta_simple(dat_path, region):
         raise RuntimeError("meta file not found")
 
     # ---------------- DB KEYS ---------------- #
-    DB_KEY_GLOBAL = "c753a5e8f5f78294f7fef57df4a14ffbf9a896cea1d4e09947e0d904e7fde8eaf0"
+    DB_KEY_GLOBAL = "c753a5e8f5f78294f7fef57df4a14ffbf9a896cea1d4e09947e0d904e7fde8eaf0" # from SirDerpyHerp
     DB_KEY_JP = "9c2bab97bcf8c0c4f1a9ea7881a213f6c9ebf9d8d4c6a8e43ce5a259bde7e9fd"
 
     DB_KEY = DB_KEY_GLOBAL if region == "Global" else DB_KEY_JP
