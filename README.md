@@ -26,6 +26,8 @@ You've been warned!
 
 [noccu](https://github.com/noccu) for [hachimi-tools](https://github.com/noccu/hachimi-tools) meta_decrypt.
 
-[kairusds](https://github.com/kairusds) for [umamusu-utils](https://github.com/kairusds/umamusu-utils/) decrypt_assets.
+[kairusds](https://github.com/kairusds) for [umamusu-utils](https://github.com/kairusds/umamusu-utils) decrypt_assets.
 
 [teiosteppa](https://github.com/teiosteppa) for [umamusume-model-replace](https://github.com/teiosteppa/umamusume-model-replace) reference.
+
+[qwcan](https://github.com/qwcan) for [UmaLauncher](https://github.com/qwcan/UmaLauncher) DMM path.
