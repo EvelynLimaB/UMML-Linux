@@ -708,7 +708,24 @@ class ModLoaderGUI:
                         pass
                 # FINAL CHECK
                 if not row:
-                    missing_meta += 1
+                    should_count = False
+
+                    try:
+                        with open(input_path, "rb") as f:
+                            header = f.read(8)
+
+                        if (
+                            header.startswith(b"UnityFS")
+                            or input_path.lower().endswith((".acb", ".awb", ".usm"))
+                        ):
+                            should_count = True
+
+                    except Exception:
+                        pass
+
+                    if should_count:
+                        missing_meta += 1
+
                     continue
 
                 hash_name, enc_key = row[0], int(row[1])
