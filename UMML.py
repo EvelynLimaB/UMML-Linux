@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.5-fix2"
+modloader_version = "1.4.5-hotfix3"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -180,13 +180,14 @@ def load_settings():
     steam_game_path_en = find_game_path(3224770)
     dmm_game_path_jpn = find_dmm_umamusume()
     game_dir = None
-    base_path_steam_en = (
-        Path.home()
-        / "AppData"
-        / "LocalLow"
-        / "Cygames"
-        / "umamusume"
-    )
+    base_path_steam_en = None
+    if steam_game_path_en:
+        base_path_steam_en = (
+            Path(steam_game_path_en)
+            / "UmamusumePrettyDerby_Data"
+            / "Persistent"
+        )
+
     print(f"Steam EN path: {base_path_steam_en}")
     
     base_path_steam_jp = None
