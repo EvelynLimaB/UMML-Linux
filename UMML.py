@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.5-hotfix3"
+modloader_version = "1.4.5-fix4"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -181,12 +181,29 @@ def load_settings():
     dmm_game_path_jpn = find_dmm_umamusume()
     game_dir = None
     base_path_steam_en = None
+    # New location
     if steam_game_path_en:
-        base_path_steam_en = (
+        persistent = (
             Path(steam_game_path_en)
             / "UmamusumePrettyDerby_Data"
             / "Persistent"
         )
+
+        if (persistent / "meta").is_file():
+            base_path_steam_en = persistent
+
+    # Old location fallback
+    if base_path_steam_en is None:
+        locallow = (
+            Path.home()
+            / "AppData"
+            / "LocalLow"
+            / "Cygames"
+            / "umamusume"
+        )
+
+        if (locallow / "meta").is_file():
+            base_path_steam_en = locallow
 
     print(f"Steam EN path: {base_path_steam_en}")
     
@@ -2306,80 +2323,80 @@ class ModLoaderGUI:
 
             dress_vars[oid] = (gender_var, body_var, sub_var, setting_var, head_sub_var)
         # --- Set All Values with Range ---
-        setall_frame = tk.LabelFrame(win, text="Set All Values (Apply by ID Range)")
-        setall_frame.pack(fill="x", padx=10, pady=5)
+        # setall_frame = tk.LabelFrame(win, text="Set All Values (Apply by ID Range)")
+        # setall_frame.pack(fill="x", padx=10, pady=5)
 
-        # ID range
-        tk.Label(setall_frame, text="Start ID").pack(side="left", padx=2)
-        start_id_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=start_id_var, width=8).pack(side="left", padx=2)
+        # # ID range
+        # tk.Label(setall_frame, text="Start ID").pack(side="left", padx=2)
+        # start_id_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=start_id_var, width=8).pack(side="left", padx=2)
 
-        tk.Label(setall_frame, text="End ID").pack(side="left", padx=2)
-        end_id_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=end_id_var, width=8).pack(side="left", padx=2)
+        # tk.Label(setall_frame, text="End ID").pack(side="left", padx=2)
+        # end_id_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=end_id_var, width=8).pack(side="left", padx=2)
 
-        # Gender dropdown
-        gender_var = tk.StringVar(value="No Change")
-        gender_combo = ttk.Combobox(setall_frame, textvariable=gender_var,
-                                    values=["No Change", "True", "False"],
-                                    state="readonly", width=10)
-        gender_combo.pack(side="left", padx=5)
+        # # Gender dropdown
+        # gender_var = tk.StringVar(value="No Change")
+        # gender_combo = ttk.Combobox(setall_frame, textvariable=gender_var,
+                                    # values=["No Change", "True", "False"],
+                                    # state="readonly", width=10)
+        # gender_combo.pack(side="left", padx=5)
 
-        # Body
-        tk.Label(setall_frame, text="Body").pack(side="left", padx=2)
-        body_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=body_var, width=6).pack(side="left", padx=2)
+        # # Body
+        # tk.Label(setall_frame, text="Body").pack(side="left", padx=2)
+        # body_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=body_var, width=6).pack(side="left", padx=2)
 
-        # Sub
-        tk.Label(setall_frame, text="Sub").pack(side="left", padx=2)
-        sub_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=sub_var, width=6).pack(side="left", padx=2)
+        # # Sub
+        # tk.Label(setall_frame, text="Sub").pack(side="left", padx=2)
+        # sub_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=sub_var, width=6).pack(side="left", padx=2)
 
-        # Body Setting
-        tk.Label(setall_frame, text="Body Setting").pack(side="left", padx=2)
-        setting_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=setting_var, width=6).pack(side="left", padx=2)
+        # # Body Setting
+        # tk.Label(setall_frame, text="Body Setting").pack(side="left", padx=2)
+        # setting_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=setting_var, width=6).pack(side="left", padx=2)
         
-        # Body Setting
-        tk.Label(setall_frame, text="Head Sub").pack(side="left", padx=2)
-        headsub_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=headsub_var, width=6).pack(side="left", padx=2)
+        # # Body Setting
+        # tk.Label(setall_frame, text="Head Sub").pack(side="left", padx=2)
+        # headsub_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=headsub_var, width=6).pack(side="left", padx=2)
 
-        def apply_set_all_range():
-            try:
-                start_id = int(start_id_var.get()) if start_id_var.get().isdigit() else None
-                end_id = int(end_id_var.get()) if end_id_var.get().isdigit() else None
-            except ValueError:
-                messagebox.showerror("Error", "Invalid ID range")
-                return
+        # def apply_set_all_range():
+            # try:
+                # start_id = int(start_id_var.get()) if start_id_var.get().isdigit() else None
+                # end_id = int(end_id_var.get()) if end_id_var.get().isdigit() else None
+            # except ValueError:
+                # messagebox.showerror("Error", "Invalid ID range")
+                # return
 
-            for oid, vars_tuple in dress_vars.items():
-                if (start_id is not None and oid < start_id) or (end_id is not None and oid > end_id):
-                    continue  # skip outside range
+            # for oid, vars_tuple in dress_vars.items():
+                # if (start_id is not None and oid < start_id) or (end_id is not None and oid > end_id):
+                    # continue  # skip outside range
 
-                g, b, s, st, hs = vars_tuple
+                # g, b, s, st, hs = vars_tuple
 
-                # gender
-                if gender_var.get() != "No Change":
-                    g.set(gender_var.get())
+                # # gender
+                # if gender_var.get() != "No Change":
+                    # g.set(gender_var.get())
 
-                # body
-                if body_var.get().strip() != "":
-                    b.set(body_var.get().strip())
+                # # body
+                # if body_var.get().strip() != "":
+                    # b.set(body_var.get().strip())
 
-                # sub
-                if sub_var.get().strip() != "":
-                    s.set(sub_var.get().strip())
+                # # sub
+                # if sub_var.get().strip() != "":
+                    # s.set(sub_var.get().strip())
 
-                # body setting
-                if setting_var.get().strip() != "":
-                    st.set(setting_var.get().strip())
+                # # body setting
+                # if setting_var.get().strip() != "":
+                    # st.set(setting_var.get().strip())
 
-                # head
-                if headsub_var.get().strip() != "":
-                    hs.set(headsub_var.get().strip())
+                # # head
+                # if headsub_var.get().strip() != "":
+                    # hs.set(headsub_var.get().strip())
 
-        tk.Button(setall_frame, text="Apply", command=apply_set_all_range).pack(side="left", padx=10)
+        # tk.Button(setall_frame, text="Apply", command=apply_set_all_range).pack(side="left", padx=10)
 
         def save_all_dress():
             try:
@@ -2403,19 +2420,19 @@ class ModLoaderGUI:
                 messagebox.showerror("DB Error", str(e))
 
         # explanatory note
-        notes_text = (
-            "⚠ Note: Changing these values can cause T-pose or height issues.\n\n"
-            " gender: whether this dress uses different models for male/female\n"
-            "                      e.g. male = pants, female = bloomers\n"
-            " body: dress category type\n"
-            " sub: dress model variation\n"
-            " body setting: recolor / variant of the dress\n"
-            " head sub: alternate head model variant (used by chibi/SD)\n\n"
-            "⚠ Important: If the chibi model for a body/sub/head combination does not exist,\n"
-            "             the game may softlock when loading that dress.\n"
-            "             Do NOT change 'body' or 'sub' blindly unless you know the models exist.\n"
-        )
-        tk.Label(win, text=notes_text, justify="left", anchor="w", fg="red").pack(fill="x", padx=10, pady=5)
+        # notes_text = (
+            # "⚠ Note: Changing these values can cause T-pose or height issues.\n\n"
+            # " gender: whether this dress uses different models for male/female\n"
+            # "                      e.g. male = pants, female = bloomers\n"
+            # " body: dress category type\n"
+            # " sub: dress model variation\n"
+            # " body setting: recolor / variant of the dress\n"
+            # " head sub: alternate head model variant (used by chibi/SD)\n\n"
+            # "⚠ Important: If the chibi model for a body/sub/head combination does not exist,\n"
+            # "             the game may softlock when loading that dress.\n"
+            # "             Do NOT change 'body' or 'sub' blindly unless you know the models exist.\n"
+        # )
+        # tk.Label(win, text=notes_text, justify="left", anchor="w", fg="red").pack(fill="x", padx=10, pady=5)
 
         tk.Button(win, text="Save All", command=save_all_dress).pack(pady=10)
 
