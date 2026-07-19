@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.5.0"
+modloader_version = "1.5.0-tw"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -364,8 +364,13 @@ def load_settings():
         )
         sys.exit(1)
 
-    dat = os.path.join(base_path, "dat")
-    backup = os.path.join(base_path, "dat.backup")
+    if region == "Taiwan":
+        dat = os.path.join(game_dir, "dat")
+        backup = os.path.join(game_dir, "dat.backup")
+    else:
+        dat = os.path.join(base_path, "dat")
+        backup = os.path.join(base_path, "dat.backup")
+        
     print(f"Game Directory path: {game_dir}")
     return dat, backup, region, game_dir, meta_path_pth
     
