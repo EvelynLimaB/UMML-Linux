@@ -228,53 +228,92 @@ def load_settings():
     root = tk.Tk()
     root.withdraw()
 
-    # --------------------
-    # Region Selection
-    # --------------------
-    choice_region = messagebox.askyesnocancel(
-        "Select Region",
-        "Select Umamusume region to load:\n\n"
-        "Yes  → Global\n"
-        "No   → Japan\n"
-        "Cancel → Exit"
+    choice = messagebox.askyesnocancel(
+        "Platform",
+        "Are you using the Steam version?"
     )
 
-    if choice_region is None:
+    if choice is None:
         root.destroy()
         sys.exit(0)
 
-    # --------------------
-    # Global
-    # --------------------
-    if choice_region:
+    if choice:
+        steam_region = messagebox.askyesnocancel(
+            "Steam Region",
+            "Select Steam version:\n\n"
+            "Yes → Global\n"
+            "No  → Japan\n"
+            "Cancel → Exit"
+        )
+
+        if steam_region is None:
+            root.destroy()
+            sys.exit(0)
+
+        if steam_region:
+            platform = "Steam Global"
+        else:
+            platform = "Steam Japan"
+
+    else:
+        dmm = messagebox.askyesnocancel(
+            "Platform",
+            "Are you using the DMM version?"
+        )
+
+        if dmm is None:
+            root.destroy()
+            sys.exit(0)
+
+        if dmm:
+            platform = "DMM"
+
+        else:
+            asia = messagebox.askyesnocancel(
+                "Platform",
+                "Select version:\n\n"
+                "Yes → Kakao\n"
+                "No  → Komoe\n"
+                "Cancel → Exit"
+            )
+
+            if asia is None:
+                root.destroy()
+                sys.exit(0)
+
+            if asia:
+                platform = "Kakao"
+            else:
+                platform = "Komoe"
+    root.destroy()
+    
+    if platform == "Steam Global":
         base_path = resolve_case_sensitive_path(base_path_steam_en)
         game_dir = resolve_case_sensitive_path(steam_game_path_en)
         region = "Global"
 
-    # --------------------
-    # Japan
-    # --------------------
-    else:
-        choice_platform = messagebox.askyesnocancel(
-            "DMM",
-            "Are you using the DMM version?"
-        )
-
-        if choice_platform is None:
-            root.destroy()
-            sys.exit(0)
-
-        if choice_platform:  # DMM
-            base_path = resolve_case_sensitive_path(base_path_dmm_jp)
-            game_dir = resolve_case_sensitive_path(dmm_game_path_jpn)
-        else:  # Steam
-            base_path = resolve_case_sensitive_path(base_path_steam_jp)
-            game_dir = resolve_case_sensitive_path(steam_game_path_jpn)
-
+    elif platform == "Steam Japan":
+        base_path = resolve_case_sensitive_path(base_path_steam_jp)
+        game_dir = resolve_case_sensitive_path(steam_game_path_jpn)
         region = "Japan"
 
-    root.destroy()
+    elif platform == "DMM":
+        base_path = resolve_case_sensitive_path(base_path_dmm_jp)
+        game_dir = resolve_case_sensitive_path(dmm_game_path_jpn)
+        region = "Japan"
 
+    elif platform == "Kakao":
+        # TODO
+        base_path = ...
+        game_dir = ...
+        region = "Korea"
+
+    elif platform == "Komoe":
+        # TODO
+        base_path = ...
+        game_dir = ...
+        region = "Global"     
+        
     # --------------------
     # Validate
     # --------------------
@@ -303,8 +342,16 @@ def load_or_decrypt_meta_simple(dat_path, region):
     DB_KEY_GLOBAL = "c753a5e8f5f78294f7fef57df4a14ffbf9a896cea1d4e09947e0d904e7fde8eaf0" # from SirDerpyHerp
     DB_KEY_JP = "9c2bab97bcf8c0c4f1a9ea7881a213f6c9ebf9d8d4c6a8e43ce5a259bde7e9fd"
 
-    DB_KEY = DB_KEY_GLOBAL if region == "Global" else DB_KEY_JP
-
+    if region == "Global":
+        DB_KEY = DB_KEY_GLOBAL
+    elif region == "Japan":
+        DB_KEY = DB_KEY_JP
+    else:
+        DB_KEY = None
+        
+    if DB_KEY is None:
+        return meta_enc
+        
     # ---------------- HELPERS ---------------- #
     def can_open_plain(path):
         try:
@@ -658,7 +705,11 @@ class ModLoaderGUI:
 
         conn = sqlite3.connect(meta_db)
         c = conn.cursor()
-
+        
+        c.execute("PRAGMA table_info(a)")
+        columns = {row[1] for row in c.fetchall()}
+        has_encrypt = "e" in columns
+        
         # DRIVE FROM MOD FILES
         all_paths = list(self.scan_full_path(src_root))
 
@@ -689,17 +740,29 @@ class ModLoaderGUI:
 
             if use_hash:
                 # input files are hashes
-                c.execute("SELECT e FROM a WHERE h=?", (rel_path,))
-                row = c.fetchone()
-                if not row:
-                    missing_meta += 1
-                    continue
+                if has_encrypt:
+                    c.execute("SELECT e FROM a WHERE h=?", (rel_path,))
+                    row = c.fetchone()
+                    if not row:
+                        missing_meta += 1
+                        continue
+                    enc_key = int(row[0])
+                else:
+                    c.execute("SELECT 1 FROM a WHERE h=?", (rel_path,))
+                    row = c.fetchone()
+                    if not row:
+                        missing_meta += 1
+                        continue
+                    enc_key = 0
 
                 hash_name = rel_path
                 enc_key = int(row[0])
             else:
                 # input files are meta paths
-                c.execute("SELECT h, e FROM a WHERE n=?", (rel_path,))
+                if has_encrypt:
+                    c.execute("SELECT h, e FROM a WHERE n=?", (rel_path,))
+                else:
+                    c.execute("SELECT h FROM a WHERE n=?", (rel_path,))
                 row = c.fetchone()
                 # fallback unity
                 if not row:
@@ -717,7 +780,10 @@ class ModLoaderGUI:
                                         if data.m_Name:
                                             resolved_name = os.path.splitext(data.m_Name)[0]
                                             # retry lookup
-                                            c.execute("SELECT h, e FROM a WHERE n=?", (resolved_name,))
+                                            if has_encrypt:
+                                                c.execute("SELECT h, e FROM a WHERE n=?", (resolved_name,))
+                                            else:
+                                                c.execute("SELECT h FROM a WHERE n=?", (resolved_name,))
                                             row = c.fetchone()
                                             if row:
                                                 #print(f"{row} is found!, breaking")
@@ -746,7 +812,11 @@ class ModLoaderGUI:
 
                     continue
 
-                hash_name, enc_key = row[0], int(row[1])
+                if has_encrypt:
+                    hash_name, enc_key = row[0], int(row[1])
+                else:
+                    hash_name = row[0]
+                    enc_key = 0
 
             output_path = os.path.join(dst_root, hash_name)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
