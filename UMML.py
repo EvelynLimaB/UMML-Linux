@@ -388,7 +388,7 @@ def load_or_decrypt_meta_simple(dat_path, meta_path, region):
         DB_KEY = None
         
     if DB_KEY is None:
-        return meta_enc
+        return meta_path
         
     # ---------------- HELPERS ---------------- #
     def can_open_plain(path):
