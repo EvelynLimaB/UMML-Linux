@@ -155,6 +155,29 @@ def get_steam_libraries(steam_path):
 # Find Game Path
 # ---------------------------
 
+def find_komoe_umamusume():
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Uninstall\komoemumamusume"
+        )
+
+        display_icon, _ = winreg.QueryValueEx(key, "DisplayIcon")
+        winreg.CloseKey(key)
+
+        game_dir_komoe = os.path.join(
+            os.path.dirname(display_icon),
+            "komoemumamusume Game"
+        )
+
+        if os.path.isdir(game_dir_komoe):
+            return game_dir_komoe
+
+    except Exception as e:
+        print(f"Komoe detection failed: {e}")
+
+    return None
+        
 def find_game_path(app_id):
     steam_path = get_steam_path()
     if not steam_path:
@@ -179,6 +202,8 @@ def load_settings():
     steam_game_path_jpn = find_game_path(3564400)
     steam_game_path_en = find_game_path(3224770)
     dmm_game_path_jpn = find_dmm_umamusume()
+    komoe_game_path = find_komoe_umamusume()
+    
     game_dir = None
     base_path_steam_en = None
     # New location
@@ -225,6 +250,17 @@ def load_settings():
         )
         
     print(f"DMM Game path: {dmm_game_path_jpn}")
+    
+    base_path_komoe_tw = None
+    if komoe_game_path:
+        base_path_komoe_tw = (
+            Path(komoe_game_path)
+            / "komoeumamusume_Data"
+            / "Persistent"
+        )
+        
+    print(f"Komoe Game path: {komoe_game_path}")
+    
     root = tk.Tk()
     root.withdraw()
 
@@ -303,16 +339,15 @@ def load_settings():
         region = "Japan"
 
     elif platform == "Kakao":
-        # TODO
-        base_path = ...
-        game_dir = ...
+        # TODO implement
+        #base_path = resolve_case_sensitive_path(base_path_dmm_jp)
+        #game_dir = Path(komoe_game_path) / "komoemumamusume Game"
         region = "Korea"
 
     elif platform == "Komoe":
-        # TODO
-        base_path = ...
-        game_dir = ...
-        region = "Global"     
+        base_path = resolve_case_sensitive_path(base_path_komoe_tw)
+        game_dir = resolve_case_sensitive_path(komoe_game_path)
+        region = "Taiwan"     
         
     # --------------------
     # Validate
@@ -756,7 +791,6 @@ class ModLoaderGUI:
                     enc_key = 0
 
                 hash_name = rel_path
-                enc_key = int(row[0])
             else:
                 # input files are meta paths
                 if has_encrypt:
