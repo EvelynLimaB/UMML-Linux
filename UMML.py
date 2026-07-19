@@ -327,11 +327,13 @@ def load_settings():
     if platform == "Steam Global":
         base_path = resolve_case_sensitive_path(base_path_steam_en)
         game_dir = resolve_case_sensitive_path(steam_game_path_en)
+        meta_path = os.path.join(base_path, "meta")
         region = "Global"
 
     elif platform == "Steam Japan":
         base_path = resolve_case_sensitive_path(base_path_steam_jp)
         game_dir = resolve_case_sensitive_path(steam_game_path_jpn)
+        meta_path_pth = os.path.join(base_path, "meta")
         region = "Japan"
 
     elif platform == "DMM":
@@ -348,6 +350,7 @@ def load_settings():
     elif platform == "Komoe":
         base_path = resolve_case_sensitive_path(base_path_komoe_tw)
         game_dir = resolve_case_sensitive_path(komoe_game_path)
+        meta_path_pth = os.path.join(game_dir, "meta")
         region = "Taiwan"     
         
     # --------------------
@@ -364,15 +367,11 @@ def load_settings():
     dat = os.path.join(base_path, "dat")
     backup = os.path.join(base_path, "dat.backup")
     print(f"Game Directory path: {game_dir}")
-    return dat, backup, region, game_dir
+    return dat, backup, region, game_dir, meta_path_pth
     
 # using ref from noccu/hachimi-tools
-def load_or_decrypt_meta_simple(dat_path, region):
-    if region == "Taiwan":
-        game_dir = os.path.dirname(os.path.dirname(base_path))
-        meta_path = os.path.join(game_dir, "meta")
-    else:
-        meta_path = os.path.join(base_path, "meta")
+def load_or_decrypt_meta_simple(dat_path, meta_path, region):
+    base_path = os.path.dirname(dat_path)
 
     if not os.path.isfile(meta_path):
         raise RuntimeError("meta file not found")
@@ -521,11 +520,11 @@ class ModLoaderGUI:
         self.root = root
         self.root.title("UMML GUI")
 
-        self.dat_path, self.backup_path, self.region, self.game_dir = load_settings()
+        self.dat_path, self.backup_path, self.region, self.game_dir, self.meta_path_pth = load_settings()
         # bind function (optional but matches your request)
         self.meta_path_load = load_or_decrypt_meta_simple
         # resolve meta path ONCE at startup
-        self.meta_path = self.meta_path_load(self.dat_path, self.region)   
+        self.meta_path = self.meta_path_load(self.dat_path, self.meta_path_pth, self.region)   
         #print(f"[Meta] Using meta DB: {self.meta_path}")
         self.mod_path = tk.StringVar()
         self.title_text = tk.StringVar()
