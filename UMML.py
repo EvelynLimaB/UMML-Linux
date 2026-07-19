@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.5-fix4"
+modloader_version = "1.5.0"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -50,6 +50,7 @@ except ImportError:
             "please try again."
         )
         sys.exit(0)
+print(f"{modloader_version}\n")
 print("[OK] UnityPy ready")
 print("[OK] vdf ready")
 print("[OK] apsw-sqlite3mc ready")
@@ -367,8 +368,11 @@ def load_settings():
     
 # using ref from noccu/hachimi-tools
 def load_or_decrypt_meta_simple(dat_path, region):
-    base_path = os.path.dirname(dat_path)
-    meta_path = os.path.join(base_path, "meta")
+    if region == "Taiwan":
+        game_dir = os.path.dirname(os.path.dirname(base_path))
+        meta_path = os.path.join(game_dir, "meta")
+    else:
+        meta_path = os.path.join(base_path, "meta")
 
     if not os.path.isfile(meta_path):
         raise RuntimeError("meta file not found")
