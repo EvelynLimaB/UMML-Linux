@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.5.0-tw"
+modloader_version = "1.5.0-hotfix"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -206,6 +206,10 @@ def load_settings():
     komoe_game_path = find_komoe_umamusume()
     
     game_dir = None
+    base_path = None
+    meta_path_pth = None
+    region = None
+    platform = None
     base_path_steam_en = None
     # New location
     if steam_game_path_en:
@@ -327,7 +331,7 @@ def load_settings():
     if platform == "Steam Global":
         base_path = resolve_case_sensitive_path(base_path_steam_en)
         game_dir = resolve_case_sensitive_path(steam_game_path_en)
-        meta_path = os.path.join(base_path, "meta")
+        meta_path_pth = os.path.join(base_path, "meta")
         region = "Global"
 
     elif platform == "Steam Japan":
@@ -339,6 +343,7 @@ def load_settings():
     elif platform == "DMM":
         base_path = resolve_case_sensitive_path(base_path_dmm_jp)
         game_dir = resolve_case_sensitive_path(dmm_game_path_jpn)
+        meta_path_pth = os.path.join(base_path, "meta")
         region = "Japan"
 
     elif platform == "Kakao":
@@ -363,7 +368,12 @@ def load_settings():
             "Please make sure the game is installed and run at least once."
         )
         sys.exit(1)
-
+    if meta_path_pth is None or not os.path.isfile(meta_path_pth):
+        messagebox.showerror(
+            "Meta Not Found",
+            f"Meta database not found:\n{meta_path_pth}"
+        )
+        sys.exit(1)
     if region == "Taiwan":
         dat = os.path.join(game_dir, "dat")
         backup = os.path.join(game_dir, "dat.backup")
