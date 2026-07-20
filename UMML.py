@@ -12,7 +12,7 @@ import re
 import winreg
 import struct
 from pathlib import Path
-modloader_version = "1.4.5-fix2"
+modloader_version = "1.5.0-hotfix"
 required_keys = ["mod_version", "title", "description", "modloader_version"]
 
 # --- Check dependency ---
@@ -50,6 +50,7 @@ except ImportError:
             "please try again."
         )
         sys.exit(0)
+print(f"{modloader_version}\n")
 print("[OK] UnityPy ready")
 print("[OK] vdf ready")
 print("[OK] apsw-sqlite3mc ready")
@@ -155,6 +156,29 @@ def get_steam_libraries(steam_path):
 # Find Game Path
 # ---------------------------
 
+def find_komoe_umamusume():
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Uninstall\komoemumamusume"
+        )
+
+        display_icon, _ = winreg.QueryValueEx(key, "DisplayIcon")
+        winreg.CloseKey(key)
+
+        game_dir_komoe = os.path.join(
+            os.path.dirname(display_icon),
+            "komoemumamusume Game"
+        )
+
+        if os.path.isdir(game_dir_komoe):
+            return game_dir_komoe
+
+    except Exception as e:
+        print(f"Komoe detection failed: {e}")
+
+    return None
+        
 def find_game_path(app_id):
     steam_path = get_steam_path()
     if not steam_path:
@@ -179,14 +203,38 @@ def load_settings():
     steam_game_path_jpn = find_game_path(3564400)
     steam_game_path_en = find_game_path(3224770)
     dmm_game_path_jpn = find_dmm_umamusume()
+    komoe_game_path = find_komoe_umamusume()
+    
     game_dir = None
-    base_path_steam_en = (
-        Path.home()
-        / "AppData"
-        / "LocalLow"
-        / "Cygames"
-        / "umamusume"
-    )
+    base_path = None
+    meta_path_pth = None
+    region = None
+    platform = None
+    base_path_steam_en = None
+    # New location
+    if steam_game_path_en:
+        persistent = (
+            Path(steam_game_path_en)
+            / "UmamusumePrettyDerby_Data"
+            / "Persistent"
+        )
+
+        if (persistent / "meta").is_file():
+            base_path_steam_en = persistent
+
+    # Old location fallback
+    if base_path_steam_en is None:
+        locallow = (
+            Path.home()
+            / "AppData"
+            / "LocalLow"
+            / "Cygames"
+            / "umamusume"
+        )
+
+        if (locallow / "meta").is_file():
+            base_path_steam_en = locallow
+
     print(f"Steam EN path: {base_path_steam_en}")
     
     base_path_steam_jp = None
@@ -207,56 +255,109 @@ def load_settings():
         )
         
     print(f"DMM Game path: {dmm_game_path_jpn}")
+    
+    base_path_komoe_tw = None
+    if komoe_game_path:
+        base_path_komoe_tw = (
+            Path(komoe_game_path)
+            / "komoeumamusume_Data"
+            / "Persistent"
+        )
+        
+    print(f"Komoe Game path: {komoe_game_path}")
+    
     root = tk.Tk()
     root.withdraw()
 
-    # --------------------
-    # Region Selection
-    # --------------------
-    choice_region = messagebox.askyesnocancel(
-        "Select Region",
-        "Select Umamusume region to load:\n\n"
-        "Yes  → Global\n"
-        "No   → Japan\n"
-        "Cancel → Exit"
+    choice = messagebox.askyesnocancel(
+        "Platform",
+        "Are you using the Steam version?"
     )
 
-    if choice_region is None:
+    if choice is None:
         root.destroy()
         sys.exit(0)
 
-    # --------------------
-    # Global
-    # --------------------
-    if choice_region:
-        base_path = resolve_case_sensitive_path(base_path_steam_en)
-        game_dir = resolve_case_sensitive_path(steam_game_path_en)
-        region = "Global"
-
-    # --------------------
-    # Japan
-    # --------------------
-    else:
-        choice_platform = messagebox.askyesnocancel(
-            "DMM",
-            "Are you using the DMM version?"
+    if choice:
+        steam_region = messagebox.askyesnocancel(
+            "Steam Region",
+            "Select Steam version:\n\n"
+            "Yes → Global\n"
+            "No  → Japan\n"
+            "Cancel → Exit"
         )
 
-        if choice_platform is None:
+        if steam_region is None:
             root.destroy()
             sys.exit(0)
 
-        if choice_platform:  # DMM
-            base_path = resolve_case_sensitive_path(base_path_dmm_jp)
-            game_dir = resolve_case_sensitive_path(dmm_game_path_jpn)
-        else:  # Steam
-            base_path = resolve_case_sensitive_path(base_path_steam_jp)
-            game_dir = resolve_case_sensitive_path(steam_game_path_jpn)
+        if steam_region:
+            platform = "Steam Global"
+        else:
+            platform = "Steam Japan"
 
+    else:
+        dmm = messagebox.askyesnocancel(
+            "Platform",
+            "Are you using the DMM version?"
+        )
+
+        if dmm is None:
+            root.destroy()
+            sys.exit(0)
+
+        if dmm:
+            platform = "DMM"
+
+        else:
+            asia = messagebox.askyesnocancel(
+                "Platform",
+                "Select version:\n\n"
+                "Yes → Kakao\n"
+                "No  → Komoe\n"
+                "Cancel → Exit"
+            )
+
+            if asia is None:
+                root.destroy()
+                sys.exit(0)
+
+            if asia:
+                platform = "Kakao"
+            else:
+                platform = "Komoe"
+    root.destroy()
+    
+    if platform == "Steam Global":
+        base_path = resolve_case_sensitive_path(base_path_steam_en)
+        game_dir = resolve_case_sensitive_path(steam_game_path_en)
+        meta_path_pth = os.path.join(base_path, "meta")
+        region = "Global"
+
+    elif platform == "Steam Japan":
+        base_path = resolve_case_sensitive_path(base_path_steam_jp)
+        game_dir = resolve_case_sensitive_path(steam_game_path_jpn)
+        meta_path_pth = os.path.join(base_path, "meta")
         region = "Japan"
 
-    root.destroy()
+    elif platform == "DMM":
+        base_path = resolve_case_sensitive_path(base_path_dmm_jp)
+        game_dir = resolve_case_sensitive_path(dmm_game_path_jpn)
+        meta_path_pth = os.path.join(base_path, "meta")
+        region = "Japan"
 
+    elif platform == "Kakao":
+        # TODO implement
+        #base_path = resolve_case_sensitive_path(base_path_dmm_jp)
+        #game_dir = Path(komoe_game_path) / "komoemumamusume Game"
+        region = "Korea"
+
+    elif platform == "Komoe":
+        base_path = resolve_case_sensitive_path(base_path_komoe_tw)
+        game_dir = resolve_case_sensitive_path(komoe_game_path)
+        meta_path_pth = os.path.join(game_dir, "meta")
+        region = "Taiwan"     
+        
     # --------------------
     # Validate
     # --------------------
@@ -267,16 +368,25 @@ def load_settings():
             "Please make sure the game is installed and run at least once."
         )
         sys.exit(1)
-
-    dat = os.path.join(base_path, "dat")
-    backup = os.path.join(base_path, "dat.backup")
+    if meta_path_pth is None or not os.path.isfile(meta_path_pth):
+        messagebox.showerror(
+            "Meta Not Found",
+            f"Meta database not found:\n{meta_path_pth}"
+        )
+        sys.exit(1)
+    if region == "Taiwan":
+        dat = os.path.join(game_dir, "dat")
+        backup = os.path.join(game_dir, "dat.backup")
+    else:
+        dat = os.path.join(base_path, "dat")
+        backup = os.path.join(base_path, "dat.backup")
+        
     print(f"Game Directory path: {game_dir}")
-    return dat, backup, region, game_dir
+    return dat, backup, region, game_dir, meta_path_pth
     
 # using ref from noccu/hachimi-tools
-def load_or_decrypt_meta_simple(dat_path, region):
+def load_or_decrypt_meta_simple(dat_path, meta_path, region):
     base_path = os.path.dirname(dat_path)
-    meta_path = os.path.join(base_path, "meta")
 
     if not os.path.isfile(meta_path):
         raise RuntimeError("meta file not found")
@@ -285,8 +395,16 @@ def load_or_decrypt_meta_simple(dat_path, region):
     DB_KEY_GLOBAL = "c753a5e8f5f78294f7fef57df4a14ffbf9a896cea1d4e09947e0d904e7fde8eaf0" # from SirDerpyHerp
     DB_KEY_JP = "9c2bab97bcf8c0c4f1a9ea7881a213f6c9ebf9d8d4c6a8e43ce5a259bde7e9fd"
 
-    DB_KEY = DB_KEY_GLOBAL if region == "Global" else DB_KEY_JP
-
+    if region == "Global":
+        DB_KEY = DB_KEY_GLOBAL
+    elif region == "Japan":
+        DB_KEY = DB_KEY_JP
+    else:
+        DB_KEY = None
+        
+    if DB_KEY is None:
+        return meta_path
+        
     # ---------------- HELPERS ---------------- #
     def can_open_plain(path):
         try:
@@ -417,11 +535,11 @@ class ModLoaderGUI:
         self.root = root
         self.root.title("UMML GUI")
 
-        self.dat_path, self.backup_path, self.region, self.game_dir = load_settings()
+        self.dat_path, self.backup_path, self.region, self.game_dir, self.meta_path_pth = load_settings()
         # bind function (optional but matches your request)
         self.meta_path_load = load_or_decrypt_meta_simple
         # resolve meta path ONCE at startup
-        self.meta_path = self.meta_path_load(self.dat_path, self.region)   
+        self.meta_path = self.meta_path_load(self.dat_path, self.meta_path_pth, self.region)   
         #print(f"[Meta] Using meta DB: {self.meta_path}")
         self.mod_path = tk.StringVar()
         self.title_text = tk.StringVar()
@@ -640,7 +758,11 @@ class ModLoaderGUI:
 
         conn = sqlite3.connect(meta_db)
         c = conn.cursor()
-
+        
+        c.execute("PRAGMA table_info(a)")
+        columns = {row[1] for row in c.fetchall()}
+        has_encrypt = "e" in columns
+        
         # DRIVE FROM MOD FILES
         all_paths = list(self.scan_full_path(src_root))
 
@@ -671,17 +793,28 @@ class ModLoaderGUI:
 
             if use_hash:
                 # input files are hashes
-                c.execute("SELECT e FROM a WHERE h=?", (rel_path,))
-                row = c.fetchone()
-                if not row:
-                    missing_meta += 1
-                    continue
+                if has_encrypt:
+                    c.execute("SELECT e FROM a WHERE h=?", (rel_path,))
+                    row = c.fetchone()
+                    if not row:
+                        missing_meta += 1
+                        continue
+                    enc_key = int(row[0])
+                else:
+                    c.execute("SELECT 1 FROM a WHERE h=?", (rel_path,))
+                    row = c.fetchone()
+                    if not row:
+                        missing_meta += 1
+                        continue
+                    enc_key = 0
 
                 hash_name = rel_path
-                enc_key = int(row[0])
             else:
                 # input files are meta paths
-                c.execute("SELECT h, e FROM a WHERE n=?", (rel_path,))
+                if has_encrypt:
+                    c.execute("SELECT h, e FROM a WHERE n=?", (rel_path,))
+                else:
+                    c.execute("SELECT h FROM a WHERE n=?", (rel_path,))
                 row = c.fetchone()
                 # fallback unity
                 if not row:
@@ -699,7 +832,10 @@ class ModLoaderGUI:
                                         if data.m_Name:
                                             resolved_name = os.path.splitext(data.m_Name)[0]
                                             # retry lookup
-                                            c.execute("SELECT h, e FROM a WHERE n=?", (resolved_name,))
+                                            if has_encrypt:
+                                                c.execute("SELECT h, e FROM a WHERE n=?", (resolved_name,))
+                                            else:
+                                                c.execute("SELECT h FROM a WHERE n=?", (resolved_name,))
                                             row = c.fetchone()
                                             if row:
                                                 #print(f"{row} is found!, breaking")
@@ -728,7 +864,11 @@ class ModLoaderGUI:
 
                     continue
 
-                hash_name, enc_key = row[0], int(row[1])
+                if has_encrypt:
+                    hash_name, enc_key = row[0], int(row[1])
+                else:
+                    hash_name = row[0]
+                    enc_key = 0
 
             output_path = os.path.join(dst_root, hash_name)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -2305,80 +2445,80 @@ class ModLoaderGUI:
 
             dress_vars[oid] = (gender_var, body_var, sub_var, setting_var, head_sub_var)
         # --- Set All Values with Range ---
-        setall_frame = tk.LabelFrame(win, text="Set All Values (Apply by ID Range)")
-        setall_frame.pack(fill="x", padx=10, pady=5)
+        # setall_frame = tk.LabelFrame(win, text="Set All Values (Apply by ID Range)")
+        # setall_frame.pack(fill="x", padx=10, pady=5)
 
-        # ID range
-        tk.Label(setall_frame, text="Start ID").pack(side="left", padx=2)
-        start_id_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=start_id_var, width=8).pack(side="left", padx=2)
+        # # ID range
+        # tk.Label(setall_frame, text="Start ID").pack(side="left", padx=2)
+        # start_id_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=start_id_var, width=8).pack(side="left", padx=2)
 
-        tk.Label(setall_frame, text="End ID").pack(side="left", padx=2)
-        end_id_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=end_id_var, width=8).pack(side="left", padx=2)
+        # tk.Label(setall_frame, text="End ID").pack(side="left", padx=2)
+        # end_id_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=end_id_var, width=8).pack(side="left", padx=2)
 
-        # Gender dropdown
-        gender_var = tk.StringVar(value="No Change")
-        gender_combo = ttk.Combobox(setall_frame, textvariable=gender_var,
-                                    values=["No Change", "True", "False"],
-                                    state="readonly", width=10)
-        gender_combo.pack(side="left", padx=5)
+        # # Gender dropdown
+        # gender_var = tk.StringVar(value="No Change")
+        # gender_combo = ttk.Combobox(setall_frame, textvariable=gender_var,
+                                    # values=["No Change", "True", "False"],
+                                    # state="readonly", width=10)
+        # gender_combo.pack(side="left", padx=5)
 
-        # Body
-        tk.Label(setall_frame, text="Body").pack(side="left", padx=2)
-        body_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=body_var, width=6).pack(side="left", padx=2)
+        # # Body
+        # tk.Label(setall_frame, text="Body").pack(side="left", padx=2)
+        # body_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=body_var, width=6).pack(side="left", padx=2)
 
-        # Sub
-        tk.Label(setall_frame, text="Sub").pack(side="left", padx=2)
-        sub_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=sub_var, width=6).pack(side="left", padx=2)
+        # # Sub
+        # tk.Label(setall_frame, text="Sub").pack(side="left", padx=2)
+        # sub_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=sub_var, width=6).pack(side="left", padx=2)
 
-        # Body Setting
-        tk.Label(setall_frame, text="Body Setting").pack(side="left", padx=2)
-        setting_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=setting_var, width=6).pack(side="left", padx=2)
+        # # Body Setting
+        # tk.Label(setall_frame, text="Body Setting").pack(side="left", padx=2)
+        # setting_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=setting_var, width=6).pack(side="left", padx=2)
         
-        # Body Setting
-        tk.Label(setall_frame, text="Head Sub").pack(side="left", padx=2)
-        headsub_var = tk.StringVar()
-        tk.Entry(setall_frame, textvariable=headsub_var, width=6).pack(side="left", padx=2)
+        # # Body Setting
+        # tk.Label(setall_frame, text="Head Sub").pack(side="left", padx=2)
+        # headsub_var = tk.StringVar()
+        # tk.Entry(setall_frame, textvariable=headsub_var, width=6).pack(side="left", padx=2)
 
-        def apply_set_all_range():
-            try:
-                start_id = int(start_id_var.get()) if start_id_var.get().isdigit() else None
-                end_id = int(end_id_var.get()) if end_id_var.get().isdigit() else None
-            except ValueError:
-                messagebox.showerror("Error", "Invalid ID range")
-                return
+        # def apply_set_all_range():
+            # try:
+                # start_id = int(start_id_var.get()) if start_id_var.get().isdigit() else None
+                # end_id = int(end_id_var.get()) if end_id_var.get().isdigit() else None
+            # except ValueError:
+                # messagebox.showerror("Error", "Invalid ID range")
+                # return
 
-            for oid, vars_tuple in dress_vars.items():
-                if (start_id is not None and oid < start_id) or (end_id is not None and oid > end_id):
-                    continue  # skip outside range
+            # for oid, vars_tuple in dress_vars.items():
+                # if (start_id is not None and oid < start_id) or (end_id is not None and oid > end_id):
+                    # continue  # skip outside range
 
-                g, b, s, st, hs = vars_tuple
+                # g, b, s, st, hs = vars_tuple
 
-                # gender
-                if gender_var.get() != "No Change":
-                    g.set(gender_var.get())
+                # # gender
+                # if gender_var.get() != "No Change":
+                    # g.set(gender_var.get())
 
-                # body
-                if body_var.get().strip() != "":
-                    b.set(body_var.get().strip())
+                # # body
+                # if body_var.get().strip() != "":
+                    # b.set(body_var.get().strip())
 
-                # sub
-                if sub_var.get().strip() != "":
-                    s.set(sub_var.get().strip())
+                # # sub
+                # if sub_var.get().strip() != "":
+                    # s.set(sub_var.get().strip())
 
-                # body setting
-                if setting_var.get().strip() != "":
-                    st.set(setting_var.get().strip())
+                # # body setting
+                # if setting_var.get().strip() != "":
+                    # st.set(setting_var.get().strip())
 
-                # head
-                if headsub_var.get().strip() != "":
-                    hs.set(headsub_var.get().strip())
+                # # head
+                # if headsub_var.get().strip() != "":
+                    # hs.set(headsub_var.get().strip())
 
-        tk.Button(setall_frame, text="Apply", command=apply_set_all_range).pack(side="left", padx=10)
+        # tk.Button(setall_frame, text="Apply", command=apply_set_all_range).pack(side="left", padx=10)
 
         def save_all_dress():
             try:
@@ -2402,19 +2542,19 @@ class ModLoaderGUI:
                 messagebox.showerror("DB Error", str(e))
 
         # explanatory note
-        notes_text = (
-            "⚠ Note: Changing these values can cause T-pose or height issues.\n\n"
-            " gender: whether this dress uses different models for male/female\n"
-            "                      e.g. male = pants, female = bloomers\n"
-            " body: dress category type\n"
-            " sub: dress model variation\n"
-            " body setting: recolor / variant of the dress\n"
-            " head sub: alternate head model variant (used by chibi/SD)\n\n"
-            "⚠ Important: If the chibi model for a body/sub/head combination does not exist,\n"
-            "             the game may softlock when loading that dress.\n"
-            "             Do NOT change 'body' or 'sub' blindly unless you know the models exist.\n"
-        )
-        tk.Label(win, text=notes_text, justify="left", anchor="w", fg="red").pack(fill="x", padx=10, pady=5)
+        # notes_text = (
+            # "⚠ Note: Changing these values can cause T-pose or height issues.\n\n"
+            # " gender: whether this dress uses different models for male/female\n"
+            # "                      e.g. male = pants, female = bloomers\n"
+            # " body: dress category type\n"
+            # " sub: dress model variation\n"
+            # " body setting: recolor / variant of the dress\n"
+            # " head sub: alternate head model variant (used by chibi/SD)\n\n"
+            # "⚠ Important: If the chibi model for a body/sub/head combination does not exist,\n"
+            # "             the game may softlock when loading that dress.\n"
+            # "             Do NOT change 'body' or 'sub' blindly unless you know the models exist.\n"
+        # )
+        # tk.Label(win, text=notes_text, justify="left", anchor="w", fg="red").pack(fill="x", padx=10, pady=5)
 
         tk.Button(win, text="Save All", command=save_all_dress).pack(pady=10)
 
