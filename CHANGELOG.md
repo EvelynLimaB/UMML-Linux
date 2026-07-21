@@ -2,55 +2,51 @@
 
 All notable changes to the Linux/Proton fork are documented here.
 
-## [1.5.0-linux.4] - 2026-07-21
+## [1.5.0-linux.5] - 2026-07-21
 
-### Fixed
+### Changed
 
-- Manual selection no longer resolves away a Steam symlink before locating the
-  associated library and Proton prefix.
-- A selected game root can be paired with data stored separately under
-  `steamapps/compatdata/3224770`.
-- Manual selection accepts the game root, `_Data`, `Persistent`, LocalLow data,
-  or the `dat` subfolder.
-- When a valid game root is found but its data remains unknown, UMML asks for the
-  data folder separately instead of incorrectly rejecting the game folder.
+- Replaced `umml_detection_hotfix.py`, `umml_manual_location_fix.py`, and
+  unreliable project-local `sitecustomize.py` activation with one
+  `umml_autodetect` package activated directly by `UMML.py`.
+- Steam roots, libraries, game candidates, Proton prefixes, and data candidates
+  are now independently discovered and scored before pairing.
+- `umml-doctor` now prints detailed evidence and selection reports.
+
+### Added
+
+- Debian/Mint, uppercase/lowercase XDG, legacy native, Flatpak current/legacy,
+  Snap normal/hidden, and system Steam-root coverage.
+- Old/new `libraryfolders.vdf`, `config/libraryfolders.vdf`, and legacy
+  `BaseInstallFolder_*` parsing.
+- Runtime `/proc` Steam/Proton environment discovery.
+- Case-insensitive Steam directory resolution and symlink-preserving paths.
+- Independent cross-library prefix search and newest-prefix selection via
+  `pfx.lock` time.
+- Standard-library Valve KeyValues fallback parser.
+- 16 autodetection fixtures plus existing platform and release tests.
+- Behavioral reference documentation for Protontricks, Lutris, and Valve Proton.
 
 ### Validation
 
-- Added the exact symlinked-game/separate-Proton-data regression test.
-- DEB and AppImage smoke tests now use a symlinked Steam game directory with
-  `meta` and `dat` stored only inside the Proton prefix.
+- 31 tests pass locally.
+- Source compilation, shell validation, ZIP/tarball builds and archive integrity
+  pass locally.
+- Release CI installs and tests both the finished DEB and AppImage against a
+  symlinked game on one secondary library and a Proton prefix on another.
+
+## [1.5.0-linux.4] - 2026-07-21
+
+- Fixed manual selection for symlinked games and separate Proton data.
 
 ## [1.5.0-linux.3] - 2026-07-21
 
-### Fixed
-
-- Native Linux Mint, Ubuntu, and Debian Steam installs are discovered from
-  `~/.steam/debian-installation`.
-- Packaged builds retain Steam manifest discovery through a built-in Valve
-  KeyValues fallback parser.
-- Running Steam/Proton processes and known game-folder names can aid discovery.
-- Partial detection is reported more clearly and manual game-folder selection
-  is available.
+- Added Mint/Debian Steam discovery and manual game selection.
 
 ## [1.5.0-linux.2] - 2026-07-21
 
-### Added
-
-- Self-contained x86_64 DEB package for Linux Mint, Ubuntu, and Debian.
-- Portable x86_64 AppImage for other Linux distributions.
-- Shared PyInstaller runtime, desktop metadata, smoke tests, and checksums.
+- Added self-contained DEB and AppImage packages.
 
 ## [1.5.0-linux.1] - 2026-07-21
 
-### Added
-
-- Native Linux and Steam Proton support for Umamusume Pretty Derby Global.
-- Native, Flatpak, and secondary Steam-library discovery.
-- Current and legacy Proton data-path detection.
-- Resizable ttk interface, diagnostics, `umml-doctor`, logging, tests, and CI.
-
-### Preserved
-
-- Upstream `1.5.0-hotfix` behavior and MIT licensing.
-- Windows Steam Global/Japan, DMM Japan, and Komoe Taiwan support.
+- Added the initial polished Linux/Steam Proton port.
