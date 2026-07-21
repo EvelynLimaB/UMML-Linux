@@ -18,6 +18,7 @@ from .steam import (
 )
 from .vdf import VDFError, get_casefold, load_vdf
 
+
 def _manifest_state(path: Path) -> Optional[Mapping[str, object]]:
     try:
         parsed = load_vdf(path)
@@ -67,7 +68,7 @@ def discover_game_candidates(
     environ: Optional[Mapping[str, str]] = None,
     processes: Optional[Sequence[ProcessEvidence]] = None,
 ) -> list[GameCandidate]:
-    environ = environ or os.environ
+    environ = os.environ if environ is None else environ
     processes = list(processes) if processes is not None else scan_processes()
     candidates: list[GameCandidate] = []
 
@@ -182,7 +183,7 @@ def discover_data_candidates(
     environ: Optional[Mapping[str, str]] = None,
     processes: Optional[Sequence[ProcessEvidence]] = None,
 ) -> list[DataCandidate]:
-    environ = environ or os.environ
+    environ = os.environ if environ is None else environ
     processes = list(processes) if processes is not None else scan_processes()
     candidates: list[DataCandidate] = []
 
@@ -254,26 +255,27 @@ def choose_pair(
     games: Sequence[GameCandidate],
     data: Sequence[DataCandidate],
 ) -> tuple[Optional[Path], Optional[Path]]:
-    pairs: list[tuple[int, float, GameCandidate, DataCandidate]] = []
+    pairs: list[tuple[int, float, int, GameCandidate, DataCandidate]] = []
     for game_candidate in games:
         if not safe_is_dir(game_candidate.path):
             continue
         for data_candidate in data:
             if not valid_data_dir(data_candidate.path):
                 continue
-            relation = 20 if _same_library(game_candidate, data_candidate) else 0
+            relation = 1 if _same_library(game_candidate, data_candidate) else 0
             pairs.append(
                 (
-                    game_candidate.score + data_candidate.score + relation,
+                    game_candidate.score + data_candidate.score,
                     data_candidate.modified,
+                    relation,
                     game_candidate,
                     data_candidate,
                 )
             )
     if not pairs:
         return None, None
-    pairs.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    return pairs[0][2].path, pairs[0][3].path
+    pairs.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    return pairs[0][3].path, pairs[0][4].path
 
 
 def discover_global_installation(
@@ -282,7 +284,7 @@ def discover_global_installation(
     environ: Optional[Mapping[str, str]] = None,
     processes: Optional[Sequence[ProcessEvidence]] = None,
 ) -> DiscoveryResult:
-    environ = environ or os.environ
+    environ = os.environ if environ is None else environ
     processes = list(processes) if processes is not None else scan_processes()
     roots = discover_steam_roots(home=home, environ=environ, processes=processes)
     libraries = discover_libraries(roots, home=home)
@@ -316,7 +318,7 @@ def manual_global_installation(
     environ: Optional[Mapping[str, str]] = None,
     processes: Optional[Sequence[ProcessEvidence]] = None,
 ) -> DiscoveryResult:
-    environ = dict(environ or os.environ)
+    environ = dict(os.environ if environ is None else environ)
     processes = list(processes) if processes is not None else scan_processes()
     game_dir: Optional[Path] = None
     selected_data: Optional[Path] = None
