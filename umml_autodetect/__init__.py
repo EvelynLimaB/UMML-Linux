@@ -27,10 +27,11 @@ __all__ = [
     "valid_data_dir", "apply",
 ]
 
+
 def apply() -> None:
     """Integrate the discovery engine with UMML's existing platform/UI layer."""
 
-    # Keep the mature upstream registry-based behavior untouched on Windows.
+    # Preserve the mature upstream registry-based behavior on Windows.
     if os.name == "nt":
         return
 
@@ -43,6 +44,7 @@ def apply() -> None:
     original_detect = platform.detect_installations
     original_doctor = platform.format_doctor_report
     original_load_settings = platform.load_settings
+    original_find_game = platform.find_game_path
 
     cache: dict[str, DiscoveryResult] = {}
 
@@ -62,13 +64,15 @@ def apply() -> None:
 
     def find_game_path(app_id: int) -> Optional[str]:
         if app_id == GLOBAL_APP_ID:
-            return str(result().game_dir) if result().game_dir else None
-        return platform.find_game_path_original(app_id) if hasattr(platform, "find_game_path_original") else None
+            current = result()
+            return str(current.game_dir) if current.game_dir else None
+        return original_find_game(app_id)
 
-    old_find_game = platform.find_game_path
-    platform.find_game_path_original = old_find_game
-
-    def find_proton_locallow(app_id: int, company: str = "Cygames", game: str = "umamusume") -> Optional[Path]:
+    def find_proton_locallow(
+        app_id: int,
+        company: str = "Cygames",
+        game: str = "umamusume",
+    ) -> Optional[Path]:
         if app_id == GLOBAL_APP_ID:
             return result().data_dir
         return None
@@ -84,7 +88,7 @@ def apply() -> None:
         return None
 
     def detect_installations():
-        current = result(refresh=True)
+        current = result()
         installations = original_detect()
         for index, item in enumerate(installations):
             if item.key != "steam-global":
@@ -154,7 +158,10 @@ def apply() -> None:
             str(current.data_dir / "meta"),
         )
 
-    def load_settings(parent=None, status_callback: Optional[Callable[[str], None]] = None):
+    def load_settings(
+        parent=None,
+        status_callback: Optional[Callable[[str], None]] = None,
+    ):
         current = result(refresh=True)
         installations = detect_installations()
         detected = [item for item in installations if item.detected]
@@ -181,8 +188,8 @@ def apply() -> None:
         return original_load_settings(parent=parent, status_callback=status_callback)
 
     def doctor():
-        text, ready = original_doctor()
         current = result(refresh=True)
+        text, ready = original_doctor()
         return text + "\n\n" + format_discovery_report(current), ready or current.ready
 
     platform.steam_root_candidates = steam_root_candidates
