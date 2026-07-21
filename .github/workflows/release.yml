@@ -12,19 +12,53 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Ubuntu 22.04 keeps the bundled glibc baseline compatible with Linux Mint
+    # 21.x while remaining usable on newer Mint/Ubuntu and other distributions.
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Validate source
+      - uses: actions/checkout@v5
+      - name: Install packaging tools
         run: |
-          python -m py_compile UMML.py UMML_core.py umml_platform.py
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential python3-dev python3-venv python3-tk \
+            dpkg-dev desktop-file-utils file curl ca-certificates \
+            libfuse2 libsqlite3-dev libssl-dev libffi-dev
+          python3 -m venv .build-venv
+          . .build-venv/bin/activate
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt -r requirements-build.txt
+      - name: Validate source
+        shell: bash
+        run: |
+          . .build-venv/bin/activate
+          python -m py_compile UMML.py UMML_core.py umml_platform.py umml_packaged.py
           python -m unittest discover -s tests -v
-          bash -n install.sh uninstall.sh scripts/build_release.sh
-      - name: Build release archives
-        run: scripts/build_release.sh
+          bash -n install.sh uninstall.sh \
+            scripts/build_release.sh scripts/build_frozen.sh \
+            scripts/build_deb.sh scripts/build_appimage.sh
+      - name: Build source, DEB, and AppImage packages
+        shell: bash
+        run: |
+          . .build-venv/bin/activate
+          scripts/build_release.sh
+          scripts/build_frozen.sh
+          scripts/build_deb.sh
+          scripts/build_appimage.sh
+          cd dist
+          rm -f SHA256SUMS
+          sha256sum *.zip *.tar.gz *.deb *.AppImage > SHA256SUMS
+      - name: Smoke-test Linux packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          DEB="dist/umml-linux_${VERSION}_amd64.deb"
+          APPIMAGE="dist/UMML-${VERSION}-x86_64.AppImage"
+          sudo apt-get install -y "./${DEB}"
+          test "$(umml --version)" = "$VERSION"
+          sudo apt-get remove -y umml-linux
+          test "$(APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version)" = "$VERSION"
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -34,12 +68,11 @@ jobs:
           VERSION="$(tr -d '[:space:]' < VERSION)"
           TAG="v${VERSION}"
           TITLE="UMML ${VERSION}"
-          ASSETS=("dist/UMML-${VERSION}.zip" "dist/UMML-${VERSION}.tar.gz" "dist/SHA256SUMS")
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release upload "$TAG" dist/* --clobber
             gh release edit "$TAG" --title "$TITLE" --notes-file RELEASE_NOTES.md --latest
           else
-            gh release create "$TAG" "${ASSETS[@]}" \
+            gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
               --title "$TITLE" \
               --notes-file RELEASE_NOTES.md \

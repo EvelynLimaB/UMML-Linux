@@ -2,6 +2,22 @@
 
 All notable changes to the Linux/Proton fork are documented here.
 
+## [1.5.0-linux.2] - 2026-07-21
+
+### Added
+
+- Self-contained x86_64 DEB package for Linux Mint, Ubuntu, and Debian.
+- Portable x86_64 AppImage for other Linux distributions.
+- PyInstaller build definition shared by both binary package formats.
+- Desktop, icon, and AppStream metadata for packaged installations.
+- Package smoke tests and release checksums for all binary assets.
+- `--version` support that works from source, DEB, and AppImage builds.
+
+### Changed
+
+- The release pipeline now builds ZIP, tarball, DEB, and AppImage assets.
+- Runtime resource lookup now works from PyInstaller's bundled data directory.
+
 ## [1.5.0-linux.1] - 2026-07-21
 
 ### Added

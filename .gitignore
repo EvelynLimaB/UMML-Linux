@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 env/
+.build-venv/
 .mypy_cache/
 .pytest_cache/
 *.log
@@ -13,7 +14,10 @@ dat/
 dat.backup/
 master/
 .DS_Store
+build/
 dist/
 *.zip
 *.tar.gz
+*.deb
+*.AppImage
 SHA256SUMS

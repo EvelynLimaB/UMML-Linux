@@ -8,15 +8,59 @@ A maintained Linux/Steam Proton port of **UMML**, the desktop mod loader for
 **Umamusume Pretty Derby**. UMML can inspect mod packages, create backups, load
 replacement assets, preview supported assets, and restore original game files.
 
-**Current release:** `1.5.0-linux.1`, based on upstream `1.5.0-hotfix`.
+**Current release:** `1.5.0-linux.2`, based on upstream `1.5.0-hotfix`.
 
 ## Download
 
-Use the packaged ZIP or tarball from the
-[latest release](https://github.com/EvelynLimaB/UMML-Linux/releases/latest).
-Release assets include `SHA256SUMS` for verification.
+Use the assets attached to the
+[latest release](https://github.com/EvelynLimaB/UMML-Linux/releases/latest):
+
+| Linux setup | Recommended file | How to run |
+| --- | --- | --- |
+| Linux Mint, Ubuntu, Debian | `umml-linux_1.5.0-linux.2_amd64.deb` | `sudo apt install ./umml-linux_1.5.0-linux.2_amd64.deb` |
+| Other x86_64 distributions | `UMML-1.5.0-linux.2-x86_64.AppImage` | `chmod +x *.AppImage && ./UMML-*.AppImage` |
+| Source/user-local fallback | ZIP or tarball | extract and run `./install.sh` |
+
+The DEB and AppImage are self-contained: they include Python, Tk, and UMML's
+Python dependencies. Users do not need to install Micromamba or pip packages.
+Every release also includes `SHA256SUMS`.
 
 The horse game has successfully entered the penguin machine. `ฅ^•ﻌ•^ฅ`
+
+## Package notes
+
+### Linux Mint / Ubuntu / Debian
+
+Install the DEB:
+
+```bash
+sudo apt install ./umml-linux_1.5.0-linux.2_amd64.deb
+umml-doctor
+umml
+```
+
+Remove it later with:
+
+```bash
+sudo apt remove umml-linux
+```
+
+### Portable AppImage
+
+```bash
+chmod +x UMML-1.5.0-linux.2-x86_64.AppImage
+./UMML-1.5.0-linux.2-x86_64.AppImage
+```
+
+On systems without FUSE 2, AppImage's extraction fallback can be used:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.2-x86_64.AppImage
+```
+
+The binary packages currently target **x86_64**, matching the supported Steam
+and Proton game setup. The source installer remains available for other Linux
+architectures where its dependencies are available.
 
 ## Supported installations
 
@@ -30,11 +74,11 @@ The horse game has successfully entered the penguin machine. `ฅ^•ﻌ•^ฅ`
 
 Steam Global uses app ID `3224770`; Steam Japan uses `3564400`.
 
-## Linux / Steam Proton
+## Source installer
 
-The installer creates a private Python 3.11/Tk environment inside your user
-account. It does not modify the system Python, require `rpm-ostree`, or require a
-reboot, making it suitable for Bazzite and Fedora Atomic systems.
+The extracted ZIP/tarball includes `install.sh`, which creates a private
+Python 3.11/Tk environment inside the current user account. It does not modify
+the system Python, require `rpm-ostree`, or require a reboot.
 
 ```bash
 chmod +x install.sh
@@ -43,14 +87,13 @@ umml-doctor
 umml
 ```
 
-A desktop application named **UMML** is installed automatically. Detailed path
-overrides, Flatpak notes, logs, updating, and troubleshooting are documented in
-[docs/LINUX.md](docs/LINUX.md).
+Detailed path overrides, Flatpak notes, logs, updating, and troubleshooting are
+in [docs/LINUX.md](docs/LINUX.md).
 
 ## Windows
 
 1. Install Python 3.11 or newer with Tk support.
-2. Download and extract the release ZIP.
+2. Download and extract the source ZIP.
 3. Install dependencies:
 
    ```powershell
@@ -78,19 +121,20 @@ Keep `UMML.py`, `UMML_core.py`, `umml_platform.py`, `VERSION`, and
    update when practical.
 
 UMML creates its asset backup beside the selected game data as `dat.backup`.
-The Linux uninstaller deliberately leaves game data and backups untouched.
+Removing UMML does not delete game data or backups.
 
 ## Diagnostics
 
 ```bash
-python UMML.py --version
-python UMML.py --doctor
+umml --version
+umml-doctor
 ```
 
-After Linux installation:
+From source:
 
 ```bash
-umml-doctor
+python UMML.py --version
+python UMML.py --doctor
 ```
 
 The report lists Steam roots, secondary libraries, detected installations,
@@ -122,26 +166,32 @@ umml
 ## Project structure
 
 ```text
-UMML.py                  Cross-platform entry point and refreshed interface
-UMML_core.py             Preserved upstream loader implementation
-umml_platform.py         Platform discovery and installation chooser
-UMML_data/dropdown.json  UI data used by training/cut-in controls
-install.sh               Linux user-local installer
-uninstall.sh             Linux uninstaller
-scripts/build_release.sh Reproducible ZIP/tarball builder
-requirements.txt         Tested Python dependency versions
-tests/                   Discovery and release-contract regression tests
-docs/LINUX.md            Linux and Proton guide
+UMML.py                       Cross-platform entry point and refreshed interface
+UMML_core.py                  Preserved upstream loader implementation
+umml_platform.py              Platform discovery and installation chooser
+UMML_data/dropdown.json       UI data used by training/cut-in controls
+install.sh                    Source-based user-local Linux installer
+packaging/                    Desktop, AppStream, and PyInstaller definitions
+scripts/build_frozen.sh       Self-contained runtime builder
+scripts/build_deb.sh          Linux Mint/Ubuntu/Debian package builder
+scripts/build_appimage.sh     Portable AppImage builder
+scripts/build_release.sh      Source ZIP/tarball builder
+requirements*.txt             Runtime and build dependency pins
+tests/                        Discovery and release-contract regression tests
+docs/LINUX.md                 Linux and Proton guide
 ```
 
 ## Development
 
 ```bash
-python -m py_compile UMML.py UMML_core.py umml_platform.py
+python -m py_compile UMML.py UMML_core.py umml_platform.py umml_packaged.py
 python -m unittest discover -s tests -v
-bash -n install.sh uninstall.sh scripts/build_release.sh
+bash -n install.sh uninstall.sh scripts/*.sh
 scripts/build_release.sh
 ```
+
+Building the self-contained packages also requires the packages in
+`requirements-build.txt`, `dpkg-deb`, and `appimagetool`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and
 [SECURITY.md](SECURITY.md).

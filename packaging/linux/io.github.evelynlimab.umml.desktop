@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=UMML
+GenericName=Umamusume Mod Loader
+Comment=Load, preview, back up, and restore Umamusume mods
+Exec=umml
+Icon=io.github.evelynlimab.umml
+Terminal=false
+Categories=Game;Utility;
+Keywords=Umamusume;Mod;Loader;Steam;Proton;
+StartupNotify=true

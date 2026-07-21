@@ -1,8 +1,51 @@
 # Linux and Steam Proton guide
 
-## What the installer does
+## Choose an installation format
 
-`install.sh` installs UMML entirely inside the current user account:
+### Linux Mint, Ubuntu, or Debian
+
+Install the self-contained DEB from the latest release:
+
+```bash
+sudo apt install ./umml-linux_1.5.0-linux.2_amd64.deb
+umml-doctor
+umml
+```
+
+The package installs UMML under `/usr/lib/umml`, command launchers under
+`/usr/bin`, and its desktop entry/icon under `/usr/share`. Python, Tk, and the
+Python dependencies are bundled inside the package.
+
+Remove it with:
+
+```bash
+sudo apt remove umml-linux
+```
+
+Removing the package does not touch game files, `dat.backup`, or metadata caches.
+
+### Portable AppImage
+
+```bash
+chmod +x UMML-1.5.0-linux.2-x86_64.AppImage
+./UMML-1.5.0-linux.2-x86_64.AppImage
+```
+
+The AppImage does not install files system-wide. On a distribution without FUSE
+2, run it using AppImage's extraction fallback:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.2-x86_64.AppImage
+```
+
+Desktop-menu integration is handled by tools such as AppImageLauncher when
+available; UMML itself does not silently modify the system from an AppImage.
+
+### Source/user-local installer
+
+`install.sh` remains the fallback for unsupported binary-package architectures
+and unusual environments. It installs UMML entirely inside the current user
+account:
 
 - application files: `${XDG_DATA_HOME:-~/.local/share}/umml`
 - launchers: `~/.local/bin/umml` and `~/.local/bin/umml-doctor`
@@ -14,11 +57,9 @@ It downloads Micromamba from an official source and creates an isolated Python
 `rpm-ostree`, system Python modification, and reboot requirements on Bazzite,
 Fedora Atomic, and similar systems.
 
-## Installation
-
 ```bash
-unzip UMML-Linux.zip
-cd UMML-Linux
+unzip UMML-1.5.0-linux.2.zip
+cd UMML-1.5.0-linux.2
 chmod +x install.sh uninstall.sh
 ./install.sh
 ```
@@ -71,11 +112,11 @@ dat/
 master/        # normally appears after game data has downloaded
 ```
 
-## Flatpak permissions
+## Flatpak Steam permissions
 
 UMML itself is not installed as a Flatpak. It reads the Steam Flatpak's files
-from your home directory. Secondary libraries mounted outside the home directory
-must be readable and writable by the current user.
+from the current user's home directory. Secondary libraries mounted outside the
+home directory must be readable and writable by the current user.
 
 Check access with:
 
@@ -88,7 +129,8 @@ A library mounted read-only cannot be used for mod loading or restoration.
 
 ## Logs and troubleshooting
 
-Terminal launches print errors directly. Desktop launches append output to:
+Terminal launches print errors directly. The source installer's desktop launcher
+appends output to:
 
 ```text
 ~/.local/state/umml/umml.log
@@ -97,6 +139,7 @@ Terminal launches print errors directly. Desktop launches append output to:
 Useful commands:
 
 ```bash
+umml --version
 umml-doctor
 tail -n 200 ~/.local/state/umml/umml.log
 ```
@@ -114,10 +157,20 @@ in a nonstandard location, set `UMML_PERSISTENT_DIR` to their parent directory.
 ### Blank or apparently frozen window
 
 This port creates the primary Tk root only once, parents the platform chooser to
-it, and renders startup progress before scanning/decrypting metadata. Check the
-log if the status stops changing.
+it, and renders startup progress before scanning/decrypting metadata. Launch it
+from a terminal to capture errors directly.
 
-### Installer cannot download Micromamba
+### AppImage does not start
+
+Try the extraction fallback:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-*.AppImage
+```
+
+Also confirm the file is executable with `chmod +x UMML-*.AppImage`.
+
+### Source installer cannot download Micromamba
 
 Confirm DNS and HTTPS connectivity. The installer tries both the Micromamba API
 and the official GitHub release asset. An existing `micromamba` executable is
@@ -125,20 +178,18 @@ reused automatically.
 
 ## Updating
 
-Pull or extract the new source, then rerun:
+- **DEB:** install the newer DEB with `sudo apt install ./new-package.deb`.
+- **AppImage:** replace the old file with the newer AppImage.
+- **Source install:** extract the new source and rerun `./install.sh`.
 
-```bash
-./install.sh
-```
-
-The private environment is reused and dependencies are brought to the pinned
-versions.
+The source installer's private environment is reused and its dependencies are
+brought to the pinned versions.
 
 ## Uninstalling
 
-```bash
-./uninstall.sh
-```
+- **DEB:** `sudo apt remove umml-linux`
+- **AppImage:** delete the AppImage file
+- **Source install:** run `./uninstall.sh` from the extracted source package
 
-This removes the application, launchers, desktop entry, and private environment.
-It does not touch game files, `dat.backup`, or game metadata caches.
+None of these methods intentionally remove game files, backups, or game metadata
+caches.
