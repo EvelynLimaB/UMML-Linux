@@ -15,6 +15,9 @@
   <provides><binary>umml</binary></provides>
   <categories><category>Game</category><category>Utility</category></categories>
   <releases>
+    <release version="1.5.0-linux.6" date="2026-07-21">
+      <description><p>Fixes case-sensitive Proton LocalLow discovery for current Global data.</p></description>
+    </release>
     <release version="1.5.0-linux.5" date="2026-07-21">
       <description><p>Replaces layered fixes with a scored Steam and Proton autodetection engine.</p></description>
     </release>
