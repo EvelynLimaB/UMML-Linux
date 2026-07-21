@@ -19,6 +19,10 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from umml_autodetect import apply as apply_autodetect
+
+apply_autodetect()
+
 from umml_platform import (
     find_game_path,
     format_doctor_report,
@@ -60,18 +64,17 @@ def run_doctor() -> int:
 if "--doctor" in sys.argv:
     raise SystemExit(run_doctor())
 
-# The upstream source imports winreg unconditionally.  Give Linux a harmless
-# placeholder so the module can load; every discovery function is replaced by
-# umml_platform immediately after import.
+# The upstream source imports winreg unconditionally. Give Linux a harmless
+# placeholder so the module can load; discovery functions are already patched
+# by the autodetection engine above.
 if os.name != "nt" and "winreg" not in sys.modules:
     winreg_stub = types.ModuleType("winreg")
     winreg_stub.HKEY_CURRENT_USER = object()
     winreg_stub.HKEY_LOCAL_MACHINE = object()
     sys.modules["winreg"] = winreg_stub
 
-import UMML_core as core  # noqa: E402  (must follow the winreg compatibility shim)
+import UMML_core as core  # noqa: E402
 
-# Keep platform behavior centralized and independently testable.
 core.resolve_case_sensitive_path = resolve_case_sensitive_path
 core.get_steam_path = get_steam_path
 core.get_steam_libraries = get_steam_libraries
