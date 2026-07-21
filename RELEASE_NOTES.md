@@ -1,40 +1,38 @@
-# UMML 1.5.0-linux.4
+# UMML 1.5.0-linux.5
 
-The folder in the screenshot was valid. UMML was wrong. `.4` fixes the exact
-case where Steam exposes the game through a symlink while Proton stores
-`meta`/`dat` separately under `compatdata/3224770`. `(╥﹏╥) → ฅ^•ﻌ•^ฅ`
+No more path-fix lasagna. `.5` replaces the emergency patch stack with one
+proper Steam/Proton discovery engine. `ᕦฅ^•ﻌ•^ฅᕤ`
 
-## Fixed
+## What changed
 
-- Preserves the selected Steam path instead of resolving away its
-  `steamapps/common` ancestry.
-- Searches every detected Steam library for the matching Proton data prefix.
-- Accepts the game root, `_Data`, `Persistent`, LocalLow data folder, or `dat`.
-- When the game root is valid but data remains separate, asks for the data folder
-  in a second dialog rather than calling the game folder incompatible.
+- One autodetection package is used by source, DEB, and AppImage launches.
+- Steam client roots, secondary libraries, game installs, Proton prefixes, and
+  writable data are discovered independently and paired by evidence.
+- Handles Mint/Debian, XDG case variants, Flatpak, Snap, legacy Steam links,
+  old/new library VDF formats, case differences, symlinks, and split libraries.
+- Reads live Proton environment variables from the running user's processes.
+- Uses the newest valid `pfx` when duplicate prefixes exist.
+- Falls back from corrupt/missing manifests to marker scans and a built-in
+  Valve KeyValues parser.
+- `umml-doctor` explains every candidate and why the selected pair won.
 
 ## Packages
 
-- Mint/Ubuntu/Debian: `umml-linux_1.5.0-linux.4_amd64.deb`
-- Other x86_64 Linux: `UMML-1.5.0-linux.4-x86_64.AppImage`
+- Mint/Ubuntu/Debian: `umml-linux_1.5.0-linux.5_amd64.deb`
+- Other x86_64 Linux: `UMML-1.5.0-linux.5-x86_64.AppImage`
 - Source fallback: ZIP or tarball
 
-## Upgrade on Mint
+## Mint upgrade
 
 ```bash
-sudo apt install ./umml-linux_1.5.0-linux.4_amd64.deb
+sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb
 umml-doctor
 umml
 ```
 
 ## Validation
 
-The package test now reproduces the failure directly:
-
-1. Steam lives at `~/.steam/debian-installation`.
-2. The visible game folder is a symlink to another location.
-3. `UmamusumePrettyDerby_Data` exists in the game folder but has no local
-   Persistent metadata.
-4. `meta` and `dat` exist only in Proton's `compatdata/3224770` prefix.
-5. Both the finished DEB and AppImage must report `Steam Global: Detected`
-   before the release can be published.
+- 31 local tests pass.
+- Release CI builds the real source archives, DEB and AppImage.
+- Both finished binary packages must detect a symlinked game on one secondary
+  Steam library and its Proton prefix on another before publication.
