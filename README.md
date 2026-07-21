@@ -7,77 +7,68 @@
 A maintained Linux/Steam Proton port of **UMML**, the desktop mod loader for
 **Umamusume Pretty Derby**.
 
-**Current release:** `1.5.0-linux.4`, based on upstream `1.5.0-hotfix`.
+**Current release:** `1.5.0-linux.5`, based on upstream `1.5.0-hotfix`.
 
 ## Download
 
-Use the assets attached to the
-[latest release](https://github.com/EvelynLimaB/UMML-Linux/releases/latest):
-
-| Linux setup | Recommended file | How to run |
+| Linux setup | Recommended file | Install or run |
 | --- | --- | --- |
-| Linux Mint, Ubuntu, Debian | `umml-linux_1.5.0-linux.4_amd64.deb` | `sudo apt install ./umml-linux_1.5.0-linux.4_amd64.deb` |
-| Other x86_64 distributions | `UMML-1.5.0-linux.4-x86_64.AppImage` | `chmod +x *.AppImage && ./UMML-*.AppImage` |
+| Linux Mint, Ubuntu, Debian | `umml-linux_1.5.0-linux.5_amd64.deb` | `sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb` |
+| Other x86_64 distributions | `UMML-1.5.0-linux.5-x86_64.AppImage` | `chmod +x *.AppImage && ./UMML-*.AppImage` |
 | Source/user-local fallback | ZIP or tarball | extract and run `./install.sh` |
 
-The DEB and AppImage are self-contained and include Python, Tk, and UMML's
-Python dependencies. Every release includes `SHA256SUMS`.
+Use the assets attached to the
+[latest release](https://github.com/EvelynLimaB/UMML-Linux/releases/latest).
+The binary packages are self-contained and every release includes
+`SHA256SUMS`.
 
 The horse game has successfully entered the penguin machine. `ฅ^•ﻌ•^ฅ`
 
-## Manual location fix in `.4`
+## Autodetection v2
 
-The `.3` chooser wrongly rejected a valid game root when Steam exposed the game
-through a symlink and Proton kept `meta`/`dat` separately under
-`compatdata/3224770`. `.4` preserves the selected symlink path and scans every
-known Steam library for the matching Proton data.
+`1.5.0-linux.5` replaces the layered path hotfixes with one scored discovery
+engine. It independently discovers and pairs:
 
-The manual chooser now accepts:
+- native Debian/Mint, XDG and legacy Steam clients;
+- Flatpak and Snap Steam layouts;
+- every modern or legacy secondary Steam library;
+- the game through process environment, manifest, or marker scan;
+- game-local Persistent data and every matching Proton prefix;
+- game and prefix locations even when they live on different libraries;
+- symlinked and case-mismatched Steam paths;
+- the newest valid prefix when duplicate `compatdata` folders exist.
 
-- the game root containing `UmamusumePrettyDerby_Data`;
-- the `UmamusumePrettyDerby_Data` folder itself;
-- the current `Persistent` folder;
-- the Proton `LocalLow/Cygames/umamusume` folder;
-- its `dat` subfolder.
+`umml-doctor` now lists every candidate, score, evidence source, selected game,
+selected data directory, and final readiness result. See
+[docs/AUTODETECTION.md](docs/AUTODETECTION.md) for the design and the
+Protontricks, Lutris and Valve sources used as behavioral references.
 
-When the selected game root is valid but its data cannot be found automatically,
-UMML asks for the data folder separately instead of declaring the game folder
-incompatible.
-
-## Linux Mint / Ubuntu / Debian
+## Mint / Ubuntu / Debian
 
 ```bash
-sudo apt install ./umml-linux_1.5.0-linux.4_amd64.deb
+sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb
 umml-doctor
 umml
 ```
 
-The package upgrades older UMML Linux DEBs in place.
-
-## Portable AppImage
+Installing a newer DEB upgrades the existing package. Remove it with:
 
 ```bash
-chmod +x UMML-1.5.0-linux.4-x86_64.AppImage
-./UMML-1.5.0-linux.4-x86_64.AppImage
+sudo apt remove umml-linux
+```
+
+## AppImage
+
+```bash
+chmod +x UMML-1.5.0-linux.5-x86_64.AppImage
+./UMML-1.5.0-linux.5-x86_64.AppImage
 ```
 
 Without FUSE 2:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.4-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.5-x86_64.AppImage
 ```
-
-## Supported installations
-
-| Installation | Detection | Status |
-| --- | --- | --- |
-| Steam Global | Windows Steam, native Linux Steam, Mint/Debian Steam, Flatpak, Snap, secondary libraries, Proton | Supported and Linux-tested |
-| Steam Japan | Steam manifest or known folder | Supported |
-| DMM Japan | DMM Game Player configuration | Supported on Windows |
-| Komoe Taiwan | Windows uninstall registry or explicit override | Supported |
-| Kakao Korea | — | Not implemented upstream |
-
-Steam Global uses app ID `3224770`; Steam Japan uses `3564400`.
 
 ## Source installer
 
@@ -88,55 +79,55 @@ umml-doctor
 umml
 ```
 
-Detailed path overrides, logs, Flatpak notes, and troubleshooting are in
-[docs/LINUX.md](docs/LINUX.md).
+The source installer creates an isolated user-local Python/Tk environment and
+leaves the system Python untouched.
+
+## Supported installations
+
+| Installation | Status |
+| --- | --- |
+| Steam Global, native Windows or Linux/Proton | Supported; Linux tested |
+| Steam Japan | Supported |
+| DMM Japan | Supported on Windows |
+| Komoe Taiwan | Supported on Windows |
+| Kakao Korea | Not implemented upstream |
+
+Steam Global uses app ID `3224770`; Steam Japan uses `3564400`.
 
 ## Using UMML
 
-1. Launch the game once and let its initial data download finish.
-2. Close the game before loading or restoring assets.
-3. Start UMML and select the detected installation.
-4. When automatic detection fails, locate the game root.
-5. When UMML asks for data separately, select `Persistent` or
-   `LocalLow/Cygames/umamusume`—the folder containing both `meta` and `dat`.
-6. Select an extracted mod folder containing `setting.json`.
-7. Load or restore assets.
+1. Launch the game once and let its data download finish.
+2. Close the game before writing or restoring assets.
+3. Run `umml-doctor`; the final autodetect result should be `READY`.
+4. Start `umml` and select an extracted mod folder containing `setting.json`.
+5. Load or restore assets.
 
-UMML creates `dat.backup` beside the selected game data. Removing UMML does not
-delete game files or backups.
+When automatic pairing cannot finish, UMML accepts either the game root or the
+data folder first, then asks for the missing half. Valid data folders contain
+both `meta` and `dat`.
 
-## Diagnostics
-
-```bash
-umml --version
-umml-doctor
-```
-
-## Path overrides
+## Overrides
 
 | Variable | Meaning |
 | --- | --- |
 | `UMML_STEAM_ROOT` | Steam root containing `steamapps/` |
-| `UMML_GAME_DIR` | Steam Global game installation directory |
+| `UMML_GAME_DIR` | Steam Global game directory |
 | `UMML_GAME_DIR_3224770` | Steam Global game directory |
 | `UMML_GAME_DIR_3564400` | Steam Japan game directory |
-| `UMML_PERSISTENT_DIR` | Folder containing `meta`, `dat`, and usually `master/` |
-| `UMML_KOMOE_GAME_DIR` | Komoe game directory containing `meta` and `dat/` |
-| `UMML_PLATFORM` | `steam-global`, `steam-japan`, `dmm-japan`, or `komoe-tw` |
+| `UMML_PERSISTENT_DIR` | Data directory containing `meta` and `dat/` |
+| `UMML_PLATFORM` | Force a supported platform key |
 
 ## Development
 
 ```bash
-python -m py_compile \
-  UMML.py UMML_core.py umml_platform.py \
-  umml_detection_hotfix.py umml_manual_location_fix.py \
-  sitecustomize.py umml_packaged.py
+python -m py_compile UMML.py UMML_core.py umml_platform.py umml_packaged.py umml_autodetect/*.py
 python -m unittest discover -s tests -v
 bash -n install.sh uninstall.sh scripts/*.sh
+scripts/build_release.sh
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and
-[SECURITY.md](SECURITY.md).
+See [docs/LINUX.md](docs/LINUX.md), [CONTRIBUTING.md](CONTRIBUTING.md),
+[CHANGELOG.md](CHANGELOG.md), and [SECURITY.md](SECURITY.md).
 
 ## Safety
 
