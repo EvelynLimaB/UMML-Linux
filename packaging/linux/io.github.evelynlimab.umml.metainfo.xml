@@ -27,6 +27,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="1.5.0-linux.3" date="2026-07-21">
+      <description>
+        <p>Fixes Linux Mint Steam detection and adds manual game-folder selection.</p>
+      </description>
+    </release>
     <release version="1.5.0-linux.2" date="2026-07-21">
       <description>
         <p>Adds self-contained DEB and AppImage packages.</p>
