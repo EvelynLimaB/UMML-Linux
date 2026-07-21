@@ -11,7 +11,15 @@ class ReleaseContractTests(unittest.TestCase):
 
     def test_installer_contains_complete_runtime(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
-        for name in ("UMML.py", "UMML_core.py", "umml_platform.py", "UMML_data"):
+        for name in (
+            "UMML.py",
+            "UMML_core.py",
+            "umml_platform.py",
+            "umml_detection_hotfix.py",
+            "umml_manual_location_fix.py",
+            "sitecustomize.py",
+            "UMML_data",
+        ):
             self.assertIn(name, installer)
 
     def test_source_release_includes_packaging_files(self):
@@ -21,6 +29,9 @@ class ReleaseContractTests(unittest.TestCase):
             "UMML_core.py",
             "umml_packaged.py",
             "umml_platform.py",
+            "umml_detection_hotfix.py",
+            "umml_manual_location_fix.py",
+            "sitecustomize.py",
             "install.sh",
             "VERSION",
             "requirements-build.txt",
@@ -43,17 +54,25 @@ class ReleaseContractTests(unittest.TestCase):
         for relative in expected:
             self.assertTrue((ROOT / relative).is_file(), relative)
 
-    def test_packaged_entry_point_supports_bundle_resources_and_version(self):
+    def test_packaged_entry_point_supports_bundle_resources_and_fixes(self):
         entry = (ROOT / "umml_packaged.py").read_text(encoding="utf-8")
         self.assertIn("_MEIPASS", entry)
         self.assertIn('"--version"', entry)
         self.assertIn("resource_root", entry)
+        self.assertIn("apply_detection_hotfix", entry)
+        self.assertIn("apply_manual_location_fix", entry)
 
     def test_release_workflow_publishes_deb_and_appimage(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"
         )
-        for name in ("build_frozen.sh", "build_deb.sh", "build_appimage.sh"):
+        for name in (
+            "build_frozen.sh",
+            "build_deb.sh",
+            "build_appimage.sh",
+            "compatdata/3224770",
+            "UmamusumePrettyDerby_Data",
+        ):
             self.assertIn(name, workflow)
         self.assertIn("*.deb", workflow)
         self.assertIn("*.AppImage", workflow)
