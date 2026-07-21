@@ -1,0 +1,47 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate source
+        run: |
+          python -m py_compile UMML.py UMML_core.py umml_platform.py
+          python -m unittest discover -s tests -v
+          bash -n install.sh uninstall.sh scripts/build_release.sh
+      - name: Build release archives
+        run: scripts/build_release.sh
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          TAG="v${VERSION}"
+          TITLE="UMML ${VERSION}"
+          ASSETS=("dist/UMML-${VERSION}.zip" "dist/UMML-${VERSION}.tar.gz" "dist/SHA256SUMS")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file RELEASE_NOTES.md --latest
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+          fi

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="UMML icon">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8d68bd"/>
+      <stop offset="1" stop-color="#5e3d91"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#g)"/>
+  <path d="M70 58v78c0 39 23 62 58 62s58-23 58-62V58h-32v77c0 22-9 32-26 32s-26-10-26-32V58z" fill="#fff"/>
+  <path d="M87 37l20 25H67zM169 37l20 25h-40z" fill="#f0dff8"/>
+  <circle cx="108" cy="119" r="6" fill="#5e3d91"/>
+  <circle cx="148" cy="119" r="6" fill="#5e3d91"/>
+</svg>
