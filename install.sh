@@ -9,17 +9,27 @@ MAMBA_ROOT="$APP_DIR/mamba-root"
 ENV_DIR="$APP_DIR/env"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_SCRIPT="$SCRIPT_DIR/UMML.py"
+SOURCE_ENTRY="$SCRIPT_DIR/umml_entry.py"
 SOURCE_CORE="$SCRIPT_DIR/UMML_core.py"
 SOURCE_PLATFORM="$SCRIPT_DIR/umml_platform.py"
+SOURCE_FEATURED="$SCRIPT_DIR/umml_featured_mods.py"
+SOURCE_FEATURED_UI="$SCRIPT_DIR/umml_featured_ui.py"
+SOURCE_LEGACY_SAFETY="$SCRIPT_DIR/umml_legacy_safety.py"
 SOURCE_AUTODETECT="$SCRIPT_DIR/umml_autodetect"
 SOURCE_REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
 SOURCE_DATA="$SCRIPT_DIR/UMML_data"
+SOURCE_NOTICES="$SCRIPT_DIR/THIRD_PARTY_NOTICES.md"
 TARGET_SCRIPT="$APP_DIR/UMML.py"
+TARGET_ENTRY="$APP_DIR/umml_entry.py"
 TARGET_CORE="$APP_DIR/UMML_core.py"
 TARGET_PLATFORM="$APP_DIR/umml_platform.py"
+TARGET_FEATURED="$APP_DIR/umml_featured_mods.py"
+TARGET_FEATURED_UI="$APP_DIR/umml_featured_ui.py"
+TARGET_LEGACY_SAFETY="$APP_DIR/umml_legacy_safety.py"
 TARGET_AUTODETECT="$APP_DIR/umml_autodetect"
 TARGET_REQUIREMENTS="$APP_DIR/requirements.txt"
 TARGET_DATA="$APP_DIR/UMML_data"
+TARGET_NOTICES="$APP_DIR/THIRD_PARTY_NOTICES.md"
 LAUNCHER="$BIN_DIR/umml"
 DOCTOR="$BIN_DIR/umml-doctor"
 DESKTOP_FILE="$DESKTOP_DIR/umml.desktop"
@@ -45,11 +55,16 @@ fetch_try() {
 
 command -v tar >/dev/null 2>&1 || fatal "tar is required."
 [[ -f "$SOURCE_SCRIPT" ]] || fatal "UMML.py must be beside this installer."
+[[ -f "$SOURCE_ENTRY" ]] || fatal "umml_entry.py must be beside this installer."
 [[ -f "$SOURCE_CORE" ]] || fatal "UMML_core.py must be beside this installer."
 [[ -f "$SOURCE_PLATFORM" ]] || fatal "umml_platform.py must be beside this installer."
+[[ -f "$SOURCE_FEATURED" ]] || fatal "umml_featured_mods.py must be beside this installer."
+[[ -f "$SOURCE_FEATURED_UI" ]] || fatal "umml_featured_ui.py must be beside this installer."
+[[ -f "$SOURCE_LEGACY_SAFETY" ]] || fatal "umml_legacy_safety.py must be beside this installer."
 [[ -f "$SOURCE_AUTODETECT/__init__.py" ]] || fatal "umml_autodetect package is missing."
 [[ -f "$SOURCE_REQUIREMENTS" ]] || fatal "requirements.txt must be beside this installer."
 [[ -f "$SOURCE_DATA/dropdown.json" ]] || fatal "UMML_data/dropdown.json is missing."
+[[ -f "$SOURCE_NOTICES" ]] || fatal "THIRD_PARTY_NOTICES.md must be beside this installer."
 command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || \
     fatal "Install curl or wget first."
 
@@ -106,8 +121,13 @@ printf 'Installing the tested UMML Python requirements...\n'
 "$ENV_DIR/bin/python" -m pip install --disable-pip-version-check --upgrade -r "$SOURCE_REQUIREMENTS"
 
 install -m 0644 "$SOURCE_SCRIPT" "$TARGET_SCRIPT"
+install -m 0644 "$SOURCE_ENTRY" "$TARGET_ENTRY"
 install -m 0644 "$SOURCE_CORE" "$TARGET_CORE"
 install -m 0644 "$SOURCE_PLATFORM" "$TARGET_PLATFORM"
+install -m 0644 "$SOURCE_FEATURED" "$TARGET_FEATURED"
+install -m 0644 "$SOURCE_FEATURED_UI" "$TARGET_FEATURED_UI"
+install -m 0644 "$SOURCE_LEGACY_SAFETY" "$TARGET_LEGACY_SAFETY"
+install -m 0644 "$SOURCE_NOTICES" "$TARGET_NOTICES"
 rm -rf "$TARGET_AUTODETECT"
 mkdir -p "$TARGET_AUTODETECT"
 find "$SOURCE_AUTODETECT" -maxdepth 1 -type f -name '*.py' -exec install -m 0644 {} "$TARGET_AUTODETECT/" \;
@@ -120,31 +140,31 @@ rm -rf "$TARGET_DATA"
 mkdir -p "$TARGET_DATA"
 install -m 0644 "$SOURCE_DATA/dropdown.json" "$TARGET_DATA/dropdown.json"
 
-cat > "$LAUNCHER" <<EOF
+cat > "$LAUNCHER" <<EOF_LAUNCHER
 #!/usr/bin/env bash
 set -Eeuo pipefail
 export MAMBA_ROOT_PREFIX="$MAMBA_ROOT"
 cd "$APP_DIR"
 if [[ -t 1 ]] || [[ " \$* " == *" --doctor "* ]]; then
-    exec "$ENV_DIR/bin/python" "$TARGET_SCRIPT" "\$@"
+    exec "$ENV_DIR/bin/python" "$TARGET_ENTRY" "\$@"
 else
     mkdir -p "$STATE_DIR"
     {
-        printf '\\n===== UMML launch %s =====\\n' "\$(date --iso-8601=seconds 2>/dev/null || date)"
-        exec "$ENV_DIR/bin/python" "$TARGET_SCRIPT" "\$@"
+        printf '\n===== UMML launch %s =====\n' "\$(date --iso-8601=seconds 2>/dev/null || date)"
+        exec "$ENV_DIR/bin/python" "$TARGET_ENTRY" "\$@"
     } >>"$LOG_FILE" 2>&1
 fi
-EOF
+EOF_LAUNCHER
 chmod 0755 "$LAUNCHER"
 
-cat > "$DOCTOR" <<EOF
+cat > "$DOCTOR" <<EOF_DOCTOR
 #!/usr/bin/env bash
 set -Eeuo pipefail
 exec "$LAUNCHER" --doctor
-EOF
+EOF_DOCTOR
 chmod 0755 "$DOCTOR"
 
-cat > "$DESKTOP_FILE" <<EOF
+cat > "$DESKTOP_FILE" <<EOF_DESKTOP
 [Desktop Entry]
 Type=Application
 Name=UMML
@@ -155,7 +175,7 @@ Terminal=false
 Icon=applications-games
 Categories=Game;Utility;
 StartupNotify=true
-EOF
+EOF_DESKTOP
 chmod 0644 "$DESKTOP_FILE"
 
 printf 'Checking imports and source code...\n'
@@ -172,7 +192,8 @@ print("APSW SQLite3MC:", getattr(apsw, "mc_version", "installed"))
 print("PyYAML:", getattr(yaml, "__version__", "installed"))
 PY
 "$ENV_DIR/bin/python" -m py_compile \
-    "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" \
+    "$TARGET_SCRIPT" "$TARGET_ENTRY" "$TARGET_CORE" "$TARGET_PLATFORM" \
+    "$TARGET_FEATURED" "$TARGET_FEATURED_UI" "$TARGET_LEGACY_SAFETY" \
     "$TARGET_AUTODETECT"/*.py
 
 if command -v update-desktop-database >/dev/null 2>&1; then

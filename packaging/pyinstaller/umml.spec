@@ -10,6 +10,7 @@ datas = [
     (str(ROOT / "VERSION"), "."),
     (str(ROOT / "README.md"), "."),
     (str(ROOT / "LICENSE"), "."),
+    (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."),
 ]
 binaries = []
 hiddenimports = []
