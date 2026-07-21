@@ -15,6 +15,10 @@ class ReleaseContractTests(unittest.TestCase):
         source_entry = (ROOT / "UMML.py").read_text(encoding="utf-8")
         for text in (installer, builder, source_entry):
             self.assertIn("umml_autodetect", text)
+        for text in (installer, builder):
+            self.assertNotIn("sitecustomize.py", text)
+            self.assertNotIn("umml_detection_hotfix.py", text)
+            self.assertNotIn("umml_manual_location_fix.py", text)
         self.assertFalse((ROOT / "umml_detection_hotfix.py").exists())
         self.assertFalse((ROOT / "umml_manual_location_fix.py").exists())
         self.assertFalse((ROOT / "sitecustomize.py").exists())
@@ -67,7 +71,9 @@ class ReleaseContractTests(unittest.TestCase):
     def test_readme_and_appstream_mention_current_version(self):
         version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        metainfo = (ROOT / "packaging/linux/io.github.evelynlimab.umml.metainfo.xml").read_text(encoding="utf-8")
+        metainfo = (
+            ROOT / "packaging" / "linux" / "io.github.evelynlimab.umml.metainfo.xml"
+        ).read_text(encoding="utf-8")
         self.assertIn(version, readme)
         self.assertIn(version, metainfo)
 
