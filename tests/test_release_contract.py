@@ -12,15 +12,16 @@ class ReleaseContractTests(unittest.TestCase):
     def test_single_autodetection_engine_is_packaged(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
         builder = (ROOT / "scripts" / "build_release.sh").read_text(encoding="utf-8")
-        entry = (ROOT / "umml_packaged.py").read_text(encoding="utf-8")
-        for text in (installer, builder, entry):
+        source_entry = (ROOT / "UMML.py").read_text(encoding="utf-8")
+        for text in (installer, builder, source_entry):
             self.assertIn("umml_autodetect", text)
         self.assertFalse((ROOT / "umml_detection_hotfix.py").exists())
         self.assertFalse((ROOT / "umml_manual_location_fix.py").exists())
+        self.assertFalse((ROOT / "sitecustomize.py").exists())
 
     def test_installer_contains_complete_runtime(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
-        for name in ("UMML.py", "UMML_core.py", "umml_platform.py", "sitecustomize.py", "UMML_data"):
+        for name in ("UMML.py", "UMML_core.py", "umml_platform.py", "UMML_data"):
             self.assertIn(name, installer)
 
     def test_source_release_includes_packaging_and_reference_files(self):
@@ -45,11 +46,12 @@ class ReleaseContractTests(unittest.TestCase):
         for relative in expected:
             self.assertTrue((ROOT / relative).is_file(), relative)
 
-    def test_packaged_entry_point_applies_autodetection(self):
-        entry = (ROOT / "umml_packaged.py").read_text(encoding="utf-8")
-        self.assertIn("_MEIPASS", entry)
-        self.assertIn('"--version"', entry)
-        self.assertIn("apply_autodetect", entry)
+    def test_entry_points_apply_autodetection(self):
+        source = (ROOT / "UMML.py").read_text(encoding="utf-8")
+        packaged = (ROOT / "umml_packaged.py").read_text(encoding="utf-8")
+        self.assertIn("apply_autodetect()", source)
+        self.assertIn("_MEIPASS", packaged)
+        self.assertIn('"--version"', packaged)
 
     def test_release_workflow_exercises_real_layouts(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
