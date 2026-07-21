@@ -12,6 +12,13 @@ from .model import (
 )
 from .vdf import parse_vdf_text
 from .steam import discover_libraries, discover_steam_roots, scan_processes
+from .locallow import iter_locallow_data_dirs
+from . import game as _game
+
+# Keep LocalLow traversal as a dedicated module while retaining the existing
+# discovery orchestration and scoring code in game.py.
+_game._locallow_candidates = iter_locallow_data_dirs
+
 from .game import (
     discover_global_installation, format_discovery_report,
     manual_global_installation,
@@ -23,8 +30,8 @@ __all__ = [
     "JAPAN_APP_ID", "GLOBAL_DATA_FOLDER", "JAPAN_DATA_FOLDER",
     "discover_global_installation", "discover_libraries",
     "discover_steam_roots", "format_discovery_report",
-    "manual_global_installation", "parse_vdf_text", "scan_processes",
-    "valid_data_dir", "apply",
+    "iter_locallow_data_dirs", "manual_global_installation",
+    "parse_vdf_text", "scan_processes", "valid_data_dir", "apply",
 ]
 
 
