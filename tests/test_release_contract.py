@@ -9,35 +9,26 @@ class ReleaseContractTests(unittest.TestCase):
         version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         self.assertRegex(version, r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
+    def test_single_autodetection_engine_is_packaged(self):
+        installer = (ROOT / "install.sh").read_text(encoding="utf-8")
+        builder = (ROOT / "scripts" / "build_release.sh").read_text(encoding="utf-8")
+        entry = (ROOT / "umml_packaged.py").read_text(encoding="utf-8")
+        for text in (installer, builder, entry):
+            self.assertIn("umml_autodetect", text)
+        self.assertFalse((ROOT / "umml_detection_hotfix.py").exists())
+        self.assertFalse((ROOT / "umml_manual_location_fix.py").exists())
+
     def test_installer_contains_complete_runtime(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
-        for name in (
-            "UMML.py",
-            "UMML_core.py",
-            "umml_platform.py",
-            "umml_detection_hotfix.py",
-            "umml_manual_location_fix.py",
-            "sitecustomize.py",
-            "UMML_data",
-        ):
+        for name in ("UMML.py", "UMML_core.py", "umml_platform.py", "sitecustomize.py", "UMML_data"):
             self.assertIn(name, installer)
 
-    def test_source_release_includes_packaging_files(self):
+    def test_source_release_includes_packaging_and_reference_files(self):
         builder = (ROOT / "scripts" / "build_release.sh").read_text(encoding="utf-8")
         for name in (
-            "UMML.py",
-            "UMML_core.py",
-            "umml_packaged.py",
-            "umml_platform.py",
-            "umml_detection_hotfix.py",
-            "umml_manual_location_fix.py",
-            "sitecustomize.py",
-            "install.sh",
-            "VERSION",
-            "requirements-build.txt",
-            "build_deb.sh",
-            "build_appimage.sh",
-            "umml.spec",
+            "UMML.py", "UMML_core.py", "umml_packaged.py", "umml_platform.py",
+            "umml_autodetect", "AUTODETECTION.md", "install.sh", "VERSION",
+            "requirements-build.txt", "build_deb.sh", "build_appimage.sh", "umml.spec",
         ):
             self.assertIn(name, builder)
 
@@ -54,24 +45,18 @@ class ReleaseContractTests(unittest.TestCase):
         for relative in expected:
             self.assertTrue((ROOT / relative).is_file(), relative)
 
-    def test_packaged_entry_point_supports_bundle_resources_and_fixes(self):
+    def test_packaged_entry_point_applies_autodetection(self):
         entry = (ROOT / "umml_packaged.py").read_text(encoding="utf-8")
         self.assertIn("_MEIPASS", entry)
         self.assertIn('"--version"', entry)
-        self.assertIn("resource_root", entry)
-        self.assertIn("apply_detection_hotfix", entry)
-        self.assertIn("apply_manual_location_fix", entry)
+        self.assertIn("apply_autodetect", entry)
 
-    def test_release_workflow_publishes_deb_and_appimage(self):
-        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
-            encoding="utf-8"
-        )
+    def test_release_workflow_exercises_real_layouts(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         for name in (
-            "build_frozen.sh",
-            "build_deb.sh",
-            "build_appimage.sh",
-            "compatdata/3224770",
-            "UmamusumePrettyDerby_Data",
+            "build_frozen.sh", "build_deb.sh", "build_appimage.sh",
+            "compatdata/3224770", "libraryfolders.vdf", "Steam Global: Detected",
+            "result: READY",
         ):
             self.assertIn(name, workflow)
         self.assertIn("*.deb", workflow)
@@ -80,9 +65,7 @@ class ReleaseContractTests(unittest.TestCase):
     def test_readme_and_appstream_mention_current_version(self):
         version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        metainfo = (
-            ROOT / "packaging" / "linux" / "io.github.evelynlimab.umml.metainfo.xml"
-        ).read_text(encoding="utf-8")
+        metainfo = (ROOT / "packaging/linux/io.github.evelynlimab.umml.metainfo.xml").read_text(encoding="utf-8")
         self.assertIn(version, readme)
         self.assertIn(version, metainfo)
 
