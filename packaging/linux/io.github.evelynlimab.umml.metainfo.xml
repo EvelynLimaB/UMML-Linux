@@ -6,41 +6,20 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <description>
-    <p>
-      UMML can inspect mod packages, create backups, load replacement assets,
-      preview supported assets, and restore original Umamusume Pretty Derby
-      game files.
-    </p>
-    <p>
-      This build adds native Linux and Steam Proton discovery while preserving
-      the upstream Windows and regional installation paths.
-    </p>
+    <p>UMML loads, previews, backs up, and restores Umamusume Pretty Derby mods.</p>
+    <p>This build includes native Linux and robust Steam Proton autodetection.</p>
   </description>
   <launchable type="desktop-id">io.github.evelynlimab.umml.desktop</launchable>
   <url type="homepage">https://github.com/EvelynLimaB/UMML-Linux</url>
   <url type="bugtracker">https://github.com/EvelynLimaB/UMML-Linux/issues</url>
-  <provides>
-    <binary>umml</binary>
-  </provides>
-  <categories>
-    <category>Game</category>
-    <category>Utility</category>
-  </categories>
+  <provides><binary>umml</binary></provides>
+  <categories><category>Game</category><category>Utility</category></categories>
   <releases>
-    <release version="1.5.0-linux.4" date="2026-07-21">
-      <description>
-        <p>Fixes symlinked Steam game selection with separate Proton data.</p>
-      </description>
+    <release version="1.5.0-linux.5" date="2026-07-21">
+      <description><p>Replaces layered fixes with a scored Steam and Proton autodetection engine.</p></description>
     </release>
-    <release version="1.5.0-linux.3" date="2026-07-21">
-      <description>
-        <p>Fixes Linux Mint Steam discovery and adds manual game selection.</p>
-      </description>
-    </release>
-    <release version="1.5.0-linux.2" date="2026-07-21">
-      <description>
-        <p>Adds self-contained DEB and AppImage packages.</p>
-      </description>
-    </release>
+    <release version="1.5.0-linux.4" date="2026-07-21"/>
+    <release version="1.5.0-linux.3" date="2026-07-21"/>
+    <release version="1.5.0-linux.2" date="2026-07-21"/>
   </releases>
 </component>
