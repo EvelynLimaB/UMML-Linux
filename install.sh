@@ -11,16 +11,14 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_SCRIPT="$SCRIPT_DIR/UMML.py"
 SOURCE_CORE="$SCRIPT_DIR/UMML_core.py"
 SOURCE_PLATFORM="$SCRIPT_DIR/umml_platform.py"
-SOURCE_HOTFIX="$SCRIPT_DIR/umml_detection_hotfix.py"
-SOURCE_MANUAL="$SCRIPT_DIR/umml_manual_location_fix.py"
+SOURCE_AUTODETECT="$SCRIPT_DIR/umml_autodetect"
 SOURCE_SITE="$SCRIPT_DIR/sitecustomize.py"
 SOURCE_REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
 SOURCE_DATA="$SCRIPT_DIR/UMML_data"
 TARGET_SCRIPT="$APP_DIR/UMML.py"
 TARGET_CORE="$APP_DIR/UMML_core.py"
 TARGET_PLATFORM="$APP_DIR/umml_platform.py"
-TARGET_HOTFIX="$APP_DIR/umml_detection_hotfix.py"
-TARGET_MANUAL="$APP_DIR/umml_manual_location_fix.py"
+TARGET_AUTODETECT="$APP_DIR/umml_autodetect"
 TARGET_SITE="$APP_DIR/sitecustomize.py"
 TARGET_REQUIREMENTS="$APP_DIR/requirements.txt"
 TARGET_DATA="$APP_DIR/UMML_data"
@@ -51,8 +49,7 @@ command -v tar >/dev/null 2>&1 || fatal "tar is required."
 [[ -f "$SOURCE_SCRIPT" ]] || fatal "UMML.py must be beside this installer."
 [[ -f "$SOURCE_CORE" ]] || fatal "UMML_core.py must be beside this installer."
 [[ -f "$SOURCE_PLATFORM" ]] || fatal "umml_platform.py must be beside this installer."
-[[ -f "$SOURCE_HOTFIX" ]] || fatal "umml_detection_hotfix.py must be beside this installer."
-[[ -f "$SOURCE_MANUAL" ]] || fatal "umml_manual_location_fix.py must be beside this installer."
+[[ -f "$SOURCE_AUTODETECT/__init__.py" ]] || fatal "umml_autodetect package is missing."
 [[ -f "$SOURCE_SITE" ]] || fatal "sitecustomize.py must be beside this installer."
 [[ -f "$SOURCE_REQUIREMENTS" ]] || fatal "requirements.txt must be beside this installer."
 [[ -f "$SOURCE_DATA/dropdown.json" ]] || fatal "UMML_data/dropdown.json is missing."
@@ -81,10 +78,8 @@ if [[ ! -x "$MAMBA_BIN" ]]; then
         printf 'Downloading micromamba for the isolated Python/Tk environment...\n'
         tmpdir="$(mktemp -d)"
         trap 'rm -rf "$tmpdir"' EXIT
-
         archive="$tmpdir/micromamba.tar.bz2"
         binary="$tmpdir/micromamba"
-
         if fetch_try "https://micro.mamba.pm/api/micromamba/${MAMBA_PLATFORM}/latest" "$archive" \
             && tar -tjf "$archive" bin/micromamba >/dev/null 2>&1; then
             tar -xjf "$archive" -C "$tmpdir" bin/micromamba
@@ -94,7 +89,6 @@ if [[ ! -x "$MAMBA_BIN" ]]; then
         else
             fatal "Could not download micromamba from either official source. Check DNS/internet access and run install.sh again."
         fi
-
         rm -rf "$tmpdir"
         trap - EXIT
     fi
@@ -105,8 +99,7 @@ export MAMBA_ROOT_PREFIX="$MAMBA_ROOT"
 
 if [[ ! -x "$ENV_DIR/bin/python" ]]; then
     printf 'Creating private Python 3.11 + Tk environment...\n'
-    "$MAMBA_BIN" create --yes --prefix "$ENV_DIR" --channel conda-forge \
-        python=3.11 tk pip
+    "$MAMBA_BIN" create --yes --prefix "$ENV_DIR" --channel conda-forge python=3.11 tk pip
 else
     printf 'Reusing the existing private Python environment.\n'
 fi
@@ -118,8 +111,10 @@ printf 'Installing the tested UMML Python requirements...\n'
 install -m 0644 "$SOURCE_SCRIPT" "$TARGET_SCRIPT"
 install -m 0644 "$SOURCE_CORE" "$TARGET_CORE"
 install -m 0644 "$SOURCE_PLATFORM" "$TARGET_PLATFORM"
-install -m 0644 "$SOURCE_HOTFIX" "$TARGET_HOTFIX"
-install -m 0644 "$SOURCE_MANUAL" "$TARGET_MANUAL"
+rm -rf "$TARGET_AUTODETECT"
+mkdir -p "$TARGET_AUTODETECT"
+find "$SOURCE_AUTODETECT" -maxdepth 1 -type f -name '*.py' -exec install -m 0644 {} "$TARGET_AUTODETECT/" \;
+rm -f "$APP_DIR/umml_detection_hotfix.py" "$APP_DIR/umml_manual_location_fix.py"
 install -m 0644 "$SOURCE_SITE" "$TARGET_SITE"
 install -m 0644 "$SOURCE_REQUIREMENTS" "$TARGET_REQUIREMENTS"
 rm -rf "$TARGET_DATA"
@@ -131,7 +126,6 @@ cat > "$LAUNCHER" <<EOF
 set -Eeuo pipefail
 export MAMBA_ROOT_PREFIX="$MAMBA_ROOT"
 cd "$APP_DIR"
-
 if [[ -t 1 ]] || [[ " \$* " == *" --doctor "* ]]; then
     exec "$ENV_DIR/bin/python" "$TARGET_SCRIPT" "\$@"
 else
@@ -179,8 +173,8 @@ print("APSW SQLite3MC:", getattr(apsw, "mc_version", "installed"))
 print("PyYAML:", getattr(yaml, "__version__", "installed"))
 PY
 "$ENV_DIR/bin/python" -m py_compile \
-    "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" \
-    "$TARGET_HOTFIX" "$TARGET_MANUAL" "$TARGET_SITE"
+    "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" "$TARGET_SITE" \
+    "$TARGET_AUTODETECT"/*.py
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
