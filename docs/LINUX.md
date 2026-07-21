@@ -7,7 +7,7 @@
 Install the self-contained DEB from the latest release:
 
 ```bash
-sudo apt install ./umml-linux_1.5.0-linux.2_amd64.deb
+sudo apt install ./umml-linux_1.5.0-linux.3_amd64.deb
 umml-doctor
 umml
 ```
@@ -27,15 +27,15 @@ Removing the package does not touch game files, `dat.backup`, or metadata caches
 ### Portable AppImage
 
 ```bash
-chmod +x UMML-1.5.0-linux.2-x86_64.AppImage
-./UMML-1.5.0-linux.2-x86_64.AppImage
+chmod +x UMML-1.5.0-linux.3-x86_64.AppImage
+./UMML-1.5.0-linux.3-x86_64.AppImage
 ```
 
 The AppImage does not install files system-wide. On a distribution without FUSE
 2, run it using AppImage's extraction fallback:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.2-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.3-x86_64.AppImage
 ```
 
 Desktop-menu integration is handled by tools such as AppImageLauncher when
@@ -58,8 +58,8 @@ It downloads Micromamba from an official source and creates an isolated Python
 Fedora Atomic, and similar systems.
 
 ```bash
-unzip UMML-1.5.0-linux.2.zip
-cd UMML-1.5.0-linux.2
+unzip UMML-1.5.0-linux.3.zip
+cd UMML-1.5.0-linux.3
 chmod +x install.sh uninstall.sh
 ./install.sh
 ```
@@ -71,23 +71,27 @@ unusual desktop configurations, but UMML itself does not require a reboot.
 
 1. Start Umamusume Pretty Derby Global through Steam.
 2. Let the game finish its initial data download.
-3. Close the game.
+3. Close the game before using UMML to modify or restore assets.
 4. Run:
 
    ```bash
    umml-doctor
    ```
 
-5. Confirm that at least one installation is marked `[OK]` and the report ends
-   in `RESULT: READY`.
+5. Confirm that Steam Global is detected and the report ends in `RESULT: READY`.
 6. Run `umml` or select UMML from the desktop application menu.
+7. If automatic discovery still fails, accept the manual-location prompt and
+   select the folder containing `UmamusumePrettyDerby_Data`.
 
 ## Steam layouts detected automatically
 
+- Mint/Ubuntu/Debian native Steam: `~/.steam/debian-installation`
 - native Steam: `~/.local/share/Steam`
 - legacy native Steam: `~/.steam/steam` and `~/.steam/root`
-- Flatpak Steam: `~/.var/app/com.valvesoftware.Steam/.local/share/Steam`
+- Flatpak Steam data and legacy paths under `~/.var/app/com.valvesoftware.Steam/`
+- Snap Steam paths under `~/snap/steam/common/`
 - every secondary library listed in `libraryfolders.vdf`
+- Steam roots and game paths inferred from running Steam/Proton processes
 - Proton prefixes under `steamapps/compatdata/<app-id>/pfx`
 
 For Steam Global, UMML checks the current
@@ -146,8 +150,10 @@ tail -n 200 ~/.local/state/umml/umml.log
 
 ### No Steam root detected
 
-Set `UMML_STEAM_ROOT` to the directory containing `steamapps/`, then rerun the
-doctor.
+Release `1.5.0-linux.3` adds Mint's `~/.steam/debian-installation` path, runtime
+Steam/Proton process discovery, and a built-in manifest parser. When those still
+cannot identify the install, use the manual folder prompt or set
+`UMML_STEAM_ROOT` to the directory containing `steamapps/`.
 
 ### Game found but metadata/data missing
 
