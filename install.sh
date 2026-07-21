@@ -11,11 +11,15 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_SCRIPT="$SCRIPT_DIR/UMML.py"
 SOURCE_CORE="$SCRIPT_DIR/UMML_core.py"
 SOURCE_PLATFORM="$SCRIPT_DIR/umml_platform.py"
+SOURCE_HOTFIX="$SCRIPT_DIR/umml_detection_hotfix.py"
+SOURCE_SITE="$SCRIPT_DIR/sitecustomize.py"
 SOURCE_REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
 SOURCE_DATA="$SCRIPT_DIR/UMML_data"
 TARGET_SCRIPT="$APP_DIR/UMML.py"
 TARGET_CORE="$APP_DIR/UMML_core.py"
 TARGET_PLATFORM="$APP_DIR/umml_platform.py"
+TARGET_HOTFIX="$APP_DIR/umml_detection_hotfix.py"
+TARGET_SITE="$APP_DIR/sitecustomize.py"
 TARGET_REQUIREMENTS="$APP_DIR/requirements.txt"
 TARGET_DATA="$APP_DIR/UMML_data"
 LAUNCHER="$BIN_DIR/umml"
@@ -45,6 +49,8 @@ command -v tar >/dev/null 2>&1 || fatal "tar is required."
 [[ -f "$SOURCE_SCRIPT" ]] || fatal "UMML.py must be beside this installer."
 [[ -f "$SOURCE_CORE" ]] || fatal "UMML_core.py must be beside this installer."
 [[ -f "$SOURCE_PLATFORM" ]] || fatal "umml_platform.py must be beside this installer."
+[[ -f "$SOURCE_HOTFIX" ]] || fatal "umml_detection_hotfix.py must be beside this installer."
+[[ -f "$SOURCE_SITE" ]] || fatal "sitecustomize.py must be beside this installer."
 [[ -f "$SOURCE_REQUIREMENTS" ]] || fatal "requirements.txt must be beside this installer."
 [[ -f "$SOURCE_DATA/dropdown.json" ]] || fatal "UMML_data/dropdown.json is missing."
 command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || \
@@ -109,6 +115,8 @@ printf 'Installing the tested UMML Python requirements...\n'
 install -m 0644 "$SOURCE_SCRIPT" "$TARGET_SCRIPT"
 install -m 0644 "$SOURCE_CORE" "$TARGET_CORE"
 install -m 0644 "$SOURCE_PLATFORM" "$TARGET_PLATFORM"
+install -m 0644 "$SOURCE_HOTFIX" "$TARGET_HOTFIX"
+install -m 0644 "$SOURCE_SITE" "$TARGET_SITE"
 install -m 0644 "$SOURCE_REQUIREMENTS" "$TARGET_REQUIREMENTS"
 rm -rf "$TARGET_DATA"
 mkdir -p "$TARGET_DATA"
@@ -168,7 +176,7 @@ print("vdf:", getattr(vdf, "__version__", "3.4"))
 print("APSW SQLite3MC:", getattr(apsw, "mc_version", "installed"))
 print("PyYAML:", getattr(yaml, "__version__", "installed"))
 PY
-"$ENV_DIR/bin/python" -m py_compile "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM"
+"$ENV_DIR/bin/python" -m py_compile "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" "$TARGET_HOTFIX" "$TARGET_SITE"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
