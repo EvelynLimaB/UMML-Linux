@@ -1,38 +1,35 @@
-# UMML 1.5.0-linux.5
+# UMML 1.5.0-linux.6
 
-No more path-fix lasagna. `.5` replaces the emergency patch stack with one
-proper Steam/Proton discovery engine. `ᕦฅ^•ﻌ•^ฅᕤ`
+The game was found. The data was there. Linux cared that the folder was named
+`Umamusume` instead of `umamusume`. `.6` stops losing arguments to capital
+letters. `ᕦฅ^•ﻌ•^ฅᕤ`
 
-## What changed
+## Fixed
 
-- One autodetection package is used by source, DEB, and AppImage launches.
-- Steam client roots, secondary libraries, game installs, Proton prefixes, and
-  writable data are discovered independently and paired by evidence.
-- Handles Mint/Debian, XDG case variants, Flatpak, Snap, legacy Steam links,
-  old/new library VDF formats, case differences, symlinks, and split libraries.
-- Reads live Proton environment variables from the running user's processes.
-- Uses the newest valid `pfx` when duplicate prefixes exist.
-- Falls back from corrupt/missing manifests to marker scans and a built-in
-  Valve KeyValues parser.
-- `umml-doctor` explains every candidate and why the selected pair won.
+- Resolves every Proton LocalLow path component case-insensitively.
+- Detects current Global data under `Cygames/Umamusume`.
+- Still supports older `Cygames/umamusume` layouts.
+- Performs a bounded fallback scan of LocalLow publisher/game siblings when a
+  structurally valid folder contains both `meta` and `dat`.
+- Keeps the scored Steam/game/prefix pairing introduced in `.5`.
 
 ## Packages
 
-- Mint/Ubuntu/Debian: `umml-linux_1.5.0-linux.5_amd64.deb`
-- Other x86_64 Linux: `UMML-1.5.0-linux.5-x86_64.AppImage`
+- Mint/Ubuntu/Debian: `umml-linux_1.5.0-linux.6_amd64.deb`
+- Other x86_64 Linux: `UMML-1.5.0-linux.6-x86_64.AppImage`
 - Source fallback: ZIP or tarball
 
 ## Mint upgrade
 
 ```bash
-sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb
+sudo apt install ./umml-linux_1.5.0-linux.6_amd64.deb
 umml-doctor
 umml
 ```
 
 ## Validation
 
-- 31 local tests pass.
-- Release CI builds the real source archives, DEB and AppImage.
-- Both finished binary packages must detect a symlinked game on one secondary
-  Steam library and its Proton prefix on another before publication.
+- 36 local tests pass.
+- Includes direct uppercase and mixed-case Wine-path tests.
+- Includes an end-to-end Mint Steam manifest paired with Proton data under
+  `AppData/LocalLow/Cygames/Umamusume`.
