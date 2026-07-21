@@ -18,9 +18,8 @@ jobs:
       - name: Compile source
         run: |
           python -m py_compile \
-            UMML.py UMML_core.py umml_platform.py \
-            umml_detection_hotfix.py umml_manual_location_fix.py \
-            sitecustomize.py umml_packaged.py
+            UMML.py UMML_core.py umml_platform.py sitecustomize.py umml_packaged.py \
+            umml_autodetect/*.py
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
       - name: Validate shell scripts
