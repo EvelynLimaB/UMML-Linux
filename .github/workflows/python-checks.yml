@@ -19,7 +19,8 @@ jobs:
         run: |
           python -m py_compile \
             UMML.py UMML_core.py umml_platform.py umml_packaged.py \
-            umml_autodetect/*.py
+            umml_entry.py umml_featured_mods.py umml_featured_ui.py \
+            umml_legacy_safety.py umml_autodetect/*.py
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
       - name: Validate shell scripts

@@ -46,6 +46,7 @@ install -m 0644 "$ROOT/packaging/linux/$DESKTOP_ID.metainfo.xml" \
   "$BUILD_ROOT/usr/share/metainfo/$DESKTOP_ID.metainfo.xml"
 install -m 0644 "$ROOT/LICENSE" "$BUILD_ROOT/usr/share/doc/$PACKAGE/copyright"
 install -m 0644 "$ROOT/README.md" "$BUILD_ROOT/usr/share/doc/$PACKAGE/README.md"
+install -m 0644 "$ROOT/THIRD_PARTY_NOTICES.md" "$BUILD_ROOT/usr/share/doc/$PACKAGE/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$ROOT/CHANGELOG.md" "$BUILD_ROOT/usr/share/doc/$PACKAGE/changelog"
 gzip -n -9 "$BUILD_ROOT/usr/share/doc/$PACKAGE/changelog"
 

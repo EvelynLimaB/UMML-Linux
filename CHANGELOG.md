@@ -2,6 +2,19 @@
 
 All notable changes to the Linux/Proton fork are documented here.
 
+## Unreleased
+
+### Added
+
+- Added a Global-client first-run offer and permanent toggle for the optional
+  third-party UM:PD Dark Mode package.
+- Added an opt-in GameBanana downloader that keeps the original archive outside
+  UMML release artifacts and records source, attribution, license, and SHA-256.
+- Added dedicated per-mod backups and conflict-aware disable behavior so files
+  changed later by another mod are never overwritten silently.
+- Added safe ZIP, TAR, and 7z extraction with path traversal and link rejection.
+- Added third-party distribution notices and four focused featured-mod tests.
+
 ## [1.5.0-linux.6] - 2026-07-21
 
 ### Fixed

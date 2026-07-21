@@ -27,11 +27,11 @@ if "--version" in sys.argv:
     print(RELEASE_VERSION)
     raise SystemExit(0)
 
-import UMML as application  # noqa: E402
+import umml_entry as application  # noqa: E402
 
 # Keep the upstream mod compatibility value inside UMML_core unchanged while
 # presenting the fork's release version in the window title and About dialog.
-application.MODLOADER_VERSION = RELEASE_VERSION
+application.set_display_version(RELEASE_VERSION)
 
 
 if __name__ == "__main__":

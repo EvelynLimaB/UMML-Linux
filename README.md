@@ -112,6 +112,22 @@ When automatic pairing cannot finish, UMML accepts either the game root or the
 data folder first, then asks for the missing half. Valid data folders contain
 both `meta` and `dat`.
 
+## Optional UM:PD Dark Mode
+
+For the Global client, UMML can offer **UM:PD Dark Mode** once after startup.
+Accepting the offer downloads the creator's original archive directly from its
+GameBanana page and installs it through a dedicated reversible backup. The
+archive itself is not included in UMML releases.
+
+The permanent **Featured optional mod** switch can enable or disable it later.
+When disabling, UMML restores only files that still match the version it
+installed. A file subsequently changed by another mod is left untouched and
+reported as a conflict instead of being overwritten.
+
+The publisher states `CC BY-NC-ND 4.0`. Source, attribution, license, local state
+path, and the downloaded archive's SHA-256 are visible from the interface. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the distribution boundary.
+
 ## Overrides
 
 | Variable | Meaning |
@@ -126,7 +142,7 @@ both `meta` and `dat`.
 ## Development
 
 ```bash
-python -m py_compile UMML.py UMML_core.py umml_platform.py umml_packaged.py umml_autodetect/*.py
+python -m py_compile UMML.py UMML_core.py umml_platform.py umml_packaged.py umml_entry.py umml_featured_mods.py umml_featured_ui.py umml_autodetect/*.py
 python -m unittest discover -s tests -v
 bash -n install.sh uninstall.sh scripts/*.sh
 scripts/build_release.sh
@@ -151,4 +167,5 @@ use mods at your own risk.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). Third-party downloads remain under their respective
+licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

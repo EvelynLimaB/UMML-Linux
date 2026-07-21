@@ -18,8 +18,10 @@ mkdir -p \
   "$STAGE/$NAME/packaging/pyinstaller" \
   "$STAGE/$NAME/packaging/linux"
 
-for file in UMML.py UMML_core.py umml_platform.py umml_packaged.py requirements.txt requirements-build.txt \
-            VERSION README.md CHANGELOG.md RELEASE_NOTES.md SECURITY.md CONTRIBUTING.md LICENSE; do
+for file in UMML.py UMML_core.py umml_platform.py umml_packaged.py umml_entry.py \
+            umml_featured_mods.py umml_featured_ui.py umml_legacy_safety.py \
+            requirements.txt requirements-build.txt VERSION README.md CHANGELOG.md RELEASE_NOTES.md \
+            SECURITY.md CONTRIBUTING.md LICENSE THIRD_PARTY_NOTICES.md; do
   install -m 0644 "$ROOT/$file" "$STAGE/$NAME/$file"
 done
 install -m 0644 "$ROOT/docs/LINUX.md" "$STAGE/$NAME/docs/LINUX.md"
