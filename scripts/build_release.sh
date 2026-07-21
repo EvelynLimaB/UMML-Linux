@@ -18,7 +18,7 @@ mkdir -p \
   "$STAGE/$NAME/packaging/pyinstaller" \
   "$STAGE/$NAME/packaging/linux"
 
-for file in UMML.py UMML_core.py umml_platform.py umml_detection_hotfix.py sitecustomize.py umml_packaged.py requirements.txt requirements-build.txt \
+for file in UMML.py UMML_core.py umml_platform.py umml_detection_hotfix.py umml_manual_location_fix.py sitecustomize.py umml_packaged.py requirements.txt requirements-build.txt \
             VERSION README.md CHANGELOG.md RELEASE_NOTES.md SECURITY.md CONTRIBUTING.md LICENSE; do
   install -m 0644 "$ROOT/$file" "$STAGE/$NAME/$file"
 done
