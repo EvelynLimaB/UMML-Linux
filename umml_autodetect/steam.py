@@ -13,6 +13,7 @@ from .model import (
 )
 from .vdf import get_casefold, load_vdf, walk_casefold_keys
 
+
 def _parse_int(value: object) -> Optional[int]:
     try:
         return int(str(value))
@@ -93,7 +94,7 @@ def discover_steam_roots(
     processes: Optional[Sequence[ProcessEvidence]] = None,
 ) -> list[EvidencePath]:
     home = home or Path.home()
-    environ = environ or os.environ
+    environ = os.environ if environ is None else environ
     processes = list(processes) if processes is not None else scan_processes()
     candidates: list[EvidencePath] = []
 
