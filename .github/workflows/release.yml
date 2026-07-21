@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           . .build-venv/bin/activate
-          python -m py_compile UMML.py UMML_core.py umml_platform.py umml_packaged.py
+          python -m py_compile UMML.py UMML_core.py umml_platform.py umml_detection_hotfix.py sitecustomize.py umml_packaged.py
           python -m unittest discover -s tests -v
           bash -n install.sh uninstall.sh \
             scripts/build_release.sh scripts/build_frozen.sh \
@@ -55,10 +55,30 @@ jobs:
           VERSION="$(tr -d '[:space:]' < VERSION)"
           DEB="dist/umml-linux_${VERSION}_amd64.deb"
           APPIMAGE="dist/UMML-${VERSION}-x86_64.AppImage"
+          FAKE_HOME="$(mktemp -d)"
+          STEAM="$FAKE_HOME/.steam/debian-installation"
+          GAME="$STEAM/steamapps/common/Umamusume Pretty Derby"
+          PERSISTENT="$GAME/UmamusumePrettyDerby_Data/Persistent"
+          mkdir -p "$PERSISTENT/dat"
+          printf meta > "$PERSISTENT/meta"
+          cat > "$STEAM/steamapps/appmanifest_3224770.acf" <<'EOF'
+          "AppState"
+          {
+            "appid" "3224770"
+            "installdir" "Umamusume Pretty Derby"
+          }
+          EOF
+
           sudo apt-get install -y "./${DEB}"
           test "$(umml --version)" = "$VERSION"
+          HOME="$FAKE_HOME" umml --doctor | tee /tmp/umml-deb-doctor.txt
+          grep -F "Steam Global: Detected" /tmp/umml-deb-doctor.txt
           sudo apt-get remove -y umml-linux
+
           test "$(APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version)" = "$VERSION"
+          HOME="$FAKE_HOME" APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --doctor \
+            | tee /tmp/umml-appimage-doctor.txt
+          grep -F "Steam Global: Detected" /tmp/umml-appimage-doctor.txt
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
