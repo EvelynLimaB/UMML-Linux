@@ -1,131 +1,97 @@
 # Linux and Steam Proton guide
 
-## Linux Mint, Ubuntu, or Debian
+## Install
+
+### Mint, Ubuntu, Debian
 
 ```bash
-sudo apt install ./umml-linux_1.5.0-linux.4_amd64.deb
+sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb
 umml-doctor
 umml
 ```
 
-The DEB is self-contained and upgrades older UMML Linux packages in place.
-Remove it with `sudo apt remove umml-linux`. Removing UMML does not remove game
-files or `dat.backup`.
-
-## Portable AppImage
+### Portable AppImage
 
 ```bash
-chmod +x UMML-1.5.0-linux.4-x86_64.AppImage
-./UMML-1.5.0-linux.4-x86_64.AppImage
+chmod +x UMML-1.5.0-linux.5-x86_64.AppImage
+./UMML-1.5.0-linux.5-x86_64.AppImage
 ```
 
 Without FUSE 2:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.4-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.5-x86_64.AppImage
 ```
 
-## Source installer
+### Source installer
 
 ```bash
-unzip UMML-1.5.0-linux.4.zip
-cd UMML-1.5.0-linux.4
-chmod +x install.sh uninstall.sh
+chmod +x install.sh
 ./install.sh
+umml-doctor
+umml
 ```
 
-The source installer creates a private Python/Tk environment inside the current
-user account. It does not modify system Python.
+## What autodetection checks
+
+- explicit `UMML_*` overrides;
+- running Steam/Proton process environment;
+- Mint/Debian, XDG, legacy, Flatpak, Snap, and system Steam roots;
+- every configured secondary Steam library;
+- old and new Valve KeyValues layouts;
+- app manifests and case-insensitive marker scans;
+- game-local `Persistent` data;
+- every `compatdata/3224770/pfx` across every library;
+- all Proton users under `drive_c/users`;
+- symlink-preserving and canonical path variants;
+- prefix recency through `pfx.lock`.
+
+Game and data are deliberately not required to live on the same Steam library.
+Detailed architecture and source references are in
+[AUTODETECTION.md](AUTODETECTION.md).
 
 ## First launch
 
-1. Start Umamusume Pretty Derby Global and allow its data download to finish.
-2. Close the game before loading or restoring assets.
+1. Run the game once and finish its initial download.
+2. Close the game.
 3. Run `umml-doctor`.
-4. Start `umml`.
+4. Confirm the report ends with `result: READY`.
+5. Start `umml`.
 
-## Steam layouts detected
+The report lists evidence scores and exact selected paths. Keep the full output
+when reporting a detection bug.
 
-- Mint/Ubuntu/Debian Steam: `~/.steam/debian-installation`
-- Native Steam: `~/.local/share/Steam`, `~/.steam/steam`, `~/.steam/root`
-- Flatpak Steam under `~/.var/app/com.valvesoftware.Steam/`
-- Snap Steam under `~/snap/steam/common/`
-- Secondary libraries from `libraryfolders.vdf`
-- Running Steam and Proton process paths
-- Proton prefixes under `steamapps/compatdata/<app-id>/pfx`
+## Manual recovery
 
-Steam Global uses app ID `3224770`.
+When only one half is discovered, select either:
 
-## Manual selection in `.4`
+- the game root containing `UmamusumePrettyDerby_Data` or the executable; or
+- `Persistent`, `LocalLow/Cygames/umamusume`, or its `dat` subfolder.
 
-The game directory and writable game data are not always the same folder.
-Steam may expose the game through a symlink while Proton stores metadata under:
-
-```text
-steamapps/compatdata/3224770/pfx/drive_c/users/steamuser/
-AppData/LocalLow/Cygames/umamusume
-```
-
-The manual chooser accepts:
-
-- the game root containing `UmamusumePrettyDerby_Data`;
-- `UmamusumePrettyDerby_Data`;
-- `Persistent`;
-- `LocalLow/Cygames/umamusume` containing `meta` and `dat`;
-- the `dat` subfolder.
-
-When UMML accepts the game root but cannot find its data automatically, it opens
-a second chooser. Select `Persistent` or `LocalLow/Cygames/umamusume`—the parent
-folder containing both `meta` and `dat`.
+UMML then asks for the missing half. The data directory must contain both
+`meta` and `dat/`.
 
 ## Overrides
 
 ```bash
-UMML_PLATFORM=steam-global \
 UMML_STEAM_ROOT="/mnt/games/SteamLibrary" \
 UMML_GAME_DIR="/mnt/games/SteamLibrary/steamapps/common/UmamusumePrettyDerby" \
-UMML_PERSISTENT_DIR="/mnt/games/uma-data" \
+UMML_PERSISTENT_DIR="/mnt/prefix/AppData/LocalLow/Cygames/umamusume" \
 umml
 ```
 
-`UMML_PERSISTENT_DIR` must point to the parent containing `meta` and `dat`, not
-to `dat` itself.
-
 ## Troubleshooting
 
-### Automatic detection fails
-
-Run:
-
 ```bash
+umml --version
 umml-doctor
+tail -n 200 ~/.local/state/umml/umml.log
 ```
 
-Then use the two-step manual selection described above. The first folder is the
-game root; the optional second folder is the writable Persistent/LocalLow data.
+- **Game found, data missing:** let the game finish downloading or locate the
+  Proton LocalLow folder containing `meta` and `dat`.
+- **AppImage fails without FUSE:** use `APPIMAGE_EXTRACT_AND_RUN=1`.
+- **External library unavailable:** verify it is mounted and writable with
+  `findmnt` and `namei -l`.
 
-### Game found; data missing
-
-The game directory was detected, but `meta` and `dat` were not. Let the game
-finish its data download or select the Proton LocalLow data folder manually.
-
-### AppImage does not start
-
-```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-*.AppImage
-```
-
-### Logs
-
-Terminal launches print errors directly. Source-installed desktop launches log
-to:
-
-```text
-~/.local/state/umml/umml.log
-```
-
-## Updating
-
-- DEB: install the newer package with `sudo apt install ./new-package.deb`
-- AppImage: replace the old AppImage
-- Source install: extract the new version and rerun `./install.sh`
+Removing UMML never intentionally removes game data or `dat.backup`.
