@@ -12,6 +12,7 @@ SOURCE_SCRIPT="$SCRIPT_DIR/UMML.py"
 SOURCE_CORE="$SCRIPT_DIR/UMML_core.py"
 SOURCE_PLATFORM="$SCRIPT_DIR/umml_platform.py"
 SOURCE_HOTFIX="$SCRIPT_DIR/umml_detection_hotfix.py"
+SOURCE_MANUAL="$SCRIPT_DIR/umml_manual_location_fix.py"
 SOURCE_SITE="$SCRIPT_DIR/sitecustomize.py"
 SOURCE_REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
 SOURCE_DATA="$SCRIPT_DIR/UMML_data"
@@ -19,6 +20,7 @@ TARGET_SCRIPT="$APP_DIR/UMML.py"
 TARGET_CORE="$APP_DIR/UMML_core.py"
 TARGET_PLATFORM="$APP_DIR/umml_platform.py"
 TARGET_HOTFIX="$APP_DIR/umml_detection_hotfix.py"
+TARGET_MANUAL="$APP_DIR/umml_manual_location_fix.py"
 TARGET_SITE="$APP_DIR/sitecustomize.py"
 TARGET_REQUIREMENTS="$APP_DIR/requirements.txt"
 TARGET_DATA="$APP_DIR/UMML_data"
@@ -50,6 +52,7 @@ command -v tar >/dev/null 2>&1 || fatal "tar is required."
 [[ -f "$SOURCE_CORE" ]] || fatal "UMML_core.py must be beside this installer."
 [[ -f "$SOURCE_PLATFORM" ]] || fatal "umml_platform.py must be beside this installer."
 [[ -f "$SOURCE_HOTFIX" ]] || fatal "umml_detection_hotfix.py must be beside this installer."
+[[ -f "$SOURCE_MANUAL" ]] || fatal "umml_manual_location_fix.py must be beside this installer."
 [[ -f "$SOURCE_SITE" ]] || fatal "sitecustomize.py must be beside this installer."
 [[ -f "$SOURCE_REQUIREMENTS" ]] || fatal "requirements.txt must be beside this installer."
 [[ -f "$SOURCE_DATA/dropdown.json" ]] || fatal "UMML_data/dropdown.json is missing."
@@ -116,6 +119,7 @@ install -m 0644 "$SOURCE_SCRIPT" "$TARGET_SCRIPT"
 install -m 0644 "$SOURCE_CORE" "$TARGET_CORE"
 install -m 0644 "$SOURCE_PLATFORM" "$TARGET_PLATFORM"
 install -m 0644 "$SOURCE_HOTFIX" "$TARGET_HOTFIX"
+install -m 0644 "$SOURCE_MANUAL" "$TARGET_MANUAL"
 install -m 0644 "$SOURCE_SITE" "$TARGET_SITE"
 install -m 0644 "$SOURCE_REQUIREMENTS" "$TARGET_REQUIREMENTS"
 rm -rf "$TARGET_DATA"
@@ -128,8 +132,6 @@ set -Eeuo pipefail
 export MAMBA_ROOT_PREFIX="$MAMBA_ROOT"
 cd "$APP_DIR"
 
-# Preserve normal terminal output for diagnostics. Desktop launches have no
-# terminal, so capture their output in a persistent log instead.
 if [[ -t 1 ]] || [[ " \$* " == *" --doctor "* ]]; then
     exec "$ENV_DIR/bin/python" "$TARGET_SCRIPT" "\$@"
 else
@@ -176,7 +178,9 @@ print("vdf:", getattr(vdf, "__version__", "3.4"))
 print("APSW SQLite3MC:", getattr(apsw, "mc_version", "installed"))
 print("PyYAML:", getattr(yaml, "__version__", "installed"))
 PY
-"$ENV_DIR/bin/python" -m py_compile "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" "$TARGET_HOTFIX" "$TARGET_SITE"
+"$ENV_DIR/bin/python" -m py_compile \
+    "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" \
+    "$TARGET_HOTFIX" "$TARGET_MANUAL" "$TARGET_SITE"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
@@ -187,4 +191,3 @@ printf '1. Check the real game paths:\n   %s\n\n' "$DOCTOR"
 printf '2. Start UMML:\n   %s\n\n' "$LAUNCHER"
 printf 'Desktop-launch log:\n   %s\n\n' "$LOG_FILE"
 printf 'You can also open “UMML” from the application menu.\n'
-printf 'Select the detected Steam Global installation in the platform chooser.\n'
