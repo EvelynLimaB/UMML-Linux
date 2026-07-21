@@ -7,14 +7,14 @@
 A maintained Linux/Steam Proton port of **UMML**, the desktop mod loader for
 **Umamusume Pretty Derby**.
 
-**Current release:** `1.5.0-linux.5`, based on upstream `1.5.0-hotfix`.
+**Current release:** `1.5.0-linux.6`, based on upstream `1.5.0-hotfix`.
 
 ## Download
 
 | Linux setup | Recommended file | Install or run |
 | --- | --- | --- |
-| Linux Mint, Ubuntu, Debian | `umml-linux_1.5.0-linux.5_amd64.deb` | `sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb` |
-| Other x86_64 distributions | `UMML-1.5.0-linux.5-x86_64.AppImage` | `chmod +x *.AppImage && ./UMML-*.AppImage` |
+| Linux Mint, Ubuntu, Debian | `umml-linux_1.5.0-linux.6_amd64.deb` | `sudo apt install ./umml-linux_1.5.0-linux.6_amd64.deb` |
+| Other x86_64 distributions | `UMML-1.5.0-linux.6-x86_64.AppImage` | `chmod +x *.AppImage && ./UMML-*.AppImage` |
 | Source/user-local fallback | ZIP or tarball | extract and run `./install.sh` |
 
 Use the assets attached to the
@@ -26,7 +26,7 @@ The horse game has successfully entered the penguin machine. `ฅ^•ﻌ•^ฅ`
 
 ## Autodetection v2
 
-`1.5.0-linux.5` replaces the layered path hotfixes with one scored discovery
+`1.5.0-linux.5` replaced the layered path hotfixes with one scored discovery
 engine. It independently discovers and pairs:
 
 - native Debian/Mint, XDG and legacy Steam clients;
@@ -38,15 +38,21 @@ engine. It independently discovers and pairs:
 - symlinked and case-mismatched Steam paths;
 - the newest valid prefix when duplicate `compatdata` folders exist.
 
-`umml-doctor` now lists every candidate, score, evidence source, selected game,
+`1.5.0-linux.6` fixes the final Global-client edge case: Wine paths are
+case-insensitive, but Linux filesystems are not. LocalLow discovery now resolves
+every path component case-insensitively and accepts current
+`Cygames/Umamusume`, older `Cygames/umamusume`, and other bounded valid siblings
+containing both `meta` and `dat`.
+
+`umml-doctor` lists every candidate, score, evidence source, selected game,
 selected data directory, and final readiness result. See
 [docs/AUTODETECTION.md](docs/AUTODETECTION.md) for the design and the
-Protontricks, Lutris and Valve sources used as behavioral references.
+Protontricks, Lutris, Valve Proton, and UmaViewer references.
 
 ## Mint / Ubuntu / Debian
 
 ```bash
-sudo apt install ./umml-linux_1.5.0-linux.5_amd64.deb
+sudo apt install ./umml-linux_1.5.0-linux.6_amd64.deb
 umml-doctor
 umml
 ```
@@ -60,14 +66,14 @@ sudo apt remove umml-linux
 ## AppImage
 
 ```bash
-chmod +x UMML-1.5.0-linux.5-x86_64.AppImage
-./UMML-1.5.0-linux.5-x86_64.AppImage
+chmod +x UMML-1.5.0-linux.6-x86_64.AppImage
+./UMML-1.5.0-linux.6-x86_64.AppImage
 ```
 
 Without FUSE 2:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.5-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./UMML-1.5.0-linux.6-x86_64.AppImage
 ```
 
 ## Source installer
