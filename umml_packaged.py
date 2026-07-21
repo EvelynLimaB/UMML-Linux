@@ -28,8 +28,10 @@ if "--version" in sys.argv:
     raise SystemExit(0)
 
 from umml_detection_hotfix import apply as apply_detection_hotfix  # noqa: E402
+from umml_manual_location_fix import apply as apply_manual_location_fix  # noqa: E402
 
 apply_detection_hotfix()
+apply_manual_location_fix()
 
 import UMML as application  # noqa: E402
 
