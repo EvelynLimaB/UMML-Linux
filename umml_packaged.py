@@ -27,6 +27,10 @@ if "--version" in sys.argv:
     print(RELEASE_VERSION)
     raise SystemExit(0)
 
+from umml_detection_hotfix import apply as apply_detection_hotfix  # noqa: E402
+
+apply_detection_hotfix()
+
 import UMML as application  # noqa: E402
 
 # Keep the upstream mod compatibility value inside UMML_core unchanged while
