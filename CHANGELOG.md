@@ -2,6 +2,24 @@
 
 All notable changes to the Linux/Proton fork are documented here.
 
+## [1.5.0-linux.6] - 2026-07-21
+
+### Fixed
+
+- Proton LocalLow discovery now resolves `drive_c`, `users`, Windows usernames,
+  `AppData`, `LocalLow`, publisher, and game directories case-insensitively.
+- Current Steam Global data under `Cygames/Umamusume` is detected on Linux
+  filesystems instead of being missed by the older lowercase-only join.
+- Bounded sibling scans accept renamed but structurally valid LocalLow data
+  directories containing both `meta` and `dat` without recursively crawling the
+  entire prefix.
+
+### Validation
+
+- Added direct uppercase/mixed-case LocalLow tests.
+- Added an end-to-end Mint manifest + Proton `Cygames/Umamusume` fixture.
+- 36 tests, Python compilation, and shell validation pass locally.
+
 ## [1.5.0-linux.5] - 2026-07-21
 
 ### Changed
@@ -24,16 +42,7 @@ All notable changes to the Linux/Proton fork are documented here.
 - Independent cross-library prefix search and newest-prefix selection via
   `pfx.lock` time.
 - Standard-library Valve KeyValues fallback parser.
-- 16 autodetection fixtures plus existing platform and release tests.
 - Behavioral reference documentation for Protontricks, Lutris, and Valve Proton.
-
-### Validation
-
-- 31 tests pass locally.
-- Source compilation, shell validation, ZIP/tarball builds and archive integrity
-  pass locally.
-- Release CI installs and tests both the finished DEB and AppImage against a
-  symlinked game on one secondary library and a Proton prefix on another.
 
 ## [1.5.0-linux.4] - 2026-07-21
 
