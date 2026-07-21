@@ -32,6 +32,18 @@ Paths are inspected in both symlink-preserving and canonical forms. The selected
 game path remains the visible Steam path, while canonical forms are used for
 deduplication and filesystem checks.
 
+## Proton LocalLow discovery
+
+Wine presents Windows paths case-insensitively, while the Linux filesystem under
+a Proton prefix is normally case-sensitive. UMML therefore resolves each
+component of `drive_c/users/<user>/AppData/LocalLow` using case-fold matching.
+
+The preferred publisher/game path is checked first, including current Global
+`Cygames/Umamusume` and older lowercase layouts. UMML then performs bounded
+one-level scans of LocalLow publishers and their immediate game directories,
+accepting only folders that contain both `meta` and a `dat` directory. The scan
+is intentionally bounded and never recursively crawls an entire Wine prefix.
+
 ## Valve KeyValues handling
 
 The optional `vdf` package is used when available. A standard-library parser is
@@ -61,6 +73,8 @@ copied into this repository:
   <https://github.com/ValveSoftware/Proton/blob/d2bedfad453584d05308f5e3e1f9657e3f0f71d3/proton>
 - Valve Proton FAQ:
   <https://github.com/ValveSoftware/Proton/wiki/Proton-FAQ>
+- UmaViewer data-layout notes for old and fresh installations:
+  <https://github.com/katboi01/UmaViewer/blob/07f82e9fa08f23c1cda3a9be3045a09372eae8bb/README.md>
 
 ## Regression fixtures
 
@@ -69,4 +83,5 @@ The test suite covers Mint/Debian Steam, lowercase XDG paths, case-insensitive
 layouts, old/new library VDF formats, legacy base-install folders, secondary
 libraries, process-provided paths, game/prefix separation, duplicate prefixes,
 symlinked game folders, corrupt/uninstalled manifests, manual two-part
-selection, and packaged DEB/AppImage smoke tests.
+selection, uppercase and mixed-case LocalLow paths, and packaged DEB/AppImage
+smoke tests.
