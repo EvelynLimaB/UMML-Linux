@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.evelynlimab.ummlmanager</id>
+  <name>UMML Manager</name>
+  <summary>Browse, edit, profile, and deploy UM:PD mods</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and transactional deployment.</p>
+    <p>It can browse Global and Japan Umamusume GameBanana mods, detect compatible local mod folders and archives, and create editable workspace copies.</p>
+    <p>The built-in Studio preserves the legacy loader's character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.</p>
+  </description>
+  <launchable type="desktop-id">io.github.evelynlimab.ummlmanager.desktop</launchable>
+  <url type="homepage">https://github.com/EvelynLimaB/UMML-Linux</url>
+  <provides>
+    <binary>umml-manager</binary>
+    <binary>umml-manager-cli</binary>
+  </provides>
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+  <releases>
+    <release version="0.2.0-alpha1" date="2026-07-21">
+      <description>
+        <p>Adds the polished multi-workspace interface, GameBanana browser, local mod detection, editable workspaces, and complete legacy Studio compatibility.</p>
+      </description>
+    </release>
+    <release version="0.1.0-alpha1" date="2026-07-21">
+      <description>
+        <p>Initial separately packaged manager foundation with profiles, conflict resolution, transactional deployment, and GameBanana import.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from .discovery import default_search_roots, scan_mod_candidates
+from .engine import ApplyEngine
+from .legacy_adapter import LegacyAssetAdapter
+from .models import Profile
+from .providers.gamebanana import GameBananaClient
+from .resolver import resolve_profile
+from .store import ManagerStore, StoreError, default_root
+from .studio import LegacyToolLauncher
+from .version import manager_version
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="umml-manager-cli")
+    parser.add_argument("--version", action="version", version=manager_version())
+    parser.add_argument("--root", default=str(default_root()), help="Manager data directory")
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("list")
+    imported = sub.add_parser("import")
+    imported.add_argument("path")
+    imported.add_argument("--id")
+    scan = sub.add_parser("scan")
+    scan.add_argument("paths", nargs="*")
+    scan.add_argument("--depth", type=int, default=5)
+    browse = sub.add_parser("browse")
+    browse.add_argument("--region", choices=("global", "japan"), default="global")
+    browse.add_argument("--page", type=int, default=1)
+    browse.add_argument("--sort", choices=("updated", "newest", "popular", "downloads", "views"), default="updated")
+    browse.add_argument("--query", default="")
+    gb = sub.add_parser("gamebanana")
+    gb.add_argument("url")
+    gb.add_argument("--file-id", type=int)
+    prepare = sub.add_parser("prepare")
+    prepare.add_argument("mod_id")
+    prepare.add_argument("--meta", required=True)
+    workspace = sub.add_parser("workspace")
+    workspace.add_argument("mod_id")
+    profile = sub.add_parser("profile")
+    profile.add_argument("name")
+    profile.add_argument("mods", nargs="*")
+    plan = sub.add_parser("plan")
+    plan.add_argument("profile")
+    apply = sub.add_parser("apply")
+    apply.add_argument("profile")
+    apply.add_argument("--dat", required=True)
+    apply.add_argument("--game-dir")
+    apply.add_argument("--force", action="store_true")
+    updates = sub.add_parser("updates")
+    updates.add_argument("mod_id", nargs="?")
+    studio = sub.add_parser("studio")
+    studio.add_argument("tool", nargs="?", default="full")
+    studio.add_argument("--dat", default="")
+    studio.add_argument("--game-dir", default="")
+    studio.add_argument("--meta", default="")
+    studio.add_argument("--region", default="global")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    store = ManagerStore(args.root)
+    try:
+        if args.command == "list":
+            for mod in store.list_mods():
+                status = "prepared" if mod.files else "needs prepare"
+                print(f"{mod.id}\t{mod.version}\t{status}\t{mod.name}")
+        elif args.command == "import":
+            path = Path(args.path)
+            record = store.import_folder(path, mod_id=args.id) if path.is_dir() else store.import_archive(path, mod_id=args.id)
+            print(record.id)
+        elif args.command == "scan":
+            roots = [Path(item) for item in args.paths] or default_search_roots()
+            for candidate in scan_mod_candidates(roots, max_depth=args.depth):
+                print(f"{candidate.kind}\t{candidate.confidence}\t{candidate.path}\t{candidate.reason}")
+        elif args.command == "browse":
+            page = GameBananaClient().browse(region=args.region, page=args.page, sort=args.sort, query=args.query)
+            for mod in page.mods:
+                print(f"{mod.id}\t{mod.likes}\t{mod.downloads}\t{mod.author}\t{mod.name}")
+        elif args.command == "gamebanana":
+            print(GameBananaClient().import_mod(store, args.url, file_id=args.file_id).id)
+        elif args.command == "prepare":
+            record = LegacyAssetAdapter(store, args.meta).prepare(store.get_mod(args.mod_id))
+            print(f"Prepared {len(record.files)} assets for {record.id}")
+        elif args.command == "workspace":
+            print(store.create_workspace(args.mod_id))
+        elif args.command == "profile":
+            store.save_profile(Profile(args.name, list(args.mods)))
+            print(args.name)
+        elif args.command in {"plan", "apply"}:
+            resolution = resolve_profile(store.get_profile(args.profile), store.list_mods())
+            if args.command == "plan":
+                print(json.dumps({
+                    "profile": resolution.profile,
+                    "files": len(resolution.winners),
+                    "missing": resolution.missing,
+                    "conflicts": [conflict.__dict__ for conflict in resolution.conflicts],
+                }, indent=2))
+            else:
+                result = ApplyEngine(store, args.dat, game_dir=args.game_dir).apply(resolution, force=args.force)
+                print(f"Installed {result.installed}; restored {result.restored}; unchanged {result.unchanged}")
+        elif args.command == "updates":
+            client = GameBananaClient()
+            records = [store.get_mod(args.mod_id)] if args.mod_id else store.list_mods()
+            for record in records:
+                update = client.update_available(record)
+                if update:
+                    print(f"{record.id}\t{update.id}\t{update.name}")
+        elif args.command == "studio":
+            LegacyToolLauncher().launch(args.tool, dat_path=args.dat, game_dir=args.game_dir, meta_path=args.meta, region=args.region)
+        return 0
+    except StoreError as exc:
+        print(f"error: {exc}")
+        return 2
+    except Exception as exc:
+        print(f"error: {exc}")
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
