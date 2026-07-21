@@ -1,39 +1,36 @@
-# UMML 1.5.0 Linux/Proton 2
+# UMML 1.5.0-linux.3
 
-The penguin machine now comes in convenient little boxes. `ฅ^•ﻌ•^ฅ`
+The game was literally open behind UMML and UMML still said “not found.” Yeah,
+that was awkward. This hotfix repairs packaged Steam discovery on Linux Mint and
+adds a manual escape hatch so detection cannot dead-end again. `ฅ(•ㅅ•❀)ฅ`
 
-This release adds self-contained Linux packages on top of the polished
-Linux/Steam Proton port based on upstream `1.5.0-hotfix`.
+## Fixed
+
+- Detects Mint/Ubuntu/Debian native Steam at `~/.steam/debian-installation`.
+- Detects Steam roots and Umamusume paths from running Steam/Proton processes.
+- Falls back to a built-in Valve KeyValues parser inside frozen packages.
+- Finds known game folders even when `appmanifest_3224770.acf` is unavailable.
+- Ignores inaccessible `/proc` entries instead of failing the whole scan.
+- Shows partial states such as **Game found; data missing**.
+- Offers manual Steam Global folder selection when automatic detection fails.
 
 ## Pick your package
 
-- **Linux Mint / Ubuntu / Debian:** install the `.deb` with
-  `sudo apt install ./umml-linux_1.5.0-linux.2_amd64.deb`.
-- **Other x86_64 Linux distributions:** download the `.AppImage`, make it
-  executable, and run it directly.
-- **Source/user-local installation:** ZIP and tarball packages remain available.
+- Mint/Ubuntu/Debian: `umml-linux_1.5.0-linux.3_amd64.deb`
+- Other x86_64 Linux: `UMML-1.5.0-linux.3-x86_64.AppImage`
+- Source fallback: ZIP or tarball
 
-The DEB and AppImage bundle Python, Tk, UnityPy, APSW SQLite3MC, PyYAML, and the
-remaining runtime dependencies. They do not need Micromamba or a separate pip
-installation.
+## Mint install
 
-## Existing highlights
-
-- Steam Global detection on native Steam, Flatpak Steam, and secondary libraries
-- Proton-prefix discovery with current and legacy data-layout support
-- desktop launcher, persistent logs, and `umml-doctor`
-- refreshed resizable interface with startup progress and path diagnostics
-- Windows, Steam Japan, DMM Japan, and Komoe Taiwan behavior retained
+```bash
+sudo apt install ./umml-linux_1.5.0-linux.3_amd64.deb
+umml-doctor
+umml
+```
 
 ## Validation
 
-- Python source compilation
-- platform-discovery and release-contract regression tests
-- PyInstaller frozen-runtime version smoke test
-- DEB structure and installed executable smoke test on Ubuntu 22.04
-- AppImage extraction-and-run smoke test
-- shell validation for all packaging scripts
-- SHA-256 checksums for every release asset
-
-Binary packages currently target x86_64. See `docs/LINUX.md` for source installs,
-path overrides, Flatpak notes, and troubleshooting.
+- 11 platform and detection tests pass, including an end-to-end fake Mint layout.
+- 7 release-contract tests pass.
+- DEB and AppImage builds are smoke-tested for version and fake-Mint detection.
+- Python compilation and shell validation pass.
