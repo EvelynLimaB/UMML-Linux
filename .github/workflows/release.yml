@@ -31,9 +31,8 @@ jobs:
         run: |
           . .build-venv/bin/activate
           python -m py_compile \
-            UMML.py UMML_core.py umml_platform.py \
-            umml_detection_hotfix.py umml_manual_location_fix.py \
-            sitecustomize.py umml_packaged.py
+            UMML.py UMML_core.py umml_platform.py sitecustomize.py umml_packaged.py \
+            umml_autodetect/*.py
           python -m unittest discover -s tests -v
           bash -n install.sh uninstall.sh \
             scripts/build_release.sh scripts/build_frozen.sh \
@@ -49,42 +48,66 @@ jobs:
           cd dist
           rm -f SHA256SUMS
           sha256sum *.zip *.tar.gz *.deb *.AppImage > SHA256SUMS
-      - name: Smoke-test symlinked Mint and Proton layout
+      - name: Build realistic Steam fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          FAKE_HOME="$(mktemp -d)"
+          STEAM="$FAKE_HOME/.steam/debian-installation"
+          SECONDARY="$FAKE_HOME/Games/SteamLibrary"
+          PREFIX_LIBRARY="$FAKE_HOME/Prefixes/SteamLibrary"
+          REAL_GAME="$FAKE_HOME/real-games/UmamusumePrettyDerby"
+          VISIBLE_GAME="$SECONDARY/steamapps/common/UmamusumePrettyDerby"
+          DATA="$PREFIX_LIBRARY/steamapps/compatdata/3224770/pfx/drive_c/users/steamuser/AppData/LocalLow/Cygames/umamusume"
+
+          mkdir -p "$STEAM/steamapps" "$SECONDARY/steamapps/common" \
+            "$PREFIX_LIBRARY/steamapps" "$REAL_GAME/UmamusumePrettyDerby_Data" "$DATA/dat"
+          touch "$REAL_GAME/UmamusumePrettyDerby.exe"
+          ln -s "$REAL_GAME" "$VISIBLE_GAME"
+          printf meta > "$DATA/meta"
+          touch "$PREFIX_LIBRARY/steamapps/compatdata/3224770/pfx.lock"
+
+          cat > "$SECONDARY/steamapps/appmanifest_3224770.acf" <<'VDF'
+          "AppState"
+          {
+            "appid" "3224770"
+            "StateFlags" "4"
+            "installdir" "UmamusumePrettyDerby"
+          }
+          VDF
+          cat > "$STEAM/steamapps/libraryfolders.vdf" <<VDF
+          "libraryfolders"
+          {
+            "1" { "path" "$SECONDARY" "mounted" "1" }
+            "2" { "path" "$PREFIX_LIBRARY" "mounted" "1" }
+          }
+          VDF
+          printf '%s' "$FAKE_HOME" > /tmp/umml-fake-home
+      - name: Smoke-test finished DEB and AppImage autodetection
         shell: bash
         run: |
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' < VERSION)"
           DEB="dist/umml-linux_${VERSION}_amd64.deb"
           APPIMAGE="dist/UMML-${VERSION}-x86_64.AppImage"
-          FAKE_HOME="$(mktemp -d)"
-          STEAM="$FAKE_HOME/.steam/debian-installation"
-          COMMON="$STEAM/steamapps/common"
-          REAL_GAME="$FAKE_HOME/real-games/UmamusumePrettyDerby"
-          GAME="$COMMON/UmamusumePrettyDerby"
-          DATA="$STEAM/steamapps/compatdata/3224770/pfx/drive_c/users/steamuser/AppData/LocalLow/Cygames/umamusume"
-
-          mkdir -p "$COMMON" "$REAL_GAME/UmamusumePrettyDerby_Data" "$DATA/dat"
-          touch "$REAL_GAME/UmamusumePrettyDerby.exe"
-          ln -s "$REAL_GAME" "$GAME"
-          printf meta > "$DATA/meta"
-          cat > "$STEAM/steamapps/appmanifest_3224770.acf" <<'EOF'
-          "AppState"
-          {
-            "appid" "3224770"
-            "installdir" "UmamusumePrettyDerby"
-          }
-          EOF
+          FAKE_HOME="$(cat /tmp/umml-fake-home)"
 
           sudo apt-get install -y "./${DEB}"
           test "$(umml --version)" = "$VERSION"
           HOME="$FAKE_HOME" umml --doctor | tee /tmp/umml-deb-doctor.txt
           grep -F "Steam Global: Detected" /tmp/umml-deb-doctor.txt
+          grep -F "result: READY" /tmp/umml-deb-doctor.txt
+          grep -F "$FAKE_HOME/Games/SteamLibrary/steamapps/common/UmamusumePrettyDerby" /tmp/umml-deb-doctor.txt
+          grep -F "$FAKE_HOME/Prefixes/SteamLibrary/steamapps/compatdata/3224770" /tmp/umml-deb-doctor.txt
           sudo apt-get remove -y umml-linux
 
           test "$(APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version)" = "$VERSION"
           HOME="$FAKE_HOME" APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --doctor \
             | tee /tmp/umml-appimage-doctor.txt
           grep -F "Steam Global: Detected" /tmp/umml-appimage-doctor.txt
+          grep -F "result: READY" /tmp/umml-appimage-doctor.txt
+          grep -F "$FAKE_HOME/Games/SteamLibrary/steamapps/common/UmamusumePrettyDerby" /tmp/umml-appimage-doctor.txt
+          grep -F "$FAKE_HOME/Prefixes/SteamLibrary/steamapps/compatdata/3224770" /tmp/umml-appimage-doctor.txt
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
