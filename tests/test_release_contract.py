@@ -13,12 +13,25 @@ class ReleaseContractTests(unittest.TestCase):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
         builder = (ROOT / "scripts" / "build_release.sh").read_text(encoding="utf-8")
         source_entry = (ROOT / "UMML.py").read_text(encoding="utf-8")
+
         for text in (installer, builder, source_entry):
             self.assertIn("umml_autodetect", text)
-        for text in (installer, builder):
-            self.assertNotIn("sitecustomize.py", text)
-            self.assertNotIn("umml_detection_hotfix.py", text)
-            self.assertNotIn("umml_manual_location_fix.py", text)
+
+        # Removed compatibility modules may be named only in installer cleanup,
+        # never as required/package inputs.
+        self.assertNotIn("sitecustomize.py", builder)
+        self.assertNotIn("umml_detection_hotfix.py", builder)
+        self.assertNotIn("umml_manual_location_fix.py", builder)
+        for stale_variable in (
+            "SOURCE_SITE=",
+            "TARGET_SITE=",
+            "SOURCE_HOTFIX=",
+            "TARGET_HOTFIX=",
+            "SOURCE_MANUAL=",
+            "TARGET_MANUAL=",
+        ):
+            self.assertNotIn(stale_variable, installer)
+
         self.assertFalse((ROOT / "umml_detection_hotfix.py").exists())
         self.assertFalse((ROOT / "umml_manual_location_fix.py").exists())
         self.assertFalse((ROOT / "sitecustomize.py").exists())
