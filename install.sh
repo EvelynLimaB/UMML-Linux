@@ -12,14 +12,12 @@ SOURCE_SCRIPT="$SCRIPT_DIR/UMML.py"
 SOURCE_CORE="$SCRIPT_DIR/UMML_core.py"
 SOURCE_PLATFORM="$SCRIPT_DIR/umml_platform.py"
 SOURCE_AUTODETECT="$SCRIPT_DIR/umml_autodetect"
-SOURCE_SITE="$SCRIPT_DIR/sitecustomize.py"
 SOURCE_REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
 SOURCE_DATA="$SCRIPT_DIR/UMML_data"
 TARGET_SCRIPT="$APP_DIR/UMML.py"
 TARGET_CORE="$APP_DIR/UMML_core.py"
 TARGET_PLATFORM="$APP_DIR/umml_platform.py"
 TARGET_AUTODETECT="$APP_DIR/umml_autodetect"
-TARGET_SITE="$APP_DIR/sitecustomize.py"
 TARGET_REQUIREMENTS="$APP_DIR/requirements.txt"
 TARGET_DATA="$APP_DIR/UMML_data"
 LAUNCHER="$BIN_DIR/umml"
@@ -50,7 +48,6 @@ command -v tar >/dev/null 2>&1 || fatal "tar is required."
 [[ -f "$SOURCE_CORE" ]] || fatal "UMML_core.py must be beside this installer."
 [[ -f "$SOURCE_PLATFORM" ]] || fatal "umml_platform.py must be beside this installer."
 [[ -f "$SOURCE_AUTODETECT/__init__.py" ]] || fatal "umml_autodetect package is missing."
-[[ -f "$SOURCE_SITE" ]] || fatal "sitecustomize.py must be beside this installer."
 [[ -f "$SOURCE_REQUIREMENTS" ]] || fatal "requirements.txt must be beside this installer."
 [[ -f "$SOURCE_DATA/dropdown.json" ]] || fatal "UMML_data/dropdown.json is missing."
 command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || \
@@ -114,8 +111,10 @@ install -m 0644 "$SOURCE_PLATFORM" "$TARGET_PLATFORM"
 rm -rf "$TARGET_AUTODETECT"
 mkdir -p "$TARGET_AUTODETECT"
 find "$SOURCE_AUTODETECT" -maxdepth 1 -type f -name '*.py' -exec install -m 0644 {} "$TARGET_AUTODETECT/" \;
-rm -f "$APP_DIR/umml_detection_hotfix.py" "$APP_DIR/umml_manual_location_fix.py"
-install -m 0644 "$SOURCE_SITE" "$TARGET_SITE"
+rm -f \
+    "$APP_DIR/sitecustomize.py" \
+    "$APP_DIR/umml_detection_hotfix.py" \
+    "$APP_DIR/umml_manual_location_fix.py"
 install -m 0644 "$SOURCE_REQUIREMENTS" "$TARGET_REQUIREMENTS"
 rm -rf "$TARGET_DATA"
 mkdir -p "$TARGET_DATA"
@@ -173,7 +172,7 @@ print("APSW SQLite3MC:", getattr(apsw, "mc_version", "installed"))
 print("PyYAML:", getattr(yaml, "__version__", "installed"))
 PY
 "$ENV_DIR/bin/python" -m py_compile \
-    "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" "$TARGET_SITE" \
+    "$TARGET_SCRIPT" "$TARGET_CORE" "$TARGET_PLATFORM" \
     "$TARGET_AUTODETECT"/*.py
 
 if command -v update-desktop-database >/dev/null 2>&1; then
