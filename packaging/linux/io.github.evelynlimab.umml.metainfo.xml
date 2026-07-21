@@ -27,9 +27,14 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="1.5.0-linux.4" date="2026-07-21">
+      <description>
+        <p>Fixes symlinked Steam game selection with separate Proton data.</p>
+      </description>
+    </release>
     <release version="1.5.0-linux.3" date="2026-07-21">
       <description>
-        <p>Fixes Linux Mint Steam detection and adds manual game-folder selection.</p>
+        <p>Fixes Linux Mint Steam discovery and adds manual game selection.</p>
       </description>
     </release>
     <release version="1.5.0-linux.2" date="2026-07-21">
