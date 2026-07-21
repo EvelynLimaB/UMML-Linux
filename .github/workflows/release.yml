@@ -12,8 +12,6 @@ permissions:
 
 jobs:
   release:
-    # Ubuntu 22.04 keeps the bundled glibc baseline compatible with Linux Mint
-    # 21.x while remaining usable on newer Mint/Ubuntu and other distributions.
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
@@ -32,7 +30,10 @@ jobs:
         shell: bash
         run: |
           . .build-venv/bin/activate
-          python -m py_compile UMML.py UMML_core.py umml_platform.py umml_detection_hotfix.py sitecustomize.py umml_packaged.py
+          python -m py_compile \
+            UMML.py UMML_core.py umml_platform.py \
+            umml_detection_hotfix.py umml_manual_location_fix.py \
+            sitecustomize.py umml_packaged.py
           python -m unittest discover -s tests -v
           bash -n install.sh uninstall.sh \
             scripts/build_release.sh scripts/build_frozen.sh \
@@ -48,7 +49,7 @@ jobs:
           cd dist
           rm -f SHA256SUMS
           sha256sum *.zip *.tar.gz *.deb *.AppImage > SHA256SUMS
-      - name: Smoke-test Linux packages
+      - name: Smoke-test symlinked Mint and Proton layout
         shell: bash
         run: |
           set -euo pipefail
@@ -57,15 +58,20 @@ jobs:
           APPIMAGE="dist/UMML-${VERSION}-x86_64.AppImage"
           FAKE_HOME="$(mktemp -d)"
           STEAM="$FAKE_HOME/.steam/debian-installation"
-          GAME="$STEAM/steamapps/common/Umamusume Pretty Derby"
-          PERSISTENT="$GAME/UmamusumePrettyDerby_Data/Persistent"
-          mkdir -p "$PERSISTENT/dat"
-          printf meta > "$PERSISTENT/meta"
+          COMMON="$STEAM/steamapps/common"
+          REAL_GAME="$FAKE_HOME/real-games/UmamusumePrettyDerby"
+          GAME="$COMMON/UmamusumePrettyDerby"
+          DATA="$STEAM/steamapps/compatdata/3224770/pfx/drive_c/users/steamuser/AppData/LocalLow/Cygames/umamusume"
+
+          mkdir -p "$COMMON" "$REAL_GAME/UmamusumePrettyDerby_Data" "$DATA/dat"
+          touch "$REAL_GAME/UmamusumePrettyDerby.exe"
+          ln -s "$REAL_GAME" "$GAME"
+          printf meta > "$DATA/meta"
           cat > "$STEAM/steamapps/appmanifest_3224770.acf" <<'EOF'
           "AppState"
           {
             "appid" "3224770"
-            "installdir" "Umamusume Pretty Derby"
+            "installdir" "UmamusumePrettyDerby"
           }
           EOF
 
