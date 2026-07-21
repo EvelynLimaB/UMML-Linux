@@ -27,10 +27,6 @@ if "--version" in sys.argv:
     print(RELEASE_VERSION)
     raise SystemExit(0)
 
-from umml_autodetect import apply as apply_autodetect  # noqa: E402
-
-apply_autodetect()
-
 import UMML as application  # noqa: E402
 
 # Keep the upstream mod compatibility value inside UMML_core unchanged while
