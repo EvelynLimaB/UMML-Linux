@@ -1,0 +1,141 @@
+import io
+import unittest
+from unittest.mock import patch
+
+from PIL import Image
+
+from umml_manager.preview_images import (
+    MAX_PREVIEW_BYTES,
+    PreviewImageError,
+    PreviewImageLoader,
+    decode_preview_image,
+)
+
+
+class FakeHeaders(dict):
+    def get_content_type(self):
+        value = str(self.get("Content-Type", ""))
+        return value.split(";", 1)[0].strip()
+
+
+class FakeResponse:
+    def __init__(
+        self,
+        payload: bytes,
+        *,
+        url: str = "https://images.gamebanana.com/test.png",
+        content_type: str = "image/png",
+        content_length: int | None = None,
+    ):
+        self.payload = payload
+        self.url = url
+        self.headers = FakeHeaders(
+            {
+                "Content-Type": content_type,
+                "Content-Length": str(
+                    len(payload) if content_length is None else content_length
+                ),
+            }
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _type, _value, _traceback):
+        return False
+
+    def geturl(self):
+        return self.url
+
+    def read(self, size=-1):
+        return self.payload if size < 0 else self.payload[:size]
+
+
+def png_bytes(size=(800, 400)) -> bytes:
+    stream = io.BytesIO()
+    Image.new("RGB", size, "white").save(stream, format="PNG")
+    return stream.getvalue()
+
+
+class ManagerPreviewTests(unittest.TestCase):
+    def test_verified_preview_is_loaded_and_scaled(self):
+        payload = png_bytes()
+        response = FakeResponse(payload)
+        loader = PreviewImageLoader(opener=lambda _request, timeout=30: response)
+
+        preview = loader.load(
+            "https://images.gamebanana.com/test.png",
+            max_size=(200, 100),
+        )
+
+        self.assertEqual(preview.image.size, (200, 100))
+        self.assertEqual(preview.content_type, "image/png")
+        self.assertEqual(preview.byte_size, len(payload))
+        self.assertEqual(
+            preview.source_url,
+            "https://images.gamebanana.com/test.png",
+        )
+
+    def test_http_preview_url_is_rejected_before_network_access(self):
+        called = False
+
+        def opener(_request, timeout=30):
+            nonlocal called
+            called = True
+            return FakeResponse(b"")
+
+        with self.assertRaises(PreviewImageError):
+            PreviewImageLoader(opener=opener).load(
+                "http://images.gamebanana.com/test.png"
+            )
+        self.assertFalse(called)
+
+    def test_downgraded_redirect_is_rejected(self):
+        payload = png_bytes()
+        response = FakeResponse(
+            payload,
+            url="http://images.gamebanana.com/test.png",
+        )
+        loader = PreviewImageLoader(opener=lambda _request, timeout=30: response)
+
+        with self.assertRaises(PreviewImageError) as raised:
+            loader.load("https://images.gamebanana.com/test.png")
+        self.assertIn("verified HTTPS", str(raised.exception))
+
+    def test_non_image_content_type_is_rejected(self):
+        response = FakeResponse(
+            b"<html>not an image</html>",
+            content_type="text/html; charset=utf-8",
+        )
+        loader = PreviewImageLoader(opener=lambda _request, timeout=30: response)
+
+        with self.assertRaises(PreviewImageError) as raised:
+            loader.load("https://images.gamebanana.com/test.png")
+        self.assertIn("not an image", str(raised.exception))
+
+    def test_oversized_declared_preview_is_rejected_without_reading(self):
+        response = FakeResponse(
+            b"small",
+            content_length=MAX_PREVIEW_BYTES + 1,
+        )
+        loader = PreviewImageLoader(opener=lambda _request, timeout=30: response)
+
+        with self.assertRaises(PreviewImageError) as raised:
+            loader.load("https://images.gamebanana.com/test.png")
+        self.assertIn("12 MiB", str(raised.exception))
+
+    def test_malformed_image_bytes_are_rejected(self):
+        with self.assertRaises(PreviewImageError) as raised:
+            decode_preview_image(b"not really a picture")
+        self.assertIn("could not be decoded", str(raised.exception))
+
+    def test_pixel_limit_is_enforced_before_full_conversion(self):
+        payload = png_bytes((20, 20))
+        with patch("umml_manager.preview_images.MAX_PREVIEW_PIXELS", 100):
+            with self.assertRaises(PreviewImageError) as raised:
+                decode_preview_image(payload)
+        self.assertIn("megapixel safety limit", str(raised.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()
