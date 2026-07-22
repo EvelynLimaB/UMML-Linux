@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .models import ModRecord, Profile
+from .models import PACKAGE_UMML_ASSETS, ModRecord, Profile
+from .safety import SafetyError, normalize_relative_path, validate_sha256
 
 
 @dataclass(frozen=True)
 class Claim:
     mod_id: str
+    mod_version: str
     source_path: str
     sha256: str
 
@@ -22,28 +24,96 @@ class Conflict:
 @dataclass
 class Resolution:
     profile: str
+    target_region: str = ""
     winners: dict[str, Claim] = field(default_factory=dict)
     conflicts: list[Conflict] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
     unprepared: list[str] = field(default_factory=list)
+    duplicates: list[str] = field(default_factory=list)
+    unsupported: list[str] = field(default_factory=list)
+    incompatible: list[str] = field(default_factory=list)
+    invalid: list[str] = field(default_factory=list)
+    missing_dependencies: list[str] = field(default_factory=list)
+    incompatibility_conflicts: list[str] = field(default_factory=list)
+
+    @property
+    def blocking_issues(self) -> list[str]:
+        return (
+            self.missing
+            + self.unprepared
+            + self.unsupported
+            + self.incompatible
+            + self.invalid
+            + self.missing_dependencies
+            + self.incompatibility_conflicts
+        )
 
 
-def resolve_profile(profile: Profile, mods: list[ModRecord]) -> Resolution:
+def resolve_profile(
+    profile: Profile,
+    mods: list[ModRecord],
+    *,
+    target_region: str = "",
+) -> Resolution:
     records = {record.id: record for record in mods}
     claims: dict[str, list[Claim]] = {}
-    resolution = Resolution(profile=profile.name)
-    for mod_id in profile.enabled:
+    region = _normalize_region(target_region or profile.region)
+    resolution = Resolution(profile=profile.name, target_region=region)
+    enabled = _deduplicate_profile(profile.enabled, resolution)
+    enabled_set = set(enabled)
+
+    for mod_id in enabled:
         record = records.get(mod_id)
         if record is None:
             resolution.missing.append(mod_id)
             continue
+        if record.package_type != PACKAGE_UMML_ASSETS or "deploy-files" not in record.capabilities:
+            resolution.unsupported.append(
+                f"{mod_id} ({record.package_type or 'unknown package type'})"
+            )
+            continue
+        if region and record.regions:
+            supported = {_normalize_region(value) for value in record.regions}
+            if region not in supported:
+                resolution.incompatible.append(
+                    f"{mod_id} supports {', '.join(record.regions)}, not {region}"
+                )
+                continue
+        missing = [dependency for dependency in record.dependencies if dependency not in enabled_set]
+        if missing:
+            resolution.missing_dependencies.append(
+                f"{mod_id} requires {', '.join(missing)}"
+            )
+            continue
+        conflicts = [other for other in record.incompatibilities if other in enabled_set]
+        if conflicts:
+            resolution.incompatibility_conflicts.append(
+                f"{mod_id} conflicts with {', '.join(conflicts)}"
+            )
+            continue
         if not record.prepared_path or not record.files:
             resolution.unprepared.append(mod_id)
             continue
-        for relative, sha256 in sorted(record.files.items()):
+
+        validated: list[tuple[str, str]] = []
+        try:
+            for relative, sha256 in sorted(record.files.items()):
+                validated.append(
+                    (normalize_relative_path(relative), validate_sha256(sha256))
+                )
+        except SafetyError as exc:
+            resolution.invalid.append(f"{mod_id}: {exc}")
+            continue
+        for relative, sha256 in validated:
             claims.setdefault(relative, []).append(
-                Claim(mod_id=record.id, source_path=record.prepared_path, sha256=sha256)
+                Claim(
+                    mod_id=record.id,
+                    mod_version=record.version,
+                    source_path=record.prepared_path,
+                    sha256=sha256,
+                )
             )
+
     for relative, path_claims in claims.items():
         winner = path_claims[-1]
         resolution.winners[relative] = winner
@@ -57,3 +127,29 @@ def resolve_profile(profile: Profile, mods: list[ModRecord]) -> Resolution:
             )
     resolution.conflicts.sort(key=lambda item: item.path)
     return resolution
+
+
+def _deduplicate_profile(values: list[str], resolution: Resolution) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        mod_id = str(value)
+        if mod_id in seen:
+            resolution.duplicates.append(mod_id)
+            continue
+        seen.add(mod_id)
+        result.append(mod_id)
+    return result
+
+
+def _normalize_region(value: str) -> str:
+    text = str(value or "").strip().casefold()
+    aliases = {
+        "steam global": "global",
+        "en": "global",
+        "japanese": "japan",
+        "jp": "japan",
+        "tw": "taiwan",
+        "kr": "korea",
+    }
+    return aliases.get(text, text)
