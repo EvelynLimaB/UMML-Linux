@@ -136,9 +136,9 @@ trap 'rm -rf "$VERIFY_ROOT"' EXIT
   cd "$VERIFY_ROOT"
   "$OUTPUT" --appimage-extract >/dev/null
 )
-cmp \
-  "$BUNDLE/umml-manager-bin" \
-  "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager/umml-manager-bin"
+diff -qr \
+  "$BUNDLE" \
+  "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager"
 [[ -f "$VERIFY_ROOT/squashfs-root/usr/share/metainfo/$DESKTOP_ID.metainfo.xml" ]]
 [[ -f "$VERIFY_ROOT/squashfs-root/usr/share/applications/$DESKTOP_ID.desktop" ]]
 rm -rf "$VERIFY_ROOT"
