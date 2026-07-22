@@ -9,7 +9,8 @@ on:
     paths:
       - 'umml_manager/**'
       - 'umml_manager_packaged.py'
-      - 'tests/test_manager.py'
+      - 'tests/test_manager*.py'
+      - 'requirements.txt'
       - 'MANAGER_VERSION'
       - 'MANAGER_README.md'
       - 'MANAGER_CHANGELOG.md'
@@ -111,6 +112,10 @@ jobs:
           diff -qr \
             "$VERIFY_ROOT/deb/usr/lib/umml-manager" \
             "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager"
+          find "$VERIFY_ROOT/deb/usr/lib/umml-manager" \
+            -type f -path '*/certifi/cacert.pem' -print -quit | grep -q .
+          find "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager" \
+            -type f -path '*/certifi/cacert.pem' -print -quit | grep -q .
           rm -rf "$VERIFY_ROOT"
           trap - EXIT
 
