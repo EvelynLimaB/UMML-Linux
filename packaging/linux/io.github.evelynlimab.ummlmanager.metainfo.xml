@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha8" date="2026-07-22">
+      <description>
+        <p>Fixes disabled GameBanana installation controls when catalogue rows omit downloadable files by hydrating submission details asynchronously, preserving an Install latest fallback, and normalizing alternate file-container response shapes.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha7" date="2026-07-22">
       <description>
         <p>Completes the preview-provider wiring, runs manager regressions with the full pinned runtime dependency set, verifies Pillow imaging support in both package formats, and synchronizes release documentation after the triple audit.</p>
