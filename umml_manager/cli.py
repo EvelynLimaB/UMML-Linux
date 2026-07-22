@@ -116,7 +116,6 @@ def _add_target_options(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     store = ManagerStore(args.root)
-    provider = PreviewGameBananaClient()
     try:
         if args.command == "list":
             for mod in store.list_mods():
@@ -144,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"{candidate.path}\t{candidate.reason}"
                 )
         elif args.command == "browse":
-            page = provider.browse(
+            page = PreviewGameBananaClient().browse(
                 region=args.region,
                 page=args.page,
                 sort=args.sort,
@@ -156,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"{mod.author}\t{mod.name}"
                 )
         elif args.command == "gamebanana":
-            record = provider.import_mod(
+            record = PreviewGameBananaClient().import_mod(
                 store,
                 args.url,
                 file_id=args.file_id,
@@ -214,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
                     "transaction(s)"
                 )
         elif args.command == "updates":
+            provider = PreviewGameBananaClient()
             records = (
                 [store.get_mod(args.mod_id)]
                 if args.mod_id
