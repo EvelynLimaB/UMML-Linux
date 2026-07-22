@@ -15,6 +15,12 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 
 The Debian desktop file launches `/usr/bin/umml-manager` directly. This avoids an older source-installed `~/.local/bin/umml-manager` shadowing the package.
 
+Current CI artifact DEB SHA-256:
+
+```text
+4e446e27a81280336d539279dda9457cce0e9d85c38cd1ccfdd9d52fc0aabe1e
+```
+
 ### Historical source-install cleanup
 
 Early manager previews installed application code into the same directory as manager data. **Do not use an old alpha1 `uninstall-manager.sh`**, because it could delete the mixed directory.
