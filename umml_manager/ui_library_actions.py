@@ -12,8 +12,7 @@ from .studio import open_path
 class LibraryActions:
     def profile(self) -> Profile:
         name = self.profile_name.get().strip() or "Default"
-        profiles = self.store.list_profiles()
-        for profile in profiles:
+        for profile in self.store.list_profiles():
             if profile.name == name:
                 return profile
         profile = Profile(
@@ -32,6 +31,8 @@ class LibraryActions:
             self.profile(),
             self.store.list_mods(),
             target_region=self.region.get(),
+            target_installation_key=self.installation_key.get(),
+            metadata_fingerprint=self.metadata_fingerprint.get(),
         )
 
     def refresh(self):
@@ -93,13 +94,16 @@ class LibraryActions:
             f"{profile.name}"
         )
 
-    @staticmethod
-    def _mod_status(mod) -> str:
+    def _mod_status(self, mod) -> str:
         if mod.package_type != PACKAGE_UMML_ASSETS:
             return f"{mod.package_type}; backend needed"
-        if mod.files and mod.prepared_path:
-            return "prepared"
-        return "needs prepare"
+        if not mod.files or not mod.prepared_path:
+            return "needs prepare"
+        current = self.metadata_fingerprint.get().casefold()
+        prepared = str(mod.prepared_against or "").casefold()
+        if current and prepared and current != prepared:
+            return "stale; re-prepare"
+        return "prepared"
 
     def show_selected_mod(self):
         mod_id = self.selected_id()
@@ -129,6 +133,11 @@ class LibraryActions:
         if mod.incompatibilities:
             details += "\nConflicts with: " + ", ".join(
                 mod.incompatibilities
+            )
+        if mod.prepared_against:
+            details += (
+                "\nPrepared metadata: "
+                + mod.prepared_against
             )
         self.library.set_description(details)
 
@@ -306,9 +315,11 @@ class LibraryActions:
         lines = [
             f"PROFILE        {resolution.profile}",
             f"INSTALLATION   "
-            f"{self.profile().installation_key or 'manual/unbound'}",
+            f"{resolution.target_installation_key or 'manual/unbound'}",
             f"TARGET REGION  "
             f"{resolution.target_region or 'unspecified'}",
+            f"METADATA       "
+            f"{resolution.metadata_fingerprint or 'unverified'}",
             f"FILES          {len(resolution.winners)}",
             f"CONFLICTS      {len(resolution.conflicts)}",
             f"BLOCKERS       {len(resolution.blocking_issues)}",
@@ -317,8 +328,10 @@ class LibraryActions:
         sections = (
             ("Missing mods", resolution.missing),
             ("Needs preparation", resolution.unprepared),
+            ("Stale prepared caches", resolution.stale_prepared),
             ("Unsupported packages", resolution.unsupported),
             ("Wrong region", resolution.incompatible),
+            ("Wrong installation", resolution.wrong_installation),
             ("Invalid manifests", resolution.invalid),
             ("Missing dependencies", resolution.missing_dependencies),
             (
@@ -354,21 +367,6 @@ class LibraryActions:
             messagebox.showinfo(
                 "Game data required",
                 "Run installation auto-detection in Settings first.",
-                parent=self.root,
-            )
-            return
-        profile = self.profile()
-        current_key = self.installation_key.get()
-        if (
-            profile.installation_key
-            and current_key
-            and profile.installation_key != current_key
-        ):
-            messagebox.showwarning(
-                "Wrong installation selected",
-                f"Profile {profile.name!r} is bound to "
-                f"{profile.installation_key}, but the current installation is "
-                f"{current_key}.",
                 parent=self.root,
             )
             return
