@@ -32,7 +32,7 @@ Download the DEB or AppImage from [GitHub Releases](https://github.com/EvelynLim
 
 ### UMML Manager preview
 
-Current manager preview: **`0.2.0~alpha6`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
+Current manager preview: **`0.2.0~alpha7`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
 
 Until it becomes a permanent Release asset, open the [manager branch workflow runs](https://github.com/EvelynLimaB/UMML-Linux/actions/workflows/manager-checks.yml?query=branch%3Aagent%2Fumml-manager-foundation) and download:
 
@@ -43,7 +43,7 @@ Until it becomes a permanent Release asset, open the [manager branch workflow ru
 #### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha6_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha7_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -52,15 +52,15 @@ The absolute command is useful when testing upgrades from early source previews.
 #### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha6_x86_64.AppImage
-./umml-manager_0.2.0-alpha6_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha7_x86_64.AppImage
+./umml-manager_0.2.0-alpha7_x86_64.AppImage
 ```
 
 CLI mode is available from the same file:
 
 ```bash
-./umml-manager_0.2.0-alpha6_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha6_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha7_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha7_x86_64.AppImage --cli list
 ```
 
 The DEB and AppImage are built from the same frozen runtime and use the same user data directory, `~/.local/share/umml-manager`. CI extracts both finished packages and compares their complete embedded runtime trees.
@@ -84,12 +84,12 @@ sha256sum -c SHA256SUMS
 - corrupt critical state fails closed; corrupt preferences are quarantined and reset with their original bytes preserved;
 - bounded ZIP/TAR extraction and local-folder validation for traversal, symlinks, special files, duplicate paths, file counts, and expanded size;
 - automatic nested mod-folder discovery without treating every archive or settings file as a mod;
-- built-in Global/Japan GameBanana browsing, verified downloads, exact archive provenance, search, sorting, and file selection;
+- built-in Global/Japan GameBanana browsing, verified downloads, exact archive provenance, search, sorting, file selection, and bounded preview images;
 - complete legacy editing features through the built-in Studio compatibility host;
 - a lifetime game-process watcher around mutating legacy Studio tools;
 - explicit provider and deployment-backend contracts for future GameBanana alternatives, Hachimi support, staged updates, and native Studio pages;
 - a standard-library AST audit plus adversarial regression and failure-injection tests;
-- one frozen runtime distributed as matching DEB and AppImage packages.
+- manager tests run against the same pinned runtime dependencies bundled into one matching DEB/AppImage runtime.
 
 Read [MANAGER_README.md](MANAGER_README.md) for the user workflow, [docs/MANAGER_AUDIT.md](docs/MANAGER_AUDIT.md) for the code audit, and [docs/MANAGER_FEATURE_ROADMAP.md](docs/MANAGER_FEATURE_ROADMAP.md) for planned work.
 
@@ -123,19 +123,16 @@ The source installer keeps application code in `~/.local/share/umml-manager-app`
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.txt -r requirements-build.txt
+python -m pip check
 python scripts/audit_manager.py
-bash scripts/check_legacy.sh
 bash scripts/check_manager.sh
-bash scripts/build_manager_frozen.sh
-bash scripts/build_manager_deb.sh
-bash scripts/build_manager_appimage.sh
 ```
 
 Documentation starts at [docs/README.md](docs/README.md). Contribution rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Runtime bridge
 
-The experimental runtime bridge is a separate, fail-closed component and is not included in either manager package. It does not yet inject into Unity or provide an in-game overlay.
+The experimental runtime bridge is separate from the desktop manager packages. It is not an injector yet and remains fail-closed for unknown game builds.
 
 ## License
 
