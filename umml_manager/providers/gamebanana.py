@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from ..models import SourceSpec
+from ..network import TLSConfiguration, build_https_opener, format_network_error
 from ..store import ManagerStore, StoreError
 
 GAME_IDS = {"global": 22548, "japan": 22547}
@@ -61,7 +62,15 @@ class GameBananaClient:
     )
 
     def __init__(self, opener: Callable[..., Any] | None = None):
-        self._opener = opener or urllib.request.urlopen
+        self._tls_configuration: TLSConfiguration | None = None
+        if opener is None:
+            verified_opener, configuration = build_https_opener()
+            self._opener = verified_opener.open
+            self._tls_configuration = configuration
+        else:
+            # Tests and integrators may supply an opener. The caller then owns
+            # its transport and certificate configuration.
+            self._opener = opener
 
     def parse_mod_id(self, value: str) -> int:
         if value.isdigit():
@@ -132,13 +141,23 @@ class GameBananaClient:
         mods = tuple(self._mod(item) for item in records if isinstance(item, dict))
         if query.strip():
             needle = query.casefold().strip()
-            mods = tuple(item for item in mods if needle in f"{item.name} {item.author} {item.description}".casefold())
+            mods = tuple(
+                item
+                for item in mods
+                if needle in f"{item.name} {item.author} {item.description}".casefold()
+            )
         metadata = data.get("_aMetadata") or {}
         total = _int(metadata.get("_nRecordCount"))
         complete = bool(metadata.get("_bIsComplete", not mods))
         return GameBananaPage(mods, page, total, bool(mods) and not complete)
 
-    def _browse_new(self, game_id: int, page: int, per_page: int, query: str) -> GameBananaPage:
+    def _browse_new(
+        self,
+        game_id: int,
+        page: int,
+        per_page: int,
+        query: str,
+    ) -> GameBananaPage:
         data = self._request_json(
             "https://api.gamebanana.com/Core/List/New",
             {
@@ -157,7 +176,9 @@ class GameBananaClient:
                 mod = self.fetch(str(mod_id))
             except StoreError:
                 continue
-            if needle and needle not in f"{mod.name} {mod.author} {mod.description}".casefold():
+            if needle and needle not in (
+                f"{mod.name} {mod.author} {mod.description}".casefold()
+            ):
                 continue
             mods.append(mod)
         return GameBananaPage(tuple(mods), page, len(ids), len(ids) >= per_page)
@@ -172,17 +193,24 @@ class GameBananaClient:
     ) -> tuple[Path, SourceSpec]:
         if not mod.files:
             raise StoreError("GameBanana submission has no downloadable files")
-        selected = next((item for item in mod.files if item.id == file_id), None) if file_id else max(
-            mod.files, key=lambda item: (item.date_added, item.id)
+        selected = (
+            next((item for item in mod.files if item.id == file_id), None)
+            if file_id
+            else max(mod.files, key=lambda item: (item.date_added, item.id))
         )
         if selected is None:
             raise StoreError(f"GameBanana file not found: {file_id}")
         directory = Path(destination)
         directory.mkdir(parents=True, exist_ok=True)
         target = directory / (selected.name or f"gamebanana-{selected.id}.zip")
-        request = urllib.request.Request(selected.url, headers={"User-Agent": self.USER_AGENT})
+        request = urllib.request.Request(
+            selected.url,
+            headers={"User-Agent": self.USER_AGENT},
+        )
         try:
-            with self._opener(request, timeout=60) as response, target.open("wb") as output:
+            with self._opener(request, timeout=60) as response, target.open(
+                "wb"
+            ) as output:
                 total = int(response.headers.get("Content-Length", "0") or 0)
                 copied = 0
                 while True:
@@ -195,7 +223,13 @@ class GameBananaClient:
                         progress(copied, total)
         except Exception as exc:
             target.unlink(missing_ok=True)
-            raise StoreError(f"GameBanana download failed: {exc}") from exc
+            raise StoreError(
+                format_network_error(
+                    "GameBanana download",
+                    exc,
+                    self._tls_configuration,
+                )
+            ) from exc
         return target, SourceSpec(
             provider="gamebanana",
             url=mod.profile_url,
@@ -204,9 +238,19 @@ class GameBananaClient:
             updated_at=selected.date_added or mod.date_updated,
         )
 
-    def import_mod(self, store: ManagerStore, value: str, *, file_id: int | None = None):
+    def import_mod(
+        self,
+        store: ManagerStore,
+        value: str,
+        *,
+        file_id: int | None = None,
+    ):
         mod = self.fetch(value)
-        archive, source = self.download(mod, store.paths.root / "downloads", file_id=file_id)
+        archive, source = self.download(
+            mod,
+            store.paths.root / "downloads",
+            file_id=file_id,
+        )
         record = store.import_archive(archive, source=source)
         record.name = mod.name
         record.author = mod.author
@@ -223,24 +267,46 @@ class GameBananaClient:
         if not remote.files:
             return None
         newest = max(remote.files, key=lambda item: (item.date_added, item.id))
-        if newest.id != record.source.file_id or newest.date_added > (record.source.updated_at or 0):
+        if newest.id != record.source.file_id or newest.date_added > (
+            record.source.updated_at or 0
+        ):
             return newest
         return None
 
-    def _request_json(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
+    def _request_json(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
         url = endpoint
         if params:
             url += "?" + urllib.parse.urlencode(params)
-        request = urllib.request.Request(url, headers={"User-Agent": self.USER_AGENT, "Accept": "application/json"})
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": self.USER_AGENT,
+                "Accept": "application/json",
+            },
+        )
         try:
             with self._opener(request, timeout=30) as response:
                 return json.load(response)
         except Exception as exc:
-            raise StoreError(f"GameBanana request failed: {exc}") from exc
+            raise StoreError(
+                format_network_error(
+                    "GameBanana",
+                    exc,
+                    self._tls_configuration,
+                )
+            ) from exc
 
     def _mod(self, data: dict[str, Any], fallback_id: int = 0) -> GameBananaMod:
         mod_id = _int(data.get("_idRow") or data.get("_idSubmission") or fallback_id)
-        files = tuple(self._file(item) for item in data.get("_aFiles", []) if isinstance(item, dict))
+        files = tuple(
+            self._file(item)
+            for item in data.get("_aFiles", [])
+            if isinstance(item, dict)
+        )
         submitter = data.get("_aSubmitter") or {}
         preview = data.get("_aPreviewMedia") or {}
         images = preview.get("_aImages") if isinstance(preview, dict) else []
@@ -248,7 +314,10 @@ class GameBananaClient:
         if isinstance(images, list) and images:
             first = images[0] if isinstance(images[0], dict) else {}
             image_url = str(first.get("_sBaseUrl") or "") + str(
-                first.get("_sFile") or first.get("_sFile220") or first.get("_sFile530") or ""
+                first.get("_sFile")
+                or first.get("_sFile220")
+                or first.get("_sFile530")
+                or ""
             )
         category = data.get("_aRootCategory") or {}
         game = data.get("_aGame") or {}
@@ -256,15 +325,22 @@ class GameBananaClient:
             id=mod_id,
             name=str(data.get("_sName") or f"GameBanana mod {mod_id}"),
             author=str(submitter.get("_sName") or ""),
-            profile_url=str(data.get("_sProfileUrl") or f"https://gamebanana.com/mods/{mod_id}"),
+            profile_url=str(
+                data.get("_sProfileUrl") or f"https://gamebanana.com/mods/{mod_id}"
+            ),
             files=files,
-            description=_plain_text(str(data.get("_sText") or data.get("_sDescription") or "")),
+            description=_plain_text(
+                str(data.get("_sText") or data.get("_sDescription") or "")
+            ),
             version=str(data.get("_sVersion") or ""),
             date_added=_int(data.get("_tsDateAdded")),
-            date_updated=_int(data.get("_tsDateModified") or data.get("_tsDateUpdated")),
+            date_updated=_int(
+                data.get("_tsDateModified") or data.get("_tsDateUpdated")
+            ),
             views=_int(data.get("_nViewCount")),
             likes=_int(data.get("_nLikeCount")),
-            downloads=_int(data.get("_nDownloadCount")) or sum(item.downloads for item in files),
+            downloads=_int(data.get("_nDownloadCount"))
+            or sum(item.downloads for item in files),
             image_url=image_url,
             category=str(category.get("_sName") or ""),
             game_name=str(game.get("_sName") or ""),
@@ -274,7 +350,9 @@ class GameBananaClient:
     @staticmethod
     def _file(data: dict[str, Any]) -> GameBananaFile:
         file_id = _int(data.get("_idRow") or data.get("_idFile"))
-        url = str(data.get("_sDownloadUrl") or data.get("_sDownloadUrlArchive") or "")
+        url = str(
+            data.get("_sDownloadUrl") or data.get("_sDownloadUrlArchive") or ""
+        )
         if not url and file_id:
             url = f"https://gamebanana.com/dl/{file_id}"
         name = str(data.get("_sFile") or data.get("_sName") or f"file-{file_id}.zip")
@@ -297,7 +375,15 @@ def _extract_ids(value: Any) -> Iterable[int]:
         for item in value:
             yield from _extract_ids(item)
     elif isinstance(value, dict):
-        for key in ("id", "_idRow", "_idSubmission", "_aRecords", "items", "records", "data"):
+        for key in (
+            "id",
+            "_idRow",
+            "_idSubmission",
+            "_aRecords",
+            "items",
+            "records",
+            "data",
+        ):
             if key in value:
                 yield from _extract_ids(value[key])
 
