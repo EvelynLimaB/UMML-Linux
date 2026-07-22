@@ -43,6 +43,12 @@ sudo apt install ./umml-manager_0.2.0~alpha3_amd64.deb
 
 Using the absolute command is useful when testing upgrades from early source previews. Alpha3 also makes the desktop launcher use `/usr/bin/umml-manager` directly so `~/.local/bin` cannot silently start an older copy.
 
+Current CI artifact DEB SHA-256:
+
+```text
+4e446e27a81280336d539279dda9457cce0e9d85c38cd1ccfdd9d52fc0aabe1e
+```
+
 ## Manager highlights
 
 - guided first-launch Steam/Proton detection and metadata preparation;
