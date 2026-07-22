@@ -1,31 +1,39 @@
 from __future__ import annotations
 
-from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
 
 from .engine import ApplyEngine
 from .legacy_adapter import LegacyAssetAdapter
-from .models import Profile
-from .resolver import resolve_profile
+from .models import PACKAGE_UMML_ASSETS, Profile
+from .resolver import Resolution, resolve_profile
 from .studio import open_path
 
 
 class LibraryActions:
     def profile(self) -> Profile:
-        try:
-            return self.store.get_profile(self.profile_name.get())
-        except Exception:
-            profile = Profile(self.profile_name.get() or "Default", [])
-            self.store.save_profile(profile)
-            return profile
+        name = self.profile_name.get().strip() or "Default"
+        profiles = self.store.list_profiles()
+        for profile in profiles:
+            if profile.name == name:
+                return profile
+        profile = Profile(name=name, region=self.region.get())
+        self.store.save_profile(profile)
+        return profile
 
     def selected_id(self):
         return self.library.selected_id()
 
+    def current_resolution(self) -> Resolution:
+        return resolve_profile(
+            self.profile(),
+            self.store.list_mods(),
+            target_region=self.region.get(),
+        )
+
     def refresh(self):
         profiles = self.store.list_profiles()
         if not profiles:
-            self.store.save_profile(Profile("Default", []))
+            self.store.save_profile(Profile("Default", region=self.region.get()))
             profiles = self.store.list_profiles()
         names = [item.name for item in profiles]
         self.library.profile_box.configure(values=names)
@@ -41,7 +49,10 @@ class LibraryActions:
                 mod
                 for mod in mods
                 if needle
-                in f"{mod.name} {mod.author} {mod.id} {mod.description}".casefold()
+                in (
+                    f"{mod.name} {mod.author} {mod.id} {mod.description} "
+                    f"{mod.package_type} {' '.join(mod.regions)}"
+                ).casefold()
             ]
         mods.sort(key=lambda mod: (order.get(mod.id, 10**9), mod.name.casefold()))
         tree = self.library.tree
@@ -56,7 +67,7 @@ class LibraryActions:
                     order.get(mod.id, "off"),
                     mod.version,
                     mod.source.provider,
-                    "prepared" if mod.files else "needs prepare",
+                    self._mod_status(mod),
                 ),
             )
         self.status.set(
@@ -64,32 +75,62 @@ class LibraryActions:
         )
         self.save_settings(silent=True)
 
+    @staticmethod
+    def _mod_status(mod) -> str:
+        if mod.package_type != PACKAGE_UMML_ASSETS:
+            return f"{mod.package_type}; backend needed"
+        if mod.files and mod.prepared_path:
+            return "prepared"
+        return "needs prepare"
+
     def show_selected_mod(self):
         mod_id = self.selected_id()
         if not mod_id:
             return
         mod = self.store.get_mod(mod_id)
         self.library.mod_title.configure(text=mod.name)
+        regions = ", ".join(mod.regions) if mod.regions else "all regions"
         self.library.mod_meta.configure(
-            text=f"{mod.author or 'Unknown author'} • {mod.version} • {mod.source.provider}"
+            text=(
+                f"{mod.author or 'Unknown author'} • {mod.version} • "
+                f"{mod.source.provider} • {mod.package_type} • {regions}"
+            )
         )
         enabled = mod_id in self.profile().enabled
         self.library.mod_state.configure(
             text=("Enabled" if enabled else "Disabled")
-            + (" • prepared" if mod.files else " • needs preparation")
+            + " • "
+            + self._mod_status(mod)
         )
-        self.library.set_description(
-            mod.description or "No description was supplied by this package."
-        )
+        details = mod.description or "No description was supplied by this package."
+        if mod.dependencies:
+            details += "\n\nRequires: " + ", ".join(mod.dependencies)
+        if mod.incompatibilities:
+            details += "\nConflicts with: " + ", ".join(mod.incompatibilities)
+        self.library.set_description(details)
 
     def new_profile(self):
         name = simpledialog.askstring(
             "New profile", "Profile name:", parent=self.root
         )
-        if name and name.strip():
-            self.store.save_profile(Profile(name.strip(), []))
-            self.profile_name.set(name.strip())
-            self.refresh()
+        if not name or not name.strip():
+            return
+        name = name.strip()
+        existing = {profile.name for profile in self.store.list_profiles()}
+        if name in existing:
+            messagebox.showwarning(
+                "Profile already exists",
+                f"A profile named {name!r} already exists.",
+                parent=self.root,
+            )
+            return
+        self.store.save_profile(Profile(name, region=self.region.get()))
+        self.profile_name.set(name)
+        self.refresh()
+
+    def _save_profile(self, profile: Profile) -> None:
+        profile.region = self.region.get()
+        self.store.save_profile(profile)
 
     def toggle_mod(self):
         mod_id = self.selected_id()
@@ -101,7 +142,7 @@ class LibraryActions:
             if mod_id in profile.enabled
             else profile.enabled + [mod_id]
         )
-        self.store.save_profile(profile)
+        self._save_profile(profile)
         self.refresh()
         if self.library.tree.exists(mod_id):
             self.library.tree.selection_set(mod_id)
@@ -116,9 +157,10 @@ class LibraryActions:
         new = max(0, min(len(profile.enabled) - 1, old + delta))
         profile.enabled.pop(old)
         profile.enabled.insert(new, mod_id)
-        self.store.save_profile(profile)
+        self._save_profile(profile)
         self.refresh()
-        self.library.tree.selection_set(mod_id)
+        if self.library.tree.exists(mod_id):
+            self.library.tree.selection_set(mod_id)
 
     def import_folder(self):
         path = filedialog.askdirectory(parent=self.root)
@@ -152,6 +194,15 @@ class LibraryActions:
         mod_id = self.selected_id()
         if not mod_id:
             return
+        record = self.store.get_mod(mod_id)
+        if record.package_type != PACKAGE_UMML_ASSETS:
+            messagebox.showwarning(
+                "Preparation backend unavailable",
+                f"{record.name} uses {record.package_type}. The current asset preparation "
+                "backend only handles legacy UMML assets.",
+                parent=self.root,
+            )
+            return
         if not self.meta_path.get().strip():
             messagebox.showinfo(
                 "Metadata required",
@@ -161,12 +212,10 @@ class LibraryActions:
             return
         self._run_task(
             f"Preparing {mod_id}…",
-            lambda: LegacyAssetAdapter(self.store, self.meta_path.get()).prepare(
-                self.store.get_mod(mod_id)
-            ),
-            lambda record: (
+            lambda: LegacyAssetAdapter(self.store, self.meta_path.get()).prepare(record),
+            lambda prepared: (
                 self.refresh(),
-                self.status.set(f"Prepared {len(record.files)} asset(s)"),
+                self.status.set(f"Prepared {len(prepared.files)} asset(s)"),
             ),
         )
 
@@ -201,21 +250,30 @@ class LibraryActions:
             self.refresh()
 
     def render_plan(self):
-        resolution = resolve_profile(self.profile(), self.store.list_mods())
+        resolution = self.current_resolution()
         lines = [
-            f"PROFILE     {resolution.profile}",
-            f"FILES       {len(resolution.winners)}",
-            f"CONFLICTS   {len(resolution.conflicts)}",
-            f"UNPREPARED  {len(resolution.unprepared)}",
+            f"PROFILE       {resolution.profile}",
+            f"TARGET REGION {resolution.target_region or 'unspecified'}",
+            f"FILES         {len(resolution.winners)}",
+            f"CONFLICTS     {len(resolution.conflicts)}",
+            f"BLOCKERS      {len(resolution.blocking_issues)}",
             "",
         ]
-        if resolution.missing:
-            lines.append("Missing mods: " + ", ".join(resolution.missing))
-        if resolution.unprepared:
-            lines.append(
-                "Enabled but not prepared: " + ", ".join(resolution.unprepared)
-            )
-            lines.append("These mods block deployment until they are prepared.\n")
+        sections = (
+            ("Missing mods", resolution.missing),
+            ("Needs preparation", resolution.unprepared),
+            ("Unsupported packages", resolution.unsupported),
+            ("Wrong region", resolution.incompatible),
+            ("Invalid manifests", resolution.invalid),
+            ("Missing dependencies", resolution.missing_dependencies),
+            ("Declared incompatibilities", resolution.incompatibility_conflicts),
+            ("Duplicate profile entries removed", resolution.duplicates),
+        )
+        for heading, values in sections:
+            if values:
+                lines.extend((heading, "-" * len(heading)))
+                lines.extend(f"• {value}" for value in values)
+                lines.append("")
         if resolution.conflicts:
             lines.extend(("Conflict winners", "=" * 72))
             for conflict in resolution.conflicts:
@@ -223,7 +281,7 @@ class LibraryActions:
                     f"{conflict.path}\n  winner: {conflict.winner}\n"
                     f"  overrides: {', '.join(conflict.overridden)}\n"
                 )
-        elif not resolution.unprepared and not resolution.missing:
+        elif not resolution.blocking_issues:
             lines.append("No file conflicts in this profile.")
         self._set_text(self.plan_text, "\n".join(lines))
 
@@ -238,16 +296,12 @@ class LibraryActions:
                 parent=self.root,
             )
             return
-        resolution = resolve_profile(self.profile(), self.store.list_mods())
-        if resolution.missing or resolution.unprepared:
-            details = []
-            if resolution.missing:
-                details.append("Missing: " + ", ".join(resolution.missing))
-            if resolution.unprepared:
-                details.append("Needs preparation: " + ", ".join(resolution.unprepared))
+        resolution = self.current_resolution()
+        if resolution.blocking_issues:
             messagebox.showwarning(
                 "Profile is not ready",
-                "The profile was not applied.\n\n" + "\n".join(details),
+                "The profile was not applied. Open Conflicts for the complete list "
+                f"of {len(resolution.blocking_issues)} blocking issue(s).",
                 parent=self.root,
             )
             self.show_page("conflicts")
@@ -259,9 +313,15 @@ class LibraryActions:
         ).apply(resolution)
 
         def finished(result):
+            recovery = (
+                f"; recovered {result.recovered_transactions} interrupted transaction(s)"
+                if result.recovered_transactions
+                else ""
+            )
             messagebox.showinfo(
                 "Profile applied",
-                f"Installed {result.installed}; restored {result.restored}; unchanged {result.unchanged}",
+                f"Installed {result.installed}; restored {result.restored}; "
+                f"unchanged {result.unchanged}{recovery}",
                 parent=self.root,
             )
             self.status.set(f"Applied {resolution.profile}")
