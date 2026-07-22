@@ -42,10 +42,15 @@ class ApplyEngine:
     def apply(self, resolution: Resolution, *, force: bool = False) -> ApplyResult:
         if resolution.missing:
             raise ApplyError("Profile references missing mods: " + ", ".join(resolution.missing))
+        if resolution.unprepared:
+            raise ApplyError(
+                "Prepare these enabled mods before applying the profile: "
+                + ", ".join(resolution.unprepared)
+            )
         running = self.process_check(self.game_dir)
         if running:
             names = ", ".join(sorted({getattr(item, "name", "game") for item in running}))
-            raise ApplyError(f"Game is running ({names}); changes remain pending until it closes")
+            raise ApplyError(f"Game is running ({names}); close it before applying changes")
         if not self.dat_path.is_dir():
             raise ApplyError(f"Game dat directory not found: {self.dat_path}")
         active = self._read_active()
@@ -159,9 +164,18 @@ class ApplyEngine:
             return {}
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            return dict(data.get("files", {}))
-        except (OSError, json.JSONDecodeError):
-            return {}
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ApplyError(
+                f"UMML Manager's active deployment state is unreadable: {path}. "
+                "No game files were changed. Restore or inspect this file before retrying."
+            ) from exc
+        files = data.get("files")
+        if not isinstance(files, dict):
+            raise ApplyError(
+                f"UMML Manager's active deployment state has an invalid format: {path}. "
+                "No game files were changed."
+            )
+        return dict(files)
 
     def _write_active(self, files: dict) -> None:
         path = self.store.paths.state
