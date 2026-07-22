@@ -6,8 +6,8 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <description>
-    <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and transactional deployment.</p>
-    <p>It automatically detects supported game installations, browses Global and Japan Umamusume GameBanana mods, detects compatible local mod folders and archives, and creates editable workspace copies.</p>
+    <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and verified transactional deployment.</p>
+    <p>It detects supported game installations, browses Global and Japan Umamusume GameBanana mods, finds compatible local packages, creates editable copies, and rejects stale or incompatible profile plans.</p>
     <p>The built-in Studio preserves the legacy loader's character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.</p>
   </description>
   <launchable type="desktop-id">io.github.evelynlimab.ummlmanager.desktop</launchable>
@@ -21,9 +21,14 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha6" date="2026-07-22">
+      <description>
+        <p>Adds a full source audit, versioned persistent schemas, path-contained and hash-verified deployment, target-scoped baselines, durable recovery journals, tamper detection, stale metadata checks, provider/backend contracts, and an expanded adversarial test suite.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha5" date="2026-07-22">
       <description>
-        <p>Fixes verified GameBanana HTTPS on Fedora and Bazzite, adds portable CA-bundle fallback, and exposes the selected trust source in diagnostics.</p>
+        <p>Fixes portable HTTPS trust on Fedora/Bazzite and other Linux families while retaining mandatory certificate verification.</p>
       </description>
     </release>
     <release version="0.2.0-alpha4" date="2026-07-22">
