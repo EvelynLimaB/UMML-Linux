@@ -4,12 +4,13 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-python3 -m py_compile \
-  umml_manager/*.py \
-  umml_manager/providers/*.py \
+python3 -m compileall -q \
+  umml_manager \
   umml_manager_packaged.py \
-  tests/test_manager*.py
+  tests \
+  scripts/audit_manager.py
 
+python3 scripts/audit_manager.py
 python3 -m unittest discover -s tests -p 'test_manager*.py' -v
 
 bash -n \
