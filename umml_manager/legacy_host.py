@@ -9,11 +9,25 @@ from tkinter import messagebox
 from .process import running_game_processes
 
 _MUTATING_METHODS = {
-    "load_assets", "load_assets_manual", "restore_original_assets", "unload_assets",
-    "clean_unused_assets", "delete_master_db", "force_translate_english",
-    "open_chara_settings", "open_personality_settings", "open_dress_settings",
-    "open_training_settings", "open_story_concert", "open_swap_character",
+    "load_assets",
+    "load_assets_manual",
+    "restore_original_assets",
+    "unload_assets",
+    "clean_unused_assets",
+    "delete_master_db",
+    "force_translate_english",
+    "open_chara_settings",
+    "open_personality_settings",
+    "open_dress_settings",
+    "open_training_settings",
+    "open_story_concert",
+    "open_swap_character",
 }
+
+
+def _running_game(gui) -> tuple:
+    game_dir = getattr(gui, "game_dir", "") or os.environ.get("UMML_GAME_DIR", "")
+    return running_game_processes(game_dir or None)
 
 
 def _install_guard(cls) -> None:
@@ -24,8 +38,7 @@ def _install_guard(cls) -> None:
 
         @functools.wraps(original)
         def guarded(self, *args, __original=original, __name=name, **kwargs):
-            game_dir = getattr(self, "game_dir", "") or os.environ.get("UMML_GAME_DIR", "")
-            running = running_game_processes(game_dir or None)
+            running = _running_game(self)
             if running:
                 names = ", ".join(sorted({item.name for item in running}))
                 messagebox.showwarning(
@@ -41,8 +54,31 @@ def _install_guard(cls) -> None:
         setattr(cls, name, guarded)
 
 
+def _watch_game(root: tk.Tk, gui) -> None:
+    if not root.winfo_exists():
+        return
+    try:
+        running = _running_game(gui)
+    except Exception:
+        running = ()
+    if running:
+        names = ", ".join(sorted({item.name for item in running}))
+        messagebox.showwarning(
+            "Studio closed for safety",
+            "Umamusume started while the legacy Studio was open. The Studio will now "
+            "close so nested legacy editor callbacks cannot write while the game is running.\n\n"
+            f"Detected process: {names}",
+            parent=root,
+        )
+        root.destroy()
+        return
+    root.after(750, lambda: _watch_game(root, gui))
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="UMML Manager legacy-tool compatibility host")
+    parser = argparse.ArgumentParser(
+        description="UMML Manager legacy-tool compatibility host"
+    )
     parser.add_argument("--tool", default="")
     args = parser.parse_args(argv)
 
@@ -52,11 +88,16 @@ def main(argv: list[str] | None = None) -> int:
     root = tk.Tk()
     gui = application.ModLoaderGUI(root)
     root.title("UMML Studio — Legacy compatibility tools")
+    root.after(250, lambda: _watch_game(root, gui))
 
     if args.tool:
         method = getattr(gui, args.tool, None)
         if not callable(method):
-            messagebox.showerror("Tool unavailable", f"Legacy tool is unavailable: {args.tool}", parent=root)
+            messagebox.showerror(
+                "Tool unavailable",
+                f"Legacy tool is unavailable: {args.tool}",
+                parent=root,
+            )
         else:
             root.after(150, method)
     root.mainloop()
