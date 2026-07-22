@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 import zipfile
@@ -10,37 +11,105 @@ from unittest.mock import patch
 from umml_manager.discovery import scan_mod_candidates
 from umml_manager.engine import ApplyEngine, ApplyError
 from umml_manager.installations import InstallationError, detect_preferred_installation
-from umml_manager.models import ModRecord, Profile
-from umml_manager.providers.gamebanana import GameBananaClient
+from umml_manager.legacy_adapter import LegacyAssetAdapter
+from umml_manager.models import PACKAGE_HACHIMI, ModRecord, Profile
+from umml_manager.providers.gamebanana import (
+    GameBananaClient,
+    GameBananaFile,
+    GameBananaMod,
+)
 from umml_manager.resolver import resolve_profile
-from umml_manager.store import ManagerStore, StoreError, hash_file
+from umml_manager.safety import atomic_write_json, hash_file
+from umml_manager.store import ManagerStore, StoreError
 from umml_manager.version import manager_version
 
 
-class JsonResponse(io.BytesIO):
-    headers = {}
+class MemoryResponse(io.BytesIO):
+    def __init__(self, payload=b"", *, url="https://example.test/", headers=None):
+        super().__init__(payload)
+        self._url = url
+        self.headers = headers or {}
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_args):
+        self.close()
         return False
+
+    def geturl(self):
+        return self._url
 
 
 class ManagerTests(unittest.TestCase):
     def test_version_comes_from_independent_manager_version_file(self):
-        self.assertEqual(manager_version(), "0.2.0~alpha5")
+        self.assertEqual(manager_version(), "0.2.0~alpha6")
 
     def test_resolver_uses_profile_order_and_reports_conflict(self):
         first = ModRecord(
-            "a", "A", prepared_path="/a", files={"aa/aafile": "one"}
+            "a",
+            "A",
+            prepared_path="/a",
+            files={"aa/aafile": "1" * 64},
         )
         second = ModRecord(
-            "b", "B", prepared_path="/b", files={"aa/aafile": "two"}
+            "b",
+            "B",
+            prepared_path="/b",
+            files={"aa/aafile": "2" * 64},
         )
         result = resolve_profile(Profile("Default", ["a", "b"]), [first, second])
         self.assertEqual(result.winners["aa/aafile"].mod_id, "b")
         self.assertEqual(result.conflicts[0].overridden, ("a",))
+
+    def test_duplicate_profile_entry_does_not_create_self_conflict(self):
+        mod = ModRecord(
+            "a",
+            "A",
+            prepared_path="/a",
+            files={"aa/aafile": "1" * 64},
+        )
+        result = resolve_profile(Profile("Default", ["a", "a"]), [mod])
+        self.assertEqual(result.duplicates, ["a"])
+        self.assertFalse(result.conflicts)
+        self.assertEqual(result.winners["aa/aafile"].mod_id, "a")
+
+    def test_region_dependency_and_package_type_are_profile_blockers(self):
+        global_mod = ModRecord("global", "Global", regions=["global"])
+        dependent = ModRecord("dependent", "Dependent", dependencies=["base"])
+        hachimi = ModRecord(
+            "runtime",
+            "Runtime",
+            package_type=PACKAGE_HACHIMI,
+            capabilities=["hachimi-runtime"],
+        )
+        result = resolve_profile(
+            Profile("Japan", ["global", "dependent", "runtime"]),
+            [global_mod, dependent, hachimi],
+            target_region="japan",
+        )
+        self.assertTrue(result.incompatible)
+        self.assertTrue(result.missing_dependencies)
+        self.assertTrue(result.unsupported)
+
+    def test_unsafe_manifest_path_is_rejected_before_apply(self):
+        mod = ModRecord(
+            "escape",
+            "Escape",
+            prepared_path="/tmp",
+            files={"../outside": "1" * 64},
+        )
+        resolution = resolve_profile(Profile("Unsafe", ["escape"]), [mod])
+        self.assertTrue(resolution.invalid)
+        with tempfile.TemporaryDirectory() as temp:
+            dat = Path(temp) / "dat"
+            dat.mkdir()
+            with self.assertRaises(ApplyError):
+                ApplyEngine(
+                    ManagerStore(Path(temp) / "manager"),
+                    dat,
+                    process_check=lambda _: (),
+                ).apply(resolution)
 
     def test_enabled_unprepared_mod_blocks_apply(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -62,6 +131,16 @@ class ManagerTests(unittest.TestCase):
                 package.writestr("../escape", "bad")
             with self.assertRaises(StoreError):
                 ManagerStore(root / "manager").import_archive(archive)
+
+    def test_archive_duplicate_path_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive = Path(temp) / "duplicate.zip"
+            with zipfile.ZipFile(archive, "w") as package:
+                package.writestr("setting.json", '{"title":"Duplicate"}')
+                package.writestr("assets/file", b"one")
+                package.writestr("assets/file", b"two")
+            with self.assertRaises(StoreError):
+                ManagerStore(Path(temp) / "manager").import_archive(archive)
 
     def test_archive_expansion_limit_is_enforced_before_extraction(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -91,6 +170,19 @@ class ManagerTests(unittest.TestCase):
             with self.assertRaises(StoreError):
                 ManagerStore(root / "manager").import_archive(archive)
 
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlinks unavailable")
+    def test_local_folder_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outside = root / "outside"
+            outside.write_text("secret")
+            mod = root / "mod"
+            (mod / "assets").mkdir(parents=True)
+            (mod / "setting.json").write_text('{"title":"Link","mod_version":"1"}')
+            os.symlink(outside, mod / "assets" / "linked")
+            with self.assertRaises(StoreError):
+                ManagerStore(root / "manager").import_folder(mod)
+
     def test_nested_mod_folder_is_detected_and_imported(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -106,6 +198,31 @@ class ManagerTests(unittest.TestCase):
             record = ManagerStore(root / "manager").import_folder(root / "Downloads")
             self.assertEqual(record.name, "Detected mod")
             self.assertEqual(record.version, "2")
+
+    def test_ambiguous_wrapper_folder_is_not_guessed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name in ("one", "two"):
+                mod = root / name
+                (mod / "assets").mkdir(parents=True)
+                (mod / "assets" / "file").write_text(name)
+            with self.assertRaises(StoreError):
+                ManagerStore(root / "manager").import_folder(root)
+
+    def test_version_cannot_escape_source_storage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            mod = root / "mod"
+            (mod / "assets").mkdir(parents=True)
+            (mod / "assets" / "file").write_text("data")
+            (mod / "setting.json").write_text(
+                '{"title":"Version Escape","mod_version":"../../outside"}'
+            )
+            store = ManagerStore(root / "manager")
+            record = store.import_folder(mod)
+            source = Path(record.source_path).resolve()
+            self.assertEqual(source.parents[1], store.paths.sources.resolve())
+            self.assertNotIn("..", source.parts)
 
     def test_same_version_cannot_overwrite_immutable_source(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -172,6 +289,13 @@ class ManagerTests(unittest.TestCase):
             with self.assertRaises(StoreError):
                 store.list_mods()
 
+    def test_registry_wrong_shape_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = ManagerStore(Path(temp) / "manager")
+            atomic_write_json(store.paths.registry, {"mods": {"not": "a list"}})
+            with self.assertRaises(StoreError):
+                store.list_mods()
+
     def test_installation_detection_prefers_region_and_prepares_metadata(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -214,7 +338,8 @@ class ManagerTests(unittest.TestCase):
 
             with patch("umml_platform.detect_installations", return_value=installs):
                 selected = detect_preferred_installation(
-                    "global", decryptor=decryptor
+                    "global",
+                    decryptor=decryptor,
                 )
             self.assertEqual(selected.key, "steam-global")
             self.assertEqual(selected.region, "global")
@@ -254,14 +379,88 @@ class ManagerTests(unittest.TestCase):
         }
 
         def opener(_request, timeout=30):
-            return JsonResponse(json.dumps(payload).encode())
+            del timeout
+            return MemoryResponse(json.dumps(payload).encode())
 
         page = GameBananaClient(opener=opener).browse(
-            region="global", query="Pretty"
+            region="global",
+            query="Pretty",
         )
         self.assertEqual(page.mods[0].name, "Pretty UI")
         self.assertEqual(page.mods[0].description, "Dark menus")
         self.assertEqual(page.mods[0].likes, 11)
+
+    def test_failed_gamebanana_download_preserves_existing_archive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "123" / "9" / "pretty.zip"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"preserved")
+            mod = GameBananaMod(
+                id=123,
+                name="Pretty",
+                author="Author",
+                profile_url="https://gamebanana.com/mods/123",
+                files=(
+                    GameBananaFile(
+                        id=9,
+                        name="pretty.zip",
+                        url="https://example.test/pretty.zip",
+                    ),
+                ),
+            )
+
+            def opener(_request, timeout=60):
+                del timeout
+                raise OSError("network down")
+
+            with self.assertRaises(StoreError):
+                GameBananaClient(opener=opener).download(mod, root)
+            self.assertEqual(target.read_bytes(), b"preserved")
+
+    def test_gamebanana_remote_version_selects_immutable_source_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive_buffer = io.BytesIO()
+            with zipfile.ZipFile(archive_buffer, "w") as package:
+                package.writestr(
+                    "setting.json",
+                    '{"title":"Old Local Title","mod_version":"old"}',
+                )
+                package.writestr("assets/file", b"asset")
+            detail = {
+                "_idRow": 123,
+                "_sName": "Remote Title",
+                "_sVersion": "2.5",
+                "_aSubmitter": {"_sName": "Remote Author"},
+                "_sProfileUrl": "https://gamebanana.com/mods/123",
+                "_aFiles": [
+                    {
+                        "_idRow": 9,
+                        "_sFile": "pretty.zip",
+                        "_sDownloadUrl": "https://example.test/pretty.zip",
+                    }
+                ],
+            }
+            responses = [
+                MemoryResponse(json.dumps(detail).encode()),
+                MemoryResponse(
+                    archive_buffer.getvalue(),
+                    url="https://example.test/pretty.zip",
+                    headers={"Content-Length": str(len(archive_buffer.getvalue()))},
+                ),
+            ]
+
+            def opener(_request, timeout=60):
+                del timeout
+                return responses.pop(0)
+
+            store = ManagerStore(Path(temp) / "manager")
+            record = GameBananaClient(opener=opener).import_mod(store, "123")
+            self.assertEqual(record.id, "gamebanana-123")
+            self.assertEqual(record.version, "2.5")
+            self.assertEqual(Path(record.source_path).parent.name, "gamebanana-123")
+            self.assertNotEqual(Path(record.source_path).name, "old")
+            self.assertTrue(record.source.sha256)
 
     def test_apply_and_restore_round_trip(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -271,6 +470,7 @@ class ManagerTests(unittest.TestCase):
             original = dat / "aa" / "aafile"
             original.parent.mkdir(parents=True)
             original.write_text("original")
+            store.save_settings({"dat_path": str(dat)})
             prepared = root / "prepared"
             replacement = prepared / "aa" / "aafile"
             replacement.parent.mkdir(parents=True)
@@ -288,6 +488,85 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(original.read_text(), "modded")
             engine.apply(disabled)
             self.assertEqual(original.read_text(), "original")
+
+    def test_prepared_hash_change_blocks_apply(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            dat = root / "dat"
+            dat.mkdir()
+            prepared = root / "prepared"
+            source = prepared / "aa" / "aafile"
+            source.parent.mkdir(parents=True)
+            source.write_text("expected")
+            mod = ModRecord(
+                "a",
+                "A",
+                prepared_path=str(prepared),
+                files={"aa/aafile": hash_file(source)},
+            )
+            resolution = resolve_profile(Profile("On", ["a"]), [mod])
+            source.write_text("tampered")
+            with self.assertRaises(ApplyError):
+                ApplyEngine(
+                    ManagerStore(root / "manager"),
+                    dat,
+                    process_check=lambda _: (),
+                ).apply(resolution)
+            self.assertFalse((dat / "aa" / "aafile").exists())
+
+    def test_active_state_cannot_be_reused_for_another_installation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            first_dat = root / "first" / "dat"
+            second_dat = root / "second" / "dat"
+            first_dat.mkdir(parents=True)
+            second_dat.mkdir(parents=True)
+            prepared = root / "prepared"
+            source = prepared / "aa" / "aafile"
+            source.parent.mkdir(parents=True)
+            source.write_text("modded")
+            mod = ModRecord(
+                "a",
+                "A",
+                prepared_path=str(prepared),
+                files={"aa/aafile": hash_file(source)},
+            )
+            ApplyEngine(store, first_dat, process_check=lambda _: ()).apply(
+                resolve_profile(Profile("On", ["a"]), [mod])
+            )
+            with self.assertRaises(ApplyError):
+                ApplyEngine(store, second_dat, process_check=lambda _: ()).apply(
+                    resolve_profile(Profile("Off", []), [mod])
+                )
+
+    def test_snapshotting_transaction_recovers_before_legacy_state_migration(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            dat = root / "dat"
+            dat.mkdir()
+            store = ManagerStore(root / "manager")
+            store.save_settings({"dat_path": str(dat)})
+            active = {
+                "version": 1,
+                "files": {"aa/aafile": {"sha256": "1" * 64}},
+            }
+            atomic_write_json(store.paths.state, active)
+            engine = ApplyEngine(store, dat, process_check=lambda _: ())
+            transaction = store.paths.transactions / f"apply-{engine.target_id}-test"
+            transaction.mkdir(parents=True)
+            atomic_write_json(
+                transaction / "journal.json",
+                {
+                    "version": 1,
+                    "transaction_id": transaction.name,
+                    "target_id": engine.target_id,
+                    "phase": "snapshotting",
+                    "manifest": {},
+                },
+            )
+            self.assertEqual(engine._recover_incomplete_transactions(), 1)
+            self.assertFalse(transaction.exists())
 
     def test_corrupt_active_state_blocks_apply_before_file_changes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -328,6 +607,31 @@ class ManagerTests(unittest.TestCase):
             with self.assertRaises(ApplyError):
                 engine.apply(resolve_profile(Profile("Off", []), [mod]))
             self.assertEqual(target.read_text(), "changed elsewhere")
+
+    def test_failed_preparation_preserves_previous_cache(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            source = root / "source"
+            (source / "assets").mkdir(parents=True)
+            (source / "assets" / "named-file").write_text("asset")
+            meta = root / "meta.db"
+            meta.write_text("metadata")
+            record = ModRecord("a", "A", version="1", source_path=str(source))
+            output = store.prepared_destination(record)
+            output.mkdir(parents=True)
+            (output / "old").write_text("working")
+
+            class Decoder:
+                @staticmethod
+                def decrypt_assets_internal(*_args, **_kwargs):
+                    return 0, 1
+
+            adapter = LegacyAssetAdapter(store, meta)
+            with patch.object(adapter, "_decoder", return_value=Decoder()):
+                with self.assertRaises(StoreError):
+                    adapter.prepare(record)
+            self.assertEqual((output / "old").read_text(), "working")
 
 
 if __name__ == "__main__":
