@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox
 from typing import Any, Callable
 
 from .installations import ManagerInstallation, detect_preferred_installation
+from .network import tls_diagnostics
 from .process import running_game_processes
 from .studio import LegacyToolLauncher, open_path
 from .ui_theme import SURFACE, TEXT
@@ -121,6 +122,11 @@ class SystemActions:
             report, ready = format_doctor_report()
         except Exception as exc:
             report, ready = f"Diagnostics failed:\n{exc}", False
+
+        tls_report, tls_ready = tls_diagnostics()
+        report = f"{report}\n\n=== HTTPS TRUST ===\n{tls_report}"
+        ready = ready and tls_ready
+
         window = tk.Toplevel(self.root)
         window.title("UMML diagnostics")
         window.geometry("820x560")
