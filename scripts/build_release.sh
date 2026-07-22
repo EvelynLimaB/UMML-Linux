@@ -16,7 +16,8 @@ mkdir -p \
   "$STAGE/$NAME/assets" \
   "$STAGE/$NAME/scripts" \
   "$STAGE/$NAME/packaging/pyinstaller" \
-  "$STAGE/$NAME/packaging/linux"
+  "$STAGE/$NAME/packaging/linux" \
+  "$STAGE/$NAME/packaging/appimage"
 
 for file in UMML.py UMML_core.py umml_platform.py umml_packaged.py \
             umml_manager_packaged.py requirements.txt requirements-build.txt \
@@ -45,7 +46,7 @@ install -m 0755 "$ROOT/install-manager.sh" "$STAGE/$NAME/install-manager.sh"
 install -m 0755 "$ROOT/uninstall-manager.sh" "$STAGE/$NAME/uninstall-manager.sh"
 
 for script in build_release.sh build_frozen.sh build_deb.sh build_appimage.sh \
-              build_manager_frozen.sh build_manager_deb.sh \
+              build_manager_frozen.sh build_manager_deb.sh build_manager_appimage.sh \
               check_legacy.sh check_manager.sh check_all.sh; do
   install -m 0755 "$ROOT/scripts/$script" "$STAGE/$NAME/scripts/$script"
 done
@@ -62,6 +63,9 @@ for metadata in \
   install -m 0644 "$ROOT/packaging/linux/$metadata" \
     "$STAGE/$NAME/packaging/linux/$metadata"
 done
+install -m 0644 \
+  "$ROOT/packaging/appimage/io.github.evelynlimab.ummlmanager.desktop" \
+  "$STAGE/$NAME/packaging/appimage/io.github.evelynlimab.ummlmanager.desktop"
 
 rm -f "$OUT_DIR/$NAME.zip" "$OUT_DIR/$NAME.tar.gz" "$OUT_DIR/SHA256SUMS"
 (
