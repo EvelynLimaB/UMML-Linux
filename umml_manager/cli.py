@@ -9,24 +9,33 @@ from .engine import ApplyEngine
 from .legacy_adapter import LegacyAssetAdapter
 from .models import Profile
 from .providers.gamebanana import GameBananaClient
-from .resolver import resolve_profile
+from .resolver import Resolution, resolve_profile
 from .store import ManagerStore, StoreError, default_root
 from .studio import LegacyToolLauncher
 from .version import manager_version
+
+REGIONS = ("global", "japan", "taiwan", "korea")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="umml-manager-cli")
     parser.add_argument("--version", action="version", version=manager_version())
-    parser.add_argument("--root", default=str(default_root()), help="Manager data directory")
+    parser.add_argument(
+        "--root",
+        default=str(default_root()),
+        help="Manager data directory",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list")
+
     imported = sub.add_parser("import")
     imported.add_argument("path")
     imported.add_argument("--id")
+
     scan = sub.add_parser("scan")
     scan.add_argument("paths", nargs="*")
     scan.add_argument("--depth", type=int, default=5)
+
     browse = sub.add_parser("browse")
     browse.add_argument("--region", choices=("global", "japan"), default="global")
     browse.add_argument("--page", type=int, default=1)
@@ -36,26 +45,38 @@ def build_parser() -> argparse.ArgumentParser:
         default="updated",
     )
     browse.add_argument("--query", default="")
-    gb = sub.add_parser("gamebanana")
-    gb.add_argument("url")
-    gb.add_argument("--file-id", type=int)
+
+    gamebanana = sub.add_parser("gamebanana")
+    gamebanana.add_argument("url")
+    gamebanana.add_argument("--file-id", type=int)
+
     prepare = sub.add_parser("prepare")
     prepare.add_argument("mod_id")
     prepare.add_argument("--meta", required=True)
+
     workspace = sub.add_parser("workspace")
     workspace.add_argument("mod_id")
+
     profile = sub.add_parser("profile")
     profile.add_argument("name")
     profile.add_argument("mods", nargs="*")
+    profile.add_argument("--region", choices=REGIONS, default="")
+    profile.add_argument("--installation-key", default="")
+
     plan = sub.add_parser("plan")
     plan.add_argument("profile")
-    apply = sub.add_parser("apply")
-    apply.add_argument("profile")
-    apply.add_argument("--dat", required=True)
-    apply.add_argument("--game-dir")
-    apply.add_argument("--force", action="store_true")
+    plan.add_argument("--region", choices=REGIONS, default="")
+
+    apply_command = sub.add_parser("apply")
+    apply_command.add_argument("profile")
+    apply_command.add_argument("--dat", required=True)
+    apply_command.add_argument("--game-dir")
+    apply_command.add_argument("--region", choices=REGIONS, default="")
+    apply_command.add_argument("--force", action="store_true")
+
     updates = sub.add_parser("updates")
     updates.add_argument("mod_id", nargs="?")
+
     studio = sub.add_parser("studio")
     studio.add_argument("tool", nargs="?", default="full")
     studio.add_argument("--dat", default="")
@@ -72,7 +93,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "list":
             for mod in store.list_mods():
                 status = "prepared" if mod.files else "needs prepare"
-                print(f"{mod.id}\t{mod.version}\t{status}\t{mod.name}")
+                print(
+                    f"{mod.id}\t{mod.version}\t{mod.package_type}\t"
+                    f"{status}\t{mod.name}"
+                )
         elif args.command == "import":
             path = Path(args.path)
             record = (
@@ -101,11 +125,12 @@ def main(argv: list[str] | None = None) -> int:
                     f"{mod.author}\t{mod.name}"
                 )
         elif args.command == "gamebanana":
-            print(
-                GameBananaClient()
-                .import_mod(store, args.url, file_id=args.file_id)
-                .id
+            record = GameBananaClient().import_mod(
+                store,
+                args.url,
+                file_id=args.file_id,
             )
+            print(record.id)
         elif args.command == "prepare":
             record = LegacyAssetAdapter(store, args.meta).prepare(
                 store.get_mod(args.mod_id)
@@ -114,39 +139,41 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "workspace":
             print(store.create_workspace(args.mod_id))
         elif args.command == "profile":
-            store.save_profile(Profile(args.name, list(args.mods)))
+            store.save_profile(
+                Profile(
+                    args.name,
+                    list(args.mods),
+                    region=args.region,
+                    installation_key=args.installation_key,
+                )
+            )
             print(args.name)
         elif args.command in {"plan", "apply"}:
+            profile = store.get_profile(args.profile)
             resolution = resolve_profile(
-                store.get_profile(args.profile), store.list_mods()
+                profile,
+                store.list_mods(),
+                target_region=args.region or profile.region,
             )
             if args.command == "plan":
-                print(
-                    json.dumps(
-                        {
-                            "profile": resolution.profile,
-                            "files": len(resolution.winners),
-                            "missing": resolution.missing,
-                            "unprepared": resolution.unprepared,
-                            "conflicts": [
-                                conflict.__dict__ for conflict in resolution.conflicts
-                            ],
-                        },
-                        indent=2,
-                    )
-                )
+                print(json.dumps(_resolution_dict(resolution), indent=2))
             else:
                 result = ApplyEngine(
-                    store, args.dat, game_dir=args.game_dir
+                    store,
+                    args.dat,
+                    game_dir=args.game_dir,
                 ).apply(resolution, force=args.force)
                 print(
                     f"Installed {result.installed}; restored {result.restored}; "
-                    f"unchanged {result.unchanged}"
+                    f"unchanged {result.unchanged}; recovered "
+                    f"{result.recovered_transactions} interrupted transaction(s)"
                 )
         elif args.command == "updates":
             client = GameBananaClient()
             records = (
-                [store.get_mod(args.mod_id)] if args.mod_id else store.list_mods()
+                [store.get_mod(args.mod_id)]
+                if args.mod_id
+                else store.list_mods()
             )
             for record in records:
                 update = client.update_available(record)
@@ -167,6 +194,24 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         print(f"error: {exc}")
         return 1
+
+
+def _resolution_dict(resolution: Resolution) -> dict:
+    return {
+        "profile": resolution.profile,
+        "target_region": resolution.target_region,
+        "files": len(resolution.winners),
+        "blocking": resolution.blocking_issues,
+        "missing": resolution.missing,
+        "unprepared": resolution.unprepared,
+        "unsupported": resolution.unsupported,
+        "incompatible": resolution.incompatible,
+        "invalid": resolution.invalid,
+        "missing_dependencies": resolution.missing_dependencies,
+        "incompatibility_conflicts": resolution.incompatibility_conflicts,
+        "duplicates": resolution.duplicates,
+        "conflicts": [conflict.__dict__ for conflict in resolution.conflicts],
+    }
 
 
 if __name__ == "__main__":
