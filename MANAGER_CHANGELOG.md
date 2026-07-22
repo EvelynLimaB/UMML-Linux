@@ -1,5 +1,29 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha4 - 2026-07-22
+
+### Added
+
+- A separate x86_64 AppImage built from the exact same frozen manager runtime as the Debian package.
+- AppImage desktop integration metadata, icon, AppStream metadata, GUI entry point, CLI mode, and legacy Studio host.
+- CI artifacts for the DEB, AppImage, and a shared external `SHA256SUMS` file.
+- AppImage smoke tests for version reporting and CLI startup.
+- AppImage extraction checks that compare the embedded manager executable byte-for-byte with the frozen bundle used by the DEB.
+
+### Safety
+
+- ZIP and TAR imports now enforce a 20,000-entry and 8 GiB expanded-size limit before extraction.
+- Encrypted ZIP entries and archive special files are rejected.
+- Archive member names have a bounded length.
+- Temporary imports continue to be removed on every failure path.
+- `appimagetool` is downloaded over HTTPS and checked against a pinned SHA-256 before use.
+
+### Packaging
+
+- The Debian and AppImage packages are inspected in the same CI job after one shared PyInstaller build.
+- Checksums are generated outside the packages to avoid self-referential package hashes.
+- The AppImage can be invoked as a GUI application, with `--version`, or with `--cli` for manager CLI commands.
+
 ## 0.2.0~alpha3 - 2026-07-21
 
 ### Fixed
