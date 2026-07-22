@@ -1,23 +1,17 @@
 # Packaging UMML and UMML Manager
 
-This repository produces two installable Linux applications. They share source
-references and some build dependencies, but they are intentionally separate
-packages.
+This repository produces two installable Linux applications. They share source references and some build dependencies, but they are intentionally separate packages.
 
 | Product | Debian package | Commands | Version file |
 | --- | --- | --- | --- |
 | Legacy loader | `umml-linux` | `umml`, `umml-doctor` | `VERSION` |
 | Full manager | `umml-manager` | `umml-manager`, `umml-manager-cli` | `MANAGER_VERSION` |
 
-Neither Debian package depends on the other. Users may install either one or both.
-Do not merge their payload directories, package names, desktop IDs, state paths,
-or version numbers.
+Neither Debian package depends on the other. Users may install either one or both. Do not merge their payload directories, package names, desktop IDs, state paths, or version numbers.
 
 ## Build environment
 
-The frozen releases target x86_64 Linux and should be built on the oldest
-supported Ubuntu environment to preserve a reasonable glibc baseline. Current
-legacy release practice uses Ubuntu 22.04 / Linux Mint 21 compatibility.
+The frozen releases target x86_64 Linux and should be built on the oldest supported Ubuntu environment to preserve a reasonable glibc baseline. Current legacy release practice uses Ubuntu 22.04 / Linux Mint 21 compatibility.
 
 Install build tools:
 
@@ -29,8 +23,7 @@ python -m pip install -r requirements.txt -r requirements-build.txt
 sudo apt install dpkg-dev desktop-file-utils appstream-util
 ```
 
-Tkinter and the shared X11/font libraries used by the PyInstaller runtime must be
-available in the build image.
+Tkinter and the shared X11/font libraries used by the PyInstaller runtime must be available in the build image.
 
 ## Legacy UMML package
 
@@ -60,8 +53,7 @@ Expected output:
 dist/umml-manager_<MANAGER_VERSION>_amd64.deb
 ```
 
-The manager payload lives under `/usr/lib/umml-manager`. The PyInstaller bundle
-contains one dispatcher executable:
+The manager payload lives under `/usr/lib/umml-manager`. The PyInstaller bundle contains one dispatcher executable:
 
 ```text
 /usr/lib/umml-manager/umml-manager-bin
@@ -75,6 +67,38 @@ Thin wrappers select the frontend:
 ```
 
 Keep application logic out of those wrappers.
+
+The Debian desktop entry must use the absolute command `/usr/bin/umml-manager`. A bare `Exec=umml-manager` allows an obsolete `~/.local/bin/umml-manager` from a source preview to shadow the packaged application.
+
+## Source installation boundaries
+
+Source installation is intentionally distinguishable from the Debian product:
+
+```text
+~/.local/share/umml-manager-app/       source application code
+~/.local/share/umml-manager/           library, profiles and deployment state
+~/.local/bin/umml-manager-source       source GUI
+~/.local/bin/umml-manager-source-cli   source CLI
+```
+
+The source desktop ID is `io.github.evelynlimab.ummlmanager.source`. It must never reuse the Debian desktop ID.
+
+Compatibility wrappers named `umml-manager` and `umml-manager-cli` may exist in `~/.local/bin`, but they must explicitly prefer `/usr/bin/umml-manager*` whenever the Debian package is present.
+
+Source uninstallers may remove only source application code, source launchers, and the source desktop/icon. They must preserve:
+
+- `mods.json`;
+- `profiles.json`;
+- `settings.json`;
+- `active.json`;
+- `sources/`;
+- `prepared/`;
+- `baseline/`;
+- `transactions/`;
+- `downloads/`;
+- `workspaces/`.
+
+Historical previews mixed source code and manager data in `~/.local/share/umml-manager`. Migration may remove only known application payload files from that directory. Never recursively delete the directory.
 
 ## Manager Debian layout
 
@@ -97,13 +121,11 @@ usr/
     └── doc/umml-manager/
 ```
 
-The package must not install files into the legacy `/usr/lib/umml` payload or
-claim `/usr/bin/umml`.
+The package must not install files into the legacy `/usr/lib/umml` payload or claim `/usr/bin/umml`.
 
 ## Versioning
 
-`VERSION` tracks the Linux port of the upstream legacy loader.
-`MANAGER_VERSION` tracks the independently developed manager.
+`VERSION` tracks the Linux port of the upstream legacy loader. `MANAGER_VERSION` tracks the independently developed manager.
 
 For pre-releases, Debian sorts `~` before the final release:
 
@@ -111,8 +133,7 @@ For pre-releases, Debian sorts `~` before the final release:
 0.1.0~alpha1 < 0.1.0~beta1 < 0.1.0
 ```
 
-AppStream may use a display-friendly equivalent such as `0.1.0-alpha1`. Keep the
-release date and description aligned with the manager changelog.
+AppStream may use a display-friendly equivalent such as `0.1.0-alpha1`. Keep the release date and description aligned with the manager changelog.
 
 When changing the manager release, update together:
 
@@ -127,7 +148,8 @@ When changing the manager release, update together:
 Static checks:
 
 ```bash
-bash -n scripts/build_manager_frozen.sh scripts/build_manager_deb.sh
+bash -n install-manager.sh uninstall-manager.sh \
+  scripts/build_manager_frozen.sh scripts/build_manager_deb.sh
 python -m py_compile umml_manager_packaged.py umml_manager/*.py
 ```
 
@@ -148,13 +170,20 @@ Install test:
 
 ```bash
 sudo apt install ./dist/umml-manager_*_amd64.deb
-umml-manager-cli --version
-umml-manager-cli --root /tmp/umml-manager-package-test list
+/usr/bin/umml-manager-cli --version
+/usr/bin/umml-manager-cli --root /tmp/umml-manager-package-test list
 sudo apt remove umml-manager
 ```
 
-Also launch the GUI from the desktop menu. Confirm that it does not open a
-terminal, uses the manager icon, and stores user data outside `/usr`.
+Also launch the GUI from the desktop menu. Confirm that it does not open a terminal, uses the manager icon, starts `/usr/bin/umml-manager`, and stores user data outside `/usr`.
+
+When testing coexistence with a source install, check:
+
+```bash
+type -a umml-manager
+head -n 5 ~/.local/bin/umml-manager 2>/dev/null || true
+grep '^Exec=' ~/.local/share/applications/io.github.evelynlimab.ummlmanager*.desktop 2>/dev/null || true
+```
 
 ## CI artifacts
 
@@ -167,8 +196,7 @@ The manager packaging workflow should:
 5. inspect package metadata and contents;
 6. upload the `.deb` as a workflow artifact.
 
-A CI-built package proves reproducibility of the scripted build. It does not
-replace installation testing on a real supported desktop.
+A CI-built package proves reproducibility of the scripted build. It does not replace installation testing on a real supported desktop.
 
 ## Release checklist
 
@@ -177,13 +205,13 @@ Before attaching a manager DEB to a public release:
 - all unit and packaging jobs pass;
 - the package installs and removes cleanly on a supported distribution;
 - GUI and CLI both start from the installed package;
+- stale user-level source launchers cannot impersonate the Debian build;
+- source removal preserves every manager data and recovery path;
 - a synthetic profile applies and restores correctly;
 - at least one real compatible mod is imported and prepared;
 - GameBanana behavior is smoke-tested against the current API;
 - the game-running guard is tested under Proton;
-- no game files, mod archives, decrypted metadata, user paths, or secrets are in
-  the package;
+- no game files, mod archives, decrypted metadata, user paths, or secrets are in the package;
 - checksums are generated for published artifacts.
 
-Do not publish a package merely because `dpkg-deb` agreed to put files in a box.
-It is an accommodating tool, not a quality-assurance department.
+Do not publish a package merely because `dpkg-deb` agreed to put files in a box. It is an accommodating tool, not a quality-assurance department.
