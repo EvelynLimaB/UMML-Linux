@@ -12,6 +12,8 @@ datas = [
     (str(ROOT / "LICENSE"), "."),
     (str(ROOT / "docs" / "MANAGER_ARCHITECTURE.md"), "docs"),
     (str(ROOT / "docs" / "MANAGER_DEVELOPMENT.md"), "docs"),
+    (str(ROOT / "docs" / "MANAGER_AUDIT.md"), "docs"),
+    (str(ROOT / "docs" / "MANAGER_FEATURE_ROADMAP.md"), "docs"),
     (str(ROOT / "docs" / "PACKAGING.md"), "docs"),
 ]
 binaries = []
@@ -20,8 +22,12 @@ hiddenimports = [
     "UMML_core",
     "umml_platform",
     "umml_autodetect",
+    "umml_manager.backends",
     "umml_manager.legacy_host",
+    "umml_manager.locking",
     "umml_manager.network",
+    "umml_manager.providers.base",
+    "umml_manager.safety",
     "umml_manager.ui_discover",
     "umml_manager.ui_discover_actions",
     "umml_manager.ui_library",
