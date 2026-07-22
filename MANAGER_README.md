@@ -2,14 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but preserves the loader's editing tools instead of replacing them with a polished list that cannot actually do anything.
 
-> **Preview:** `0.2.0~alpha8`. The manager includes audited persistent state, bounded imports, provider browsing, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
+> **Preview:** `0.2.0~alpha9`. The manager includes audited persistent state, bounded imports, provider browsing, automatic preparation of compatible imports, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha8_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha9_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -18,16 +18,16 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha8_x86_64.AppImage
-./umml-manager_0.2.0-alpha8_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha9_x86_64.AppImage
+./umml-manager_0.2.0-alpha9_x86_64.AppImage
 ```
 
 The same file exposes the CLI:
 
 ```bash
-./umml-manager_0.2.0-alpha8_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha8_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha8_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha9_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha9_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha9_x86_64.AppImage --cli browse --region global
 ```
 
 The DEB and AppImage are built from one PyInstaller bundle. CI extracts both finished packages and compares their complete frozen runtime trees with the source bundle and each other.
@@ -74,10 +74,10 @@ The current source installer stores code in `~/.local/share/umml-manager-app` an
 3. The manager detects Steam/Proton or DMM, validates paths, prepares `meta_decrypted_*.db`, records an installation key, and fingerprints the metadata.
 4. When detection does not complete, use **Settings → Auto-detect installation**, then **Run diagnostics**.
 5. Browse GameBanana or scan local folders from **Discover**.
-6. Import and prepare compatible packages.
-7. Enable them in a profile and arrange load order.
+6. Import a compatible package. Legacy UMML assets are prepared automatically when readable metadata is available.
+7. Enable prepared mods in a profile and arrange load order.
 8. Inspect **Conflicts**. The plan must have zero blockers.
-9. Close the game and apply the profile.
+9. Close the game and apply the profile explicitly.
 
 Manual path selection remains available for unusual layouts. Manual changes deliberately clear the verified installation key and metadata fingerprint until detection runs again.
 
@@ -86,6 +86,18 @@ The three paths are:
 - `.../Persistent/dat` for game asset files;
 - UMML's prepared `meta_decrypted_*.db`, not the encrypted file named `meta`;
 - the game installation directory containing its executable.
+
+## Import, preparation, and deployment are separate stages
+
+The manager deliberately separates three operations:
+
+1. **Import** preserves an immutable copy of the downloaded or selected source package.
+2. **Prepare** converts compatible source assets into verified game-hash targets. Alpha9 performs this automatically after import when the package and metadata are compatible.
+3. **Apply** writes an enabled profile to the game. This remains a separate explicit action and requires the game to be closed.
+
+If automatic preparation fails, the imported source is not deleted. It stays in Library with **needs prepare**, and the existing manual preparation action becomes a retry and diagnostic tool rather than required routine work.
+
+Prepared records store the file manifest, SHA-256 values, metadata fingerprint, and preparation time. A changed game metadata fingerprint marks the cache stale and blocks deployment until it is prepared again.
 
 ## HTTPS, GameBanana, and preview images
 
@@ -103,6 +115,14 @@ Discover supports paging, search, sorting, descriptions, authors, versions, stat
 Catalogue rows do not always include their complete file list. When that happens, the manager immediately offers **Install latest**, fetches the full submission details in a separate background task, and replaces the fallback with the real file selector when available. A failed prefetch does not permanently disable installation; clicking **Install latest** retries the detail request.
 
 GameBanana file containers are normalized from array, mapping, and nested response shapes before they reach the selector. Stale detail responses are ignored after changing selection or page.
+
+Some older GameBanana uploads contain the loose files accepted by the legacy UMML manual loader but omit a modern `assets/` wrapper or manifest. Alpha9 normalizes this layout only when all of the following are true:
+
+- the archive came through the verified GameBanana provider path;
+- it contains recognizable UnityFS, audio, video, bundle, or hashed asset evidence;
+- it contains no executable, script, or native-library payloads.
+
+Plain documents and unrelated archives remain rejected. The normalized package is stored immutably before automatic preparation begins.
 
 Preview images:
 
@@ -141,15 +161,13 @@ Local folder copies are revalidated and hashed after copying. Ambiguous wrappers
 
 A Hachimi package may be detected and preserved, but the current backend cannot deploy it. Detection is not treated as support; profiles containing it remain blocked.
 
-## Immutable versions and preparation
+## Immutable versions and workspaces
 
 Imported source versions are immutable. Re-importing the same ID and version with different contents is rejected. Different versions coexist under safe storage components.
 
 **Edit copy** creates a timestamped workspace with provenance. Change the edited package's ID or version before importing it as a new immutable version.
 
 Legacy hashed assets are decoded into staging. The previous prepared cache remains until the replacement is complete, non-empty, duplicate-free, hashed, and registered.
-
-Prepared records store the file manifest, SHA-256 values, metadata fingerprint, and preparation time. A changed game metadata fingerprint marks the cache stale and blocks deployment until re-prepared.
 
 ## Profiles and conflict planning
 
@@ -227,7 +245,7 @@ Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMEN
 
 ## Remaining alpha release gates
 
-- live Bazzite GameBanana browse, preview, file-detail hydration, download, and import without certificate overrides;
+- live Bazzite GameBanana browse, preview, detail hydration, loose-package normalization, automatic preparation, and import without certificate overrides;
 - visual preview sizing and rapid-selection testing on KDE;
 - a broader real-mod corpus;
 - packaged apply/disable/restore/update tests on disposable game data;
