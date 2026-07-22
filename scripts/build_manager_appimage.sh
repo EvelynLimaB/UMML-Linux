@@ -12,10 +12,11 @@ BUILD_ROOT="$ROOT/build/appimage"
 APPDIR="$BUILD_ROOT/UMML_Manager.AppDir"
 TOOL_DIR="$ROOT/build/tools"
 APPIMAGETOOL="${APPIMAGETOOL:-$TOOL_DIR/appimagetool-$ARCH.AppImage}"
-APPIMAGETOOL_URL="${APPIMAGETOOL_URL:-https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-$ARCH.AppImage}"
-# Pin the official continuous AppImageKit tool. If upstream replaces the asset,
-# fail deliberately so the new binary can be reviewed before the hash is updated.
-APPIMAGETOOL_SHA256="${APPIMAGETOOL_SHA256:-363dafac070b65cc36ca024b74db1f043c6f5cd7be8fca760e190dce0d18d684}"
+APPIMAGETOOL_URL="${APPIMAGETOOL_URL:-https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$ARCH.AppImage}"
+# Pin the official AppImage/appimagetool continuous release asset. If upstream
+# replaces it, fail deliberately until the new release asset is reviewed and
+# this hash is updated from GitHub's published release digest.
+APPIMAGETOOL_SHA256="${APPIMAGETOOL_SHA256:-a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0}"
 OUTPUT="$OUT_DIR/umml-manager_${DISPLAY_VERSION}_${ARCH}.AppImage"
 
 [[ -n "$VERSION" ]] || { echo "MANAGER_VERSION is empty" >&2; exit 1; }
