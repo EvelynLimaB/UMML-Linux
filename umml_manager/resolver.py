@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .models import PACKAGE_UMML_ASSETS, ModRecord, Profile
+from .regions import normalize_region
 from .safety import SafetyError, normalize_relative_path, validate_sha256
 
 
@@ -57,7 +58,7 @@ def resolve_profile(
 ) -> Resolution:
     records = {record.id: record for record in mods}
     claims: dict[str, list[Claim]] = {}
-    region = _normalize_region(target_region or profile.region)
+    region = normalize_region(target_region or profile.region, default="")
     resolution = Resolution(profile=profile.name, target_region=region)
     enabled = _deduplicate_profile(profile.enabled, resolution)
     enabled_set = set(enabled)
@@ -67,25 +68,38 @@ def resolve_profile(
         if record is None:
             resolution.missing.append(mod_id)
             continue
-        if record.package_type != PACKAGE_UMML_ASSETS or "deploy-files" not in record.capabilities:
+        if (
+            record.package_type != PACKAGE_UMML_ASSETS
+            or "deploy-files" not in record.capabilities
+        ):
             resolution.unsupported.append(
                 f"{mod_id} ({record.package_type or 'unknown package type'})"
             )
             continue
         if region and record.regions:
-            supported = {_normalize_region(value) for value in record.regions}
+            supported = {
+                normalize_region(value, default="") for value in record.regions
+            }
             if region not in supported:
                 resolution.incompatible.append(
                     f"{mod_id} supports {', '.join(record.regions)}, not {region}"
                 )
                 continue
-        missing = [dependency for dependency in record.dependencies if dependency not in enabled_set]
+        missing = [
+            dependency
+            for dependency in record.dependencies
+            if dependency not in enabled_set
+        ]
         if missing:
             resolution.missing_dependencies.append(
                 f"{mod_id} requires {', '.join(missing)}"
             )
             continue
-        conflicts = [other for other in record.incompatibilities if other in enabled_set]
+        conflicts = [
+            other
+            for other in record.incompatibilities
+            if other in enabled_set
+        ]
         if conflicts:
             resolution.incompatibility_conflicts.append(
                 f"{mod_id} conflicts with {', '.join(conflicts)}"
@@ -122,14 +136,19 @@ def resolve_profile(
                 Conflict(
                     path=relative,
                     winner=winner.mod_id,
-                    overridden=tuple(claim.mod_id for claim in path_claims[:-1]),
+                    overridden=tuple(
+                        claim.mod_id for claim in path_claims[:-1]
+                    ),
                 )
             )
     resolution.conflicts.sort(key=lambda item: item.path)
     return resolution
 
 
-def _deduplicate_profile(values: list[str], resolution: Resolution) -> list[str]:
+def _deduplicate_profile(
+    values: list[str],
+    resolution: Resolution,
+) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for value in values:
@@ -140,16 +159,3 @@ def _deduplicate_profile(values: list[str], resolution: Resolution) -> list[str]
         seen.add(mod_id)
         result.append(mod_id)
     return result
-
-
-def _normalize_region(value: str) -> str:
-    text = str(value or "").strip().casefold()
-    aliases = {
-        "steam global": "global",
-        "en": "global",
-        "japanese": "japan",
-        "jp": "japan",
-        "tw": "taiwan",
-        "kr": "korea",
-    }
-    return aliases.get(text, text)
