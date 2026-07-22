@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from PIL import Image, UnidentifiedImageError
 
-from .network import TLSConfiguration, build_https_opener, format_network_error
+from .network import TLSConfiguration, create_ssl_context, format_network_error
 from .store import StoreError
 
 MAX_PREVIEW_BYTES = 12 * 1024 * 1024
@@ -29,6 +29,22 @@ class PreviewImage:
     byte_size: int
 
 
+class GameBananaPreviewRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuse a redirect before urllib sends a request outside GameBanana."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        _require_gamebanana_https(newurl, "Preview redirect URL")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 class PreviewImageLoader:
     """Fetch and decode one untrusted remote preview without touching game state."""
 
@@ -40,7 +56,11 @@ class PreviewImageLoader:
     def __init__(self, opener: Callable[..., Any] | None = None):
         self._tls_configuration: TLSConfiguration | None = None
         if opener is None:
-            verified_opener, configuration = build_https_opener()
+            context, configuration = create_ssl_context()
+            verified_opener = urllib.request.build_opener(
+                GameBananaPreviewRedirectHandler(),
+                urllib.request.HTTPSHandler(context=context),
+            )
             self._opener = verified_opener.open
             self._tls_configuration = configuration
         else:
@@ -52,7 +72,7 @@ class PreviewImageLoader:
         *,
         max_size: tuple[int, int] = DEFAULT_PREVIEW_SIZE,
     ) -> PreviewImage:
-        _require_https(url, "Preview URL")
+        _require_gamebanana_https(url, "Preview URL")
         request = urllib.request.Request(
             url,
             headers={
@@ -63,7 +83,7 @@ class PreviewImageLoader:
         try:
             with self._opener(request, timeout=30) as response:
                 final_url = _response_url(response, url)
-                _require_https(final_url, "Final preview URL")
+                _require_gamebanana_https(final_url, "Final preview URL")
                 content_type = _content_type(response)
                 if content_type and not content_type.startswith("image/"):
                     raise PreviewImageError(
@@ -143,10 +163,20 @@ def decode_preview_image(
         raise PreviewImageError(f"Preview image could not be decoded: {exc}") from exc
 
 
-def _require_https(value: str, label: str) -> None:
+def _require_gamebanana_https(value: str, label: str) -> None:
     parsed = urllib.parse.urlparse(str(value))
-    if parsed.scheme.casefold() != "https" or not parsed.netloc:
-        raise PreviewImageError(f"{label} is not verified HTTPS: {value}")
+    hostname = (parsed.hostname or "").casefold()
+    if (
+        parsed.scheme.casefold() != "https"
+        or not hostname
+        or not (
+            hostname == "gamebanana.com"
+            or hostname.endswith(".gamebanana.com")
+        )
+    ):
+        raise PreviewImageError(
+            f"{label} is not a verified GameBanana HTTPS URL: {value}"
+        )
 
 
 def _response_url(response: Any, fallback: str) -> str:
