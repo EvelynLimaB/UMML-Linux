@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha5" date="2026-07-22">
+      <description>
+        <p>Fixes verified GameBanana HTTPS on Fedora and Bazzite, adds portable CA-bundle fallback, and exposes the selected trust source in diagnostics.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha4" date="2026-07-22">
       <description>
         <p>Adds an AppImage built from the same frozen runtime as the Debian package, shared checksum artifacts, package-parity checks, and bounded archive extraction.</p>
