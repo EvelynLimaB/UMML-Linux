@@ -3,6 +3,7 @@ import unittest
 import urllib.request
 from unittest.mock import patch
 
+from umml_manager.providers import default_provider_registry
 from umml_manager.providers.gamebanana_previews import (
     PreviewGameBananaClient,
     primary_preview_url,
@@ -41,6 +42,29 @@ class PreviewUrlTests(unittest.TestCase):
             primary_preview_url(data),
             "https://images.gamebanana.com/img/ss/mods/530-90_original.jpg",
         )
+
+    def test_preview_client_normalizes_provider_media(self):
+        data = {
+            "_idRow": 123,
+            "_sName": "Synthetic mod",
+            "_aPreviewMedia": {
+                "_aImages": [
+                    {
+                        "_sBaseUrl": "https://images.gamebanana.com/img/ss/mods",
+                        "_sFile530": "530-90_image.jpg",
+                    }
+                ]
+            },
+        }
+        client = PreviewGameBananaClient(opener=lambda *_args, **_kwargs: None)
+        self.assertEqual(
+            client._mod(data).image_url,
+            "https://images.gamebanana.com/img/ss/mods/530-90_image.jpg",
+        )
+
+    def test_default_registry_uses_preview_aware_provider(self):
+        provider = default_provider_registry().get("gamebanana")
+        self.assertIsInstance(provider, PreviewGameBananaClient)
 
     def test_non_https_preview_is_ignored(self):
         data = {
