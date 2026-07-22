@@ -2,6 +2,8 @@ import io
 import unittest
 from unittest.mock import patch
 
+from umml_manager.providers.gamebanana_previews import primary_preview_url
+
 try:
     from PIL import Image
 except ImportError:  # Legacy-only validation intentionally installs no manager deps.
@@ -14,6 +16,39 @@ if Image is not None:
         PreviewImageLoader,
         decode_preview_image,
     )
+
+
+class PreviewUrlTests(unittest.TestCase):
+    def test_base_url_without_trailing_slash_is_joined_correctly(self):
+        data = {
+            "_aPreviewMedia": {
+                "_aImages": [
+                    {
+                        "_sBaseUrl": "https://images.gamebanana.com/img/ss/mods",
+                        "_sFile": "original.jpg",
+                        "_sFile220": "220-90_original.jpg",
+                        "_sFile530": "530-90_original.jpg",
+                    }
+                ]
+            }
+        }
+        self.assertEqual(
+            primary_preview_url(data),
+            "https://images.gamebanana.com/img/ss/mods/530-90_original.jpg",
+        )
+
+    def test_non_https_preview_is_ignored(self):
+        data = {
+            "_aPreviewMedia": {
+                "_aImages": [
+                    {
+                        "_sBaseUrl": "http://images.gamebanana.com/img/ss/mods",
+                        "_sFile530": "530-90_original.jpg",
+                    }
+                ]
+            }
+        }
+        self.assertEqual(primary_preview_url(data), "")
 
 
 class FakeHeaders(dict):
