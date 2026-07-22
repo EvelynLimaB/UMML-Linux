@@ -11,6 +11,7 @@ from typing import Callable
 from .discovery import ModCandidate, default_search_roots, scan_mod_candidates
 from .preview_images import PreviewImage, PreviewImageLoader
 from .providers.gamebanana import GameBananaClient, GameBananaPage
+from .providers.gamebanana_previews import PreviewGameBananaClient
 from .studio import open_path
 
 
@@ -18,7 +19,7 @@ class DiscoverActions:
     def browse_gamebanana(self):
         self._run_task(
             "Browsing Umamusume GameBanana…",
-            lambda: GameBananaClient().browse(
+            lambda: PreviewGameBananaClient().browse(
                 region=self.gb_region.get(),
                 page=self.gb_page,
                 sort=self.gb_sort.get(),
