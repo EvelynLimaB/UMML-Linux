@@ -14,7 +14,7 @@ from .store import StoreError
 
 MAX_PREVIEW_BYTES = 12 * 1024 * 1024
 MAX_PREVIEW_PIXELS = 40_000_000
-DEFAULT_PREVIEW_SIZE = (420, 236)
+DEFAULT_PREVIEW_SIZE = (400, 190)
 
 
 class PreviewImageError(StoreError):
