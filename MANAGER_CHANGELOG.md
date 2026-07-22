@@ -1,5 +1,52 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha6 - 2026-07-22
+
+### Audit and verification
+
+- Added a standard-library AST audit for syntax, duplicate definitions, mutable defaults, bare exceptions, dangerous deserialization/extraction calls, `shell=True`, and core-layer import violations.
+- Expanded regression coverage with adversarial path, archive, immutable-source, provider, schema, baseline, recovery-snapshot, metadata-freshness, installation-binding, and failure-injection tests.
+- CI now separates compile, architecture audit, regression tests, metadata validation, frozen builds, package inspection, and full DEB/AppImage runtime-tree parity.
+- Failed regression runs upload their complete test log instead of leaving the useful traceback buried under runner setup output.
+
+### Deployment and recovery
+
+- Managed manifest, active-state, baseline, and recovery-journal paths are normalized and required to remain under their declared roots.
+- Prepared files are SHA-256 verified before deployment, and installed targets are verified after atomic replacement.
+- Active state and vanilla baselines are bound to a specific canonical `Persistent/dat` target so another installation cannot reuse them accidentally.
+- Deployment uses cross-process locks and durable transaction journals with snapshot, apply, and commit phases.
+- Interrupted transactions are recovered before another profile is applied; unreadable or tampered recovery material fails closed.
+- Recovery snapshots and vanilla baseline files now have independent SHA-256 integrity records.
+- Snapshot failures before mutation clean up without pretending a rollback failed.
+- Future active-state, registry, profile, journal, and baseline schema versions are rejected explicitly.
+
+### Imports, providers, and preparation
+
+- Local folder imports reject symbolic links and special files, enforce file/byte limits, and verify the copied tree still matches the pre-copy digest.
+- Mod version text no longer directly controls filesystem paths; display versions and safe storage components are separate.
+- Automatic discovery no longer treats every ZIP or ordinary `setting.json` as a mod.
+- Ambiguous wrapper folders are rejected rather than selecting one nested package arbitrarily.
+- Preparation is staged transactionally and preserves the last working prepared cache until the replacement and registry update both succeed.
+- Prepared records store the metadata database fingerprint and preparation time.
+- GameBanana downloads use immutable per-submission/per-file locations, temporary partial files, HTTPS redirect validation, JSON/download size limits, and exact archive provenance.
+- Remote GameBanana metadata is applied before selecting the immutable source path, keeping the record version and storage version consistent.
+
+### Profiles and future feature boundaries
+
+- Profiles now retain region, installation identity, and per-mod option space.
+- Plans block wrong-region mods, wrong-installation profiles, unsupported package backends, stale prepared caches, missing dependencies, declared incompatibilities, invalid manifests, missing mods, and unprepared mods.
+- Duplicate profile entries are deduplicated and reported instead of creating self-conflicts.
+- Added explicit provider and deployment-backend contracts.
+- Hachimi packages remain discoverable and preservable, but are clearly blocked until a separately tested runtime backend exists.
+- Added a phased feature roadmap covering multi-install targets, provider-neutral downloads, staged updates, deployment backends, native Studio tools, and the optional runtime bridge.
+
+### GUI and Studio
+
+- Background task callbacks are discarded after GUI shutdown instead of calling a destroyed Tcl interpreter.
+- Corrupt settings are quarantined with their original bytes preserved, then reset to defaults with a diagnostics warning.
+- Installation detection stores an installation key and prepared-metadata fingerprint; manual path edits deliberately clear verified identity.
+- The legacy Studio host watches the game for its full lifetime and closes when Umamusume starts.
+
 ## 0.2.0~alpha5 - 2026-07-22
 
 ### Fixed
