@@ -7,6 +7,7 @@ from tkinter import ttk
 from .discovery import default_search_roots
 from .providers.gamebanana import GameBananaMod
 from .store import ManagerStore, default_root
+from .ui_auto_prepare_actions import AutoPrepareActions
 from .ui_discover import DiscoverPage
 from .ui_discover_actions import DiscoverActions
 from .ui_library import LibraryPage
@@ -17,7 +18,12 @@ from .ui_system_actions import SystemActions
 from .ui_theme import BACKGROUND, SURFACE, TEXT, configure_theme
 
 
-class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
+class ManagerGUI(
+    AutoPrepareActions,
+    LibraryActions,
+    DiscoverActions,
+    SystemActions,
+):
     def __init__(self, root: tk.Tk, store: ManagerStore | None = None):
         self.root = root
         self.store = store or ManagerStore(default_root())
