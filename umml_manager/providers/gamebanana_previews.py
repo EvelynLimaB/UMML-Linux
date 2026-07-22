@@ -37,6 +37,14 @@ def primary_preview_url(data: dict[str, Any]) -> str:
                 filename.lstrip("/"),
             )
             parsed = urllib.parse.urlparse(url)
-            if parsed.scheme.casefold() == "https" and parsed.netloc:
+            hostname = (parsed.hostname or "").casefold()
+            if (
+                parsed.scheme.casefold() == "https"
+                and hostname
+                and (
+                    hostname == "gamebanana.com"
+                    or hostname.endswith(".gamebanana.com")
+                )
+            ):
                 return url
     return ""
