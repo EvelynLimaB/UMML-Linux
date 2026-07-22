@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tarfile
 import tempfile
 import zipfile
@@ -15,6 +16,11 @@ from typing import Any
 
 from .discovery import is_mod_root, locate_mod_root
 from .models import ModRecord, Profile, SourceSpec
+
+
+MAX_ARCHIVE_ENTRIES = 20_000
+MAX_ARCHIVE_UNCOMPRESSED_BYTES = 8 * 1024 * 1024 * 1024
+MAX_ARCHIVE_MEMBER_NAME = 4096
 
 
 class StoreError(RuntimeError):
@@ -130,7 +136,9 @@ class ManagerStore:
             except ValueError as exc:
                 raise StoreError(str(exc)) from exc
         metadata = read_mod_metadata(folder)
-        base_id = sanitize_id(mod_id or metadata.get("id") or metadata.get("title") or folder.name)
+        base_id = sanitize_id(
+            mod_id or metadata.get("id") or metadata.get("title") or folder.name
+        )
         version = str(metadata.get("mod_version") or metadata.get("version") or "0")
         existing = self.list_mods()
         chosen_id = _available_record_id(base_id, version, existing)
@@ -247,19 +255,40 @@ def extract_archive(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     if zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive) as package:
-            for member in package.infolist():
+            members = package.infolist()
+            _check_archive_limits(
+                archive,
+                len(members),
+                sum(max(0, member.file_size) for member in members),
+            )
+            for member in members:
                 _safe_member(member.filename)
-                if ((member.external_attr >> 16) & 0o170000) == 0o120000:
-                    raise StoreError(f"Archive symlink rejected: {member.filename}")
+                if member.flag_bits & 0x1:
+                    raise StoreError(
+                        f"Encrypted ZIP entry is unsupported: {member.filename}"
+                    )
+                mode_type = stat.S_IFMT(member.external_attr >> 16)
+                allowed = {0, stat.S_IFREG, stat.S_IFDIR}
+                if mode_type not in allowed:
+                    raise StoreError(
+                        f"Archive special file rejected: {member.filename}"
+                    )
             package.extractall(destination)
         return
     if tarfile.is_tarfile(archive):
         with tarfile.open(archive) as package:
             members = package.getmembers()
+            _check_archive_limits(
+                archive,
+                len(members),
+                sum(max(0, member.size) for member in members if member.isfile()),
+            )
             for member in members:
                 _safe_member(member.name)
-                if member.issym() or member.islnk() or member.isdev():
-                    raise StoreError(f"Archive link/device rejected: {member.name}")
+                if not (member.isfile() or member.isdir()):
+                    raise StoreError(
+                        f"Archive link, device, or special file rejected: {member.name}"
+                    )
             package.extractall(destination, members=members)
         return
     raise StoreError("Unsupported archive; use ZIP or TAR")
@@ -275,12 +304,29 @@ def hash_file(path: Path) -> str:
 
 def _safe_member(name: str) -> PurePosixPath:
     normalized = name.replace("\\", "/")
+    if len(normalized) > MAX_ARCHIVE_MEMBER_NAME:
+        raise StoreError("Archive member name is unreasonably long")
     path = PurePosixPath(normalized)
     if not normalized or path.is_absolute() or ".." in path.parts:
         raise StoreError(f"Unsafe archive path rejected: {name!r}")
     if path.parts and ":" in path.parts[0]:
         raise StoreError(f"Unsafe archive path rejected: {name!r}")
     return path
+
+
+def _check_archive_limits(archive: Path, count: int, expanded_bytes: int) -> None:
+    if count > MAX_ARCHIVE_ENTRIES:
+        raise StoreError(
+            f"Archive contains {count:,} entries; the safety limit is "
+            f"{MAX_ARCHIVE_ENTRIES:,}: {archive.name}"
+        )
+    if expanded_bytes > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
+        gib = expanded_bytes / (1024 * 1024 * 1024)
+        limit = MAX_ARCHIVE_UNCOMPRESSED_BYTES / (1024 * 1024 * 1024)
+        raise StoreError(
+            f"Archive expands to {gib:.2f} GiB; the safety limit is "
+            f"{limit:.0f} GiB: {archive.name}"
+        )
 
 
 def _available_record_id(base_id: str, version: str, existing: list[ModRecord]) -> str:
