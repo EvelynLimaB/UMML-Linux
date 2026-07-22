@@ -67,6 +67,10 @@ class ModRecord:
         update_policy = str(data.get("update_policy", "notify"))
         if update_policy not in SUPPORTED_UPDATE_POLICIES:
             update_policy = "notify"
+        package_type = str(data.get("package_type", PACKAGE_UMML_ASSETS))
+        capabilities = _string_list(data.get("capabilities", []))
+        if "capabilities" not in data:
+            capabilities = _default_capabilities(package_type)
         return cls(
             id=str(data["id"]),
             name=str(data.get("name") or data["id"]),
@@ -77,11 +81,14 @@ class ModRecord:
             source=SourceSpec.from_dict(data.get("source")),
             source_path=str(data.get("source_path", "")),
             prepared_path=str(data.get("prepared_path", "")),
-            files={str(key): str(value) for key, value in _mapping(data.get("files", {})).items()},
+            files={
+                str(key): str(value)
+                for key, value in _mapping(data.get("files", {})).items()
+            },
             imported_at=str(data.get("imported_at", "")),
             update_policy=update_policy,
-            package_type=str(data.get("package_type", PACKAGE_UMML_ASSETS)),
-            capabilities=_string_list(data.get("capabilities", [])),
+            package_type=package_type,
+            capabilities=capabilities,
             dependencies=_string_list(data.get("dependencies", [])),
             incompatibilities=_string_list(data.get("incompatibilities", [])),
             prepared_against=str(data.get("prepared_against", "")),
@@ -127,6 +134,14 @@ class Profile:
             "installation_key": self.installation_key,
             "options": {key: dict(value) for key, value in self.options.items()},
         }
+
+
+def _default_capabilities(package_type: str) -> list[str]:
+    if package_type == PACKAGE_UMML_ASSETS:
+        return ["prepare-assets", "deploy-files"]
+    if package_type == PACKAGE_HACHIMI:
+        return ["hachimi-runtime"]
+    return []
 
 
 def _optional_int(value: object) -> int | None:
