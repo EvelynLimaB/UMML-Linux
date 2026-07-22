@@ -16,7 +16,11 @@ class LibraryActions:
         for profile in profiles:
             if profile.name == name:
                 return profile
-        profile = Profile(name=name, region=self.region.get())
+        profile = Profile(
+            name=name,
+            region=self.region.get(),
+            installation_key=self.installation_key.get(),
+        )
         self.store.save_profile(profile)
         return profile
 
@@ -33,7 +37,13 @@ class LibraryActions:
     def refresh(self):
         profiles = self.store.list_profiles()
         if not profiles:
-            self.store.save_profile(Profile("Default", region=self.region.get()))
+            self.store.save_profile(
+                Profile(
+                    "Default",
+                    region=self.region.get(),
+                    installation_key=self.installation_key.get(),
+                )
+            )
             profiles = self.store.list_profiles()
         names = [item.name for item in profiles]
         self.library.profile_box.configure(values=names)
@@ -41,7 +51,10 @@ class LibraryActions:
             self.profile_name.set(names[0])
         profile = self.profile()
         self.profile_badge.configure(text=f"Profile: {profile.name}")
-        order = {mod_id: index + 1 for index, mod_id in enumerate(profile.enabled)}
+        order = {
+            mod_id: index + 1
+            for index, mod_id in enumerate(profile.enabled)
+        }
         needle = self.search_library.get().casefold().strip()
         mods = self.store.list_mods()
         if needle:
@@ -54,7 +67,12 @@ class LibraryActions:
                     f"{mod.package_type} {' '.join(mod.regions)}"
                 ).casefold()
             ]
-        mods.sort(key=lambda mod: (order.get(mod.id, 10**9), mod.name.casefold()))
+        mods.sort(
+            key=lambda mod: (
+                order.get(mod.id, 10**9),
+                mod.name.casefold(),
+            )
+        )
         tree = self.library.tree
         tree.delete(*tree.get_children())
         for mod in mods:
@@ -71,9 +89,9 @@ class LibraryActions:
                 ),
             )
         self.status.set(
-            f"{len(mods)} mod(s); {len(profile.enabled)} enabled in {profile.name}"
+            f"{len(mods)} mod(s); {len(profile.enabled)} enabled in "
+            f"{profile.name}"
         )
-        self.save_settings(silent=True)
 
     @staticmethod
     def _mod_status(mod) -> str:
@@ -102,21 +120,30 @@ class LibraryActions:
             + " • "
             + self._mod_status(mod)
         )
-        details = mod.description or "No description was supplied by this package."
+        details = (
+            mod.description
+            or "No description was supplied by this package."
+        )
         if mod.dependencies:
             details += "\n\nRequires: " + ", ".join(mod.dependencies)
         if mod.incompatibilities:
-            details += "\nConflicts with: " + ", ".join(mod.incompatibilities)
+            details += "\nConflicts with: " + ", ".join(
+                mod.incompatibilities
+            )
         self.library.set_description(details)
 
     def new_profile(self):
         name = simpledialog.askstring(
-            "New profile", "Profile name:", parent=self.root
+            "New profile",
+            "Profile name:",
+            parent=self.root,
         )
         if not name or not name.strip():
             return
         name = name.strip()
-        existing = {profile.name for profile in self.store.list_profiles()}
+        existing = {
+            profile.name for profile in self.store.list_profiles()
+        }
         if name in existing:
             messagebox.showwarning(
                 "Profile already exists",
@@ -124,12 +151,20 @@ class LibraryActions:
                 parent=self.root,
             )
             return
-        self.store.save_profile(Profile(name, region=self.region.get()))
+        self.store.save_profile(
+            Profile(
+                name,
+                region=self.region.get(),
+                installation_key=self.installation_key.get(),
+            )
+        )
         self.profile_name.set(name)
+        self.save_settings(silent=True)
         self.refresh()
 
     def _save_profile(self, profile: Profile) -> None:
         profile.region = self.region.get()
+        profile.installation_key = self.installation_key.get()
         self.store.save_profile(profile)
 
     def toggle_mod(self):
@@ -179,7 +214,11 @@ class LibraryActions:
             self._import(lambda: self.store.import_archive(path))
 
     def _import(self, operation):
-        self._run_task("Importing mod…", operation, self._finish_import)
+        self._run_task(
+            "Importing mod…",
+            operation,
+            self._finish_import,
+        )
 
     def _finish_import(self, record):
         self.refresh()
@@ -198,8 +237,8 @@ class LibraryActions:
         if record.package_type != PACKAGE_UMML_ASSETS:
             messagebox.showwarning(
                 "Preparation backend unavailable",
-                f"{record.name} uses {record.package_type}. The current asset preparation "
-                "backend only handles legacy UMML assets.",
+                f"{record.name} uses {record.package_type}. The current asset "
+                "preparation backend only handles legacy UMML assets.",
                 parent=self.root,
             )
             return
@@ -212,10 +251,15 @@ class LibraryActions:
             return
         self._run_task(
             f"Preparing {mod_id}…",
-            lambda: LegacyAssetAdapter(self.store, self.meta_path.get()).prepare(record),
+            lambda: LegacyAssetAdapter(
+                self.store,
+                self.meta_path.get(),
+            ).prepare(record),
             lambda prepared: (
                 self.refresh(),
-                self.status.set(f"Prepared {len(prepared.files)} asset(s)"),
+                self.status.set(
+                    f"Prepared {len(prepared.files)} asset(s)"
+                ),
             ),
         )
 
@@ -228,13 +272,20 @@ class LibraryActions:
             open_path(path)
             self.status.set(f"Editable copy created at {path}")
         except Exception as exc:
-            messagebox.showerror("Workspace failed", str(exc), parent=self.root)
+            messagebox.showerror(
+                "Workspace failed",
+                str(exc),
+                parent=self.root,
+            )
 
     def remove_selected(self):
         mod_id = self.selected_id()
         if not mod_id:
             return
-        if any(mod_id in profile.enabled for profile in self.store.list_profiles()):
+        if any(
+            mod_id in profile.enabled
+            for profile in self.store.list_profiles()
+        ):
             messagebox.showwarning(
                 "Mod is enabled",
                 "Disable this mod in every profile before removing it.",
@@ -243,7 +294,8 @@ class LibraryActions:
             return
         if messagebox.askyesno(
             "Remove mod",
-            f"Remove {mod_id} from the manager registry? Preserved source files are not deleted.",
+            f"Remove {mod_id} from the manager registry? Preserved source "
+            "files are not deleted.",
             parent=self.root,
         ):
             self.store.remove_mod(mod_id)
@@ -252,11 +304,14 @@ class LibraryActions:
     def render_plan(self):
         resolution = self.current_resolution()
         lines = [
-            f"PROFILE       {resolution.profile}",
-            f"TARGET REGION {resolution.target_region or 'unspecified'}",
-            f"FILES         {len(resolution.winners)}",
-            f"CONFLICTS     {len(resolution.conflicts)}",
-            f"BLOCKERS      {len(resolution.blocking_issues)}",
+            f"PROFILE        {resolution.profile}",
+            f"INSTALLATION   "
+            f"{self.profile().installation_key or 'manual/unbound'}",
+            f"TARGET REGION  "
+            f"{resolution.target_region or 'unspecified'}",
+            f"FILES          {len(resolution.winners)}",
+            f"CONFLICTS      {len(resolution.conflicts)}",
+            f"BLOCKERS       {len(resolution.blocking_issues)}",
             "",
         ]
         sections = (
@@ -266,8 +321,14 @@ class LibraryActions:
             ("Wrong region", resolution.incompatible),
             ("Invalid manifests", resolution.invalid),
             ("Missing dependencies", resolution.missing_dependencies),
-            ("Declared incompatibilities", resolution.incompatibility_conflicts),
-            ("Duplicate profile entries removed", resolution.duplicates),
+            (
+                "Declared incompatibilities",
+                resolution.incompatibility_conflicts,
+            ),
+            (
+                "Duplicate profile entries removed",
+                resolution.duplicates,
+            ),
         )
         for heading, values in sections:
             if values:
@@ -296,12 +357,27 @@ class LibraryActions:
                 parent=self.root,
             )
             return
+        profile = self.profile()
+        current_key = self.installation_key.get()
+        if (
+            profile.installation_key
+            and current_key
+            and profile.installation_key != current_key
+        ):
+            messagebox.showwarning(
+                "Wrong installation selected",
+                f"Profile {profile.name!r} is bound to "
+                f"{profile.installation_key}, but the current installation is "
+                f"{current_key}.",
+                parent=self.root,
+            )
+            return
         resolution = self.current_resolution()
         if resolution.blocking_issues:
             messagebox.showwarning(
                 "Profile is not ready",
-                "The profile was not applied. Open Conflicts for the complete list "
-                f"of {len(resolution.blocking_issues)} blocking issue(s).",
+                "The profile was not applied. Open Conflicts for the complete "
+                f"list of {len(resolution.blocking_issues)} blocking issue(s).",
                 parent=self.root,
             )
             self.show_page("conflicts")
@@ -314,7 +390,8 @@ class LibraryActions:
 
         def finished(result):
             recovery = (
-                f"; recovered {result.recovered_transactions} interrupted transaction(s)"
+                f"; recovered {result.recovered_transactions} interrupted "
+                "transaction(s)"
                 if result.recovered_transactions
                 else ""
             )
@@ -326,4 +403,8 @@ class LibraryActions:
             )
             self.status.set(f"Applied {resolution.profile}")
 
-        self._run_task("Applying profile transactionally…", operation, finished)
+        self._run_task(
+            "Applying profile transactionally…",
+            operation,
+            finished,
+        )
