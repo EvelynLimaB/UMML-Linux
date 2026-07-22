@@ -7,7 +7,7 @@
   <project_license>MIT</project_license>
   <description>
     <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and transactional deployment.</p>
-    <p>It can browse Global and Japan Umamusume GameBanana mods, detect compatible local mod folders and archives, and create editable workspace copies.</p>
+    <p>It automatically detects supported game installations, browses Global and Japan Umamusume GameBanana mods, detects compatible local mod folders and archives, and creates editable workspace copies.</p>
     <p>The built-in Studio preserves the legacy loader's character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.</p>
   </description>
   <launchable type="desktop-id">io.github.evelynlimab.ummlmanager.desktop</launchable>
@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha2" date="2026-07-21">
+      <description>
+        <p>Adds first-launch Steam and Proton detection and automatically prepares the readable metadata database.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha1" date="2026-07-21">
       <description>
         <p>Adds the polished multi-workspace interface, GameBanana browser, local mod detection, editable workspaces, and complete legacy Studio compatibility.</p>
