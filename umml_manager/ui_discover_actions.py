@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import threading
+import tkinter as tk
 import webbrowser
+from collections import OrderedDict
 from pathlib import Path
 from tkinter import filedialog
+from typing import Callable
 
 from .discovery import ModCandidate, default_search_roots, scan_mod_candidates
+from .preview_images import PreviewImage, PreviewImageLoader
 from .providers.gamebanana import GameBananaClient, GameBananaPage
 from .studio import open_path
 
@@ -22,13 +27,26 @@ class DiscoverActions:
             self._show_gamebanana_page,
         )
 
+    def _preview_runtime(self) -> tuple[int, OrderedDict[str, PreviewImage]]:
+        if not hasattr(self, "_gb_preview_serial"):
+            self._gb_preview_serial = 0
+        if not hasattr(self, "_gb_preview_cache"):
+            self._gb_preview_cache = OrderedDict()
+        return self._gb_preview_serial, self._gb_preview_cache
+
+    def _cancel_gamebanana_preview(self) -> None:
+        serial, _cache = self._preview_runtime()
+        self._gb_preview_serial = serial + 1
+
     def _clear_gamebanana_selection(self):
+        self._cancel_gamebanana_preview()
         self.gb_selected = None
         self.discover.gb_title.configure(text="Select a mod")
         self.discover.gb_meta.configure(
             text="Choose a result to inspect its files and metadata."
         )
         self.discover.gb_stats.configure(text="")
+        self.discover.set_gb_preview_state("Select a mod to load its preview.")
         self.discover.set_gb_description("")
         self.discover.gb_files.configure(values=())
         self.discover.gb_files.set("")
@@ -101,6 +119,115 @@ class DiscoverActions:
             self.discover.gb_files.set("")
             self.discover.install_gb_button.configure(state="disabled")
         self.discover.open_gb_button.configure(state="normal")
+        self._load_gamebanana_preview(mod.id, mod.image_url)
+
+    def _load_gamebanana_preview(self, mod_id: int, image_url: str) -> None:
+        self._cancel_gamebanana_preview()
+        serial, cache = self._preview_runtime()
+        token = serial
+        if not image_url:
+            self.discover.set_gb_preview_state(
+                "No preview image was returned for this mod."
+            )
+            return
+
+        cached = cache.get(image_url)
+        if cached is not None:
+            cache.move_to_end(image_url)
+            self._show_loaded_gamebanana_preview(token, mod_id, image_url, cached)
+            return
+
+        self.discover.set_gb_preview_state("Loading preview…")
+
+        def worker() -> None:
+            try:
+                preview = PreviewImageLoader().load(image_url)
+            except Exception as exc:
+                self._schedule_preview_callback(
+                    token,
+                    lambda error=exc: self._show_failed_gamebanana_preview(
+                        token,
+                        mod_id,
+                        image_url,
+                        error,
+                    ),
+                )
+            else:
+                self._schedule_preview_callback(
+                    token,
+                    lambda value=preview: self._show_loaded_gamebanana_preview(
+                        token,
+                        mod_id,
+                        image_url,
+                        value,
+                    ),
+                )
+
+        threading.Thread(
+            target=worker,
+            name=f"umml-preview-{mod_id}-{token}",
+            daemon=True,
+        ).start()
+
+    def _schedule_preview_callback(
+        self,
+        token: int,
+        callback: Callable[[], None],
+    ) -> None:
+        if self._closing or token != getattr(self, "_gb_preview_serial", -1):
+            return
+        try:
+            self.root.after(0, callback)
+        except tk.TclError:
+            self._closing = True
+
+    def _preview_is_current(self, token: int, mod_id: int, image_url: str) -> bool:
+        selected = self.gb_selected
+        return bool(
+            not self._closing
+            and token == getattr(self, "_gb_preview_serial", -1)
+            and selected is not None
+            and selected.id == mod_id
+            and selected.image_url == image_url
+            and str(mod_id) in self.gb_results
+        )
+
+    def _show_loaded_gamebanana_preview(
+        self,
+        token: int,
+        mod_id: int,
+        image_url: str,
+        preview: PreviewImage,
+    ) -> None:
+        if not self._preview_is_current(token, mod_id, image_url):
+            return
+        _serial, cache = self._preview_runtime()
+        cache[image_url] = preview
+        cache.move_to_end(image_url)
+        while len(cache) > 24:
+            cache.popitem(last=False)
+        size_kib = max(1, round(preview.byte_size / 1024))
+        self.discover.set_gb_preview_image(
+            preview.image,
+            source=f"GameBanana preview • {size_kib:,} KiB",
+        )
+
+    def _show_failed_gamebanana_preview(
+        self,
+        token: int,
+        mod_id: int,
+        image_url: str,
+        error: Exception,
+    ) -> None:
+        if not self._preview_is_current(token, mod_id, image_url):
+            return
+        message = " ".join(str(error).split())
+        if len(message) > 120:
+            message = message[:117] + "…"
+        self.discover.set_gb_preview_state(
+            "Preview unavailable. The mod can still be inspected and installed.",
+            source=message,
+        )
 
     def change_gamebanana_page(self, delta: int):
         target = self.gb_page + delta
