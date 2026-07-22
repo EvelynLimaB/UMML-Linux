@@ -7,7 +7,7 @@
   <project_license>MIT</project_license>
   <description>
     <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and verified transactional deployment.</p>
-    <p>It detects supported game installations, browses Global and Japan Umamusume GameBanana mods, finds compatible local packages, creates editable copies, and rejects stale or incompatible profile plans.</p>
+    <p>It detects supported game installations, browses Global and Japan Umamusume GameBanana mods with bounded preview images, finds compatible local packages, creates editable copies, and rejects stale or incompatible profile plans.</p>
     <p>The built-in Studio preserves the legacy loader's character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.</p>
   </description>
   <launchable type="desktop-id">io.github.evelynlimab.ummlmanager.desktop</launchable>
@@ -21,9 +21,14 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha7" date="2026-07-22">
+      <description>
+        <p>Completes the preview-provider wiring, runs manager regressions with the full pinned runtime dependency set, verifies Pillow imaging support in both package formats, and synchronizes release documentation after the triple audit.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha6" date="2026-07-22">
       <description>
-        <p>Adds a full source audit, versioned persistent schemas, path-contained and hash-verified deployment, target-scoped baselines, durable recovery journals, tamper detection, stale metadata checks, provider/backend contracts, and an expanded adversarial test suite.</p>
+        <p>Adds a full source audit, versioned persistent schemas, path-contained and hash-verified deployment, target-scoped baselines, durable recovery journals, tamper detection, stale metadata checks, provider/backend contracts, selected-mod previews, and an expanded adversarial test suite.</p>
       </description>
     </release>
     <release version="0.2.0-alpha5" date="2026-07-22">
