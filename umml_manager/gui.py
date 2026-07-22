@@ -21,6 +21,10 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
     def __init__(self, root: tk.Tk, store: ManagerStore | None = None):
         self.root = root
         self.store = store or ManagerStore(default_root())
+        self._closing = False
+        self._busy = False
+        self._task_serial = 0
+        self._nav_buttons = {}
         settings = self.store.load_settings()
         self.profile_name = tk.StringVar(value=str(settings.get("profile", "Default")))
         self.dat_path = tk.StringVar(value=str(settings.get("dat_path", "")))
@@ -49,8 +53,6 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
             value="; ".join(str(item) for item in roots)
         )
         self.local_candidates = {}
-        self._busy = False
-        self._nav_buttons = {}
 
         root.title("UMML Manager")
         root.geometry("1220x780")
@@ -58,6 +60,7 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         root.configure(background=BACKGROUND)
         root.columnconfigure(0, weight=1)
         root.rowconfigure(1, weight=1)
+        root.protocol("WM_DELETE_WINDOW", self.close)
         configure_theme(root)
         self._build_header()
         self._build_body()
@@ -73,8 +76,21 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
             )
             self.root.after(
                 300,
-                lambda: self.autofill_installation(automatic=True),
+                lambda: self.autofill_installation(automatic=True)
+                if not self._closing
+                else None,
             )
+
+    def close(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        self._task_serial += 1
+        try:
+            self.progress.stop()
+        except tk.TclError:
+            pass
+        self.root.destroy()
 
     def _saved_installation_is_ready(self) -> bool:
         try:
@@ -91,7 +107,9 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(1, weight=1)
         ttk.Label(header, text="UMML", style="Title.TLabel").grid(
-            row=0, column=0, sticky="w"
+            row=0,
+            column=0,
+            sticky="w",
         )
         ttk.Label(
             header,
@@ -101,7 +119,9 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         badges = ttk.Frame(header)
         badges.grid(row=0, column=2, sticky="e")
         self.profile_badge = ttk.Label(
-            badges, text="Profile: Default", style="Badge.TLabel"
+            badges,
+            text="Profile: Default",
+            style="Badge.TLabel",
         )
         self.profile_badge.pack(side="left", padx=4)
         self.game_badge = ttk.Label(
@@ -199,12 +219,16 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         footer.grid(row=2, column=0, sticky="ew")
         footer.columnconfigure(0, weight=1)
         ttk.Label(footer, textvariable=self.status, style="Muted.TLabel").grid(
-            row=0, column=0, sticky="w"
+            row=0,
+            column=0,
+            sticky="w",
         )
         self.progress = ttk.Progressbar(footer, mode="indeterminate", length=210)
         self.progress.grid(row=0, column=1, sticky="e")
 
     def show_page(self, key: str):
+        if self._closing:
+            return
         self.pages[key].tkraise()
         self.page_title.set(key.title())
         for name, button in self._nav_buttons.items():
