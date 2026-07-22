@@ -30,7 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
     browse = sub.add_parser("browse")
     browse.add_argument("--region", choices=("global", "japan"), default="global")
     browse.add_argument("--page", type=int, default=1)
-    browse.add_argument("--sort", choices=("updated", "newest", "popular", "downloads", "views"), default="updated")
+    browse.add_argument(
+        "--sort",
+        choices=("updated", "newest", "popular", "downloads", "views"),
+        default="updated",
+    )
     browse.add_argument("--query", default="")
     gb = sub.add_parser("gamebanana")
     gb.add_argument("url")
@@ -71,20 +75,41 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{mod.id}\t{mod.version}\t{status}\t{mod.name}")
         elif args.command == "import":
             path = Path(args.path)
-            record = store.import_folder(path, mod_id=args.id) if path.is_dir() else store.import_archive(path, mod_id=args.id)
+            record = (
+                store.import_folder(path, mod_id=args.id)
+                if path.is_dir()
+                else store.import_archive(path, mod_id=args.id)
+            )
             print(record.id)
         elif args.command == "scan":
             roots = [Path(item) for item in args.paths] or default_search_roots()
             for candidate in scan_mod_candidates(roots, max_depth=args.depth):
-                print(f"{candidate.kind}\t{candidate.confidence}\t{candidate.path}\t{candidate.reason}")
+                print(
+                    f"{candidate.kind}\t{candidate.confidence}\t"
+                    f"{candidate.path}\t{candidate.reason}"
+                )
         elif args.command == "browse":
-            page = GameBananaClient().browse(region=args.region, page=args.page, sort=args.sort, query=args.query)
+            page = GameBananaClient().browse(
+                region=args.region,
+                page=args.page,
+                sort=args.sort,
+                query=args.query,
+            )
             for mod in page.mods:
-                print(f"{mod.id}\t{mod.likes}\t{mod.downloads}\t{mod.author}\t{mod.name}")
+                print(
+                    f"{mod.id}\t{mod.likes}\t{mod.downloads}\t"
+                    f"{mod.author}\t{mod.name}"
+                )
         elif args.command == "gamebanana":
-            print(GameBananaClient().import_mod(store, args.url, file_id=args.file_id).id)
+            print(
+                GameBananaClient()
+                .import_mod(store, args.url, file_id=args.file_id)
+                .id
+            )
         elif args.command == "prepare":
-            record = LegacyAssetAdapter(store, args.meta).prepare(store.get_mod(args.mod_id))
+            record = LegacyAssetAdapter(store, args.meta).prepare(
+                store.get_mod(args.mod_id)
+            )
             print(f"Prepared {len(record.files)} assets for {record.id}")
         elif args.command == "workspace":
             print(store.create_workspace(args.mod_id))
@@ -92,26 +117,49 @@ def main(argv: list[str] | None = None) -> int:
             store.save_profile(Profile(args.name, list(args.mods)))
             print(args.name)
         elif args.command in {"plan", "apply"}:
-            resolution = resolve_profile(store.get_profile(args.profile), store.list_mods())
+            resolution = resolve_profile(
+                store.get_profile(args.profile), store.list_mods()
+            )
             if args.command == "plan":
-                print(json.dumps({
-                    "profile": resolution.profile,
-                    "files": len(resolution.winners),
-                    "missing": resolution.missing,
-                    "conflicts": [conflict.__dict__ for conflict in resolution.conflicts],
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "profile": resolution.profile,
+                            "files": len(resolution.winners),
+                            "missing": resolution.missing,
+                            "unprepared": resolution.unprepared,
+                            "conflicts": [
+                                conflict.__dict__ for conflict in resolution.conflicts
+                            ],
+                        },
+                        indent=2,
+                    )
+                )
             else:
-                result = ApplyEngine(store, args.dat, game_dir=args.game_dir).apply(resolution, force=args.force)
-                print(f"Installed {result.installed}; restored {result.restored}; unchanged {result.unchanged}")
+                result = ApplyEngine(
+                    store, args.dat, game_dir=args.game_dir
+                ).apply(resolution, force=args.force)
+                print(
+                    f"Installed {result.installed}; restored {result.restored}; "
+                    f"unchanged {result.unchanged}"
+                )
         elif args.command == "updates":
             client = GameBananaClient()
-            records = [store.get_mod(args.mod_id)] if args.mod_id else store.list_mods()
+            records = (
+                [store.get_mod(args.mod_id)] if args.mod_id else store.list_mods()
+            )
             for record in records:
                 update = client.update_available(record)
                 if update:
                     print(f"{record.id}\t{update.id}\t{update.name}")
         elif args.command == "studio":
-            LegacyToolLauncher().launch(args.tool, dat_path=args.dat, game_dir=args.game_dir, meta_path=args.meta, region=args.region)
+            LegacyToolLauncher().launch(
+                args.tool,
+                dat_path=args.dat,
+                game_dir=args.game_dir,
+                meta_path=args.meta,
+                region=args.region,
+            )
         return 0
     except StoreError as exc:
         print(f"error: {exc}")
