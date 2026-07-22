@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha4" date="2026-07-22">
+      <description>
+        <p>Adds an AppImage built from the same frozen runtime as the Debian package, shared checksum artifacts, package-parity checks, and bounded archive extraction.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha3" date="2026-07-21">
       <description>
         <p>Separates source application files from user data, prevents stale launchers from shadowing the Debian package, and hardens profile, registry, deployment-state, import, and GameBanana behavior.</p>
