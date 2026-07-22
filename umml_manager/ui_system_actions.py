@@ -39,6 +39,10 @@ class SystemActions:
             self.meta_path.set(str(installation.meta_path))
             self.game_dir.set(str(installation.game_dir))
             self.region.set(installation.region)
+            self.installation_key.set(installation.key)
+            self.metadata_fingerprint.set(
+                installation.metadata_fingerprint
+            )
             if installation.region in {"global", "japan"}:
                 self.gb_region.set(installation.region)
             self.installation_status.set(
@@ -67,14 +71,25 @@ class SystemActions:
             failed=failed,
         )
 
+    def _mark_manual_installation(self) -> None:
+        self.installation_key.set("")
+        self.metadata_fingerprint.set("")
+
     def choose_dat(self):
         path = filedialog.askdirectory(parent=self.root)
         if path:
             chosen = Path(path)
-            if chosen.name.casefold() != "dat" and (chosen / "dat").is_dir():
+            if (
+                chosen.name.casefold() != "dat"
+                and (chosen / "dat").is_dir()
+            ):
                 chosen /= "dat"
             self.dat_path.set(str(chosen))
-            self.installation_status.set("Using manually selected game data.")
+            self._mark_manual_installation()
+            self.installation_status.set(
+                "Using manually selected game data. Re-detect to restore a "
+                "verified installation identity."
+            )
             self.save_settings(silent=True)
 
     def choose_meta(self):
@@ -84,14 +99,21 @@ class SystemActions:
         )
         if path:
             self.meta_path.set(path)
-            self.installation_status.set("Using manually selected metadata.")
+            self._mark_manual_installation()
+            self.installation_status.set(
+                "Using manually selected metadata. Re-detect to fingerprint it."
+            )
             self.save_settings(silent=True)
 
     def choose_game_dir(self):
         path = filedialog.askdirectory(parent=self.root)
         if path:
             self.game_dir.set(path)
-            self.installation_status.set("Using manually selected game directory.")
+            self._mark_manual_installation()
+            self.installation_status.set(
+                "Using manually selected game directory. Re-detect to restore "
+                "a verified installation identity."
+            )
             self.save_settings(silent=True)
 
     def save_settings(self, silent: bool = False):
@@ -107,6 +129,8 @@ class SystemActions:
                 "meta_path": self.meta_path.get(),
                 "game_dir": self.game_dir.get(),
                 "region": self.region.get(),
+                "installation_key": self.installation_key.get(),
+                "metadata_fingerprint": self.metadata_fingerprint.get(),
                 "gamebanana_region": self.gb_region.get(),
                 "scan_roots": roots,
             }
@@ -115,7 +139,13 @@ class SystemActions:
             self.status.set("Settings saved")
 
     def open_manager_path(self, name: str):
-        allowed = {"root", "sources", "prepared", "workspaces", "transactions"}
+        allowed = {
+            "root",
+            "sources",
+            "prepared",
+            "workspaces",
+            "transactions",
+        }
         if name not in allowed:
             raise ValueError(f"Unsupported manager path: {name}")
         path = getattr(self.store.paths, name)
@@ -153,20 +183,42 @@ class SystemActions:
         box.insert("1.0", report)
         box.configure(state="disabled")
         self.status.set(
-            "Diagnostics READY" if ready else "Diagnostics found incomplete setup"
+            "Diagnostics READY"
+            if ready
+            else "Diagnostics found incomplete setup"
         )
 
     def _manager_diagnostics(self) -> tuple[str, bool]:
         lines = [f"Data root: {self.store.paths.root}"]
         ready = True
+        if self.store.settings_warning:
+            lines.append(
+                "Settings recovery: CHECK ("
+                + self.store.settings_warning
+                + ")"
+            )
+            ready = False
+        else:
+            lines.append("Settings document: READY")
         try:
             mods = self.store.list_mods()
             profiles = self.store.list_profiles()
             lines.append(f"Mod registry: READY ({len(mods)} records)")
-            lines.append(f"Profile registry: READY ({len(profiles)} profiles)")
+            lines.append(
+                f"Profile registry: READY ({len(profiles)} profiles)"
+            )
         except Exception as exc:
             lines.append(f"Registry validation: FAILED ({exc})")
             ready = False
+        lines.append(
+            "Installation identity: "
+            + (self.installation_key.get() or "manual/unverified")
+        )
+        fingerprint = self.metadata_fingerprint.get()
+        lines.append(
+            "Metadata fingerprint: "
+            + (fingerprint if fingerprint else "not recorded")
+        )
         pending = []
         if self.store.paths.transactions.is_dir():
             pending = [
@@ -185,7 +237,11 @@ class SystemActions:
             lines.append("Interrupted deployment directories: NONE")
         lines.append(
             "Active deployment state: "
-            + ("present" if self.store.paths.state.is_file() else "none")
+            + (
+                "present"
+                if self.store.paths.state.is_file()
+                else "none"
+            )
         )
         return "\n".join(lines), ready
 
@@ -193,10 +249,14 @@ class SystemActions:
         if self._closing:
             return
         try:
-            running = running_game_processes(self.game_dir.get() or None)
+            running = running_game_processes(
+                self.game_dir.get() or None
+            )
             if running:
                 self.game_status.set("Game running")
-                self.game_badge.configure(style="Warning.Badge.TLabel")
+                self.game_badge.configure(
+                    style="Warning.Badge.TLabel"
+                )
             else:
                 self.game_status.set("Game closed")
                 self.game_badge.configure(style="Good.Badge.TLabel")
@@ -220,7 +280,11 @@ class SystemActions:
             return
         if self._busy:
             if failed:
-                failed(RuntimeError("Another UMML operation is still running."))
+                failed(
+                    RuntimeError(
+                        "Another UMML operation is still running."
+                    )
+                )
             else:
                 messagebox.showinfo(
                     "UMML is busy",
@@ -262,7 +326,11 @@ class SystemActions:
             daemon=True,
         ).start()
 
-    def _schedule_task_callback(self, task_id: int, callback: Callable[[], None]) -> None:
+    def _schedule_task_callback(
+        self,
+        task_id: int,
+        callback: Callable[[], None],
+    ) -> None:
         if self._closing or task_id != self._task_serial:
             return
         try:
@@ -303,4 +371,8 @@ class SystemActions:
             failed(exc)
             return
         self.status.set("Operation failed")
-        messagebox.showerror("Operation failed", str(exc), parent=self.root)
+        messagebox.showerror(
+            "Operation failed",
+            str(exc),
+            parent=self.root,
+        )
