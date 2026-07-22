@@ -1,5 +1,22 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha5 - 2026-07-22
+
+### Fixed
+
+- GameBanana HTTPS now resolves the target system's certificate trust store instead of relying on OpenSSL paths inherited from the Ubuntu build runner.
+- Fedora, Bazzite, RHEL, Debian, Ubuntu, Mint, Alpine, SUSE, and common BSD-style CA bundle locations are recognized.
+- `SSL_CERT_FILE` and `SSL_CERT_DIR` are honored and validated explicitly.
+- A bundled `certifi` Mozilla CA bundle provides a portable fallback when the target system path cannot be resolved.
+- GameBanana certificate failures now report the selected trust source and never recommend disabling verification.
+
+### Diagnostics and packaging
+
+- Manager diagnostics now report whether HTTPS certificate verification is ready and which CA file or directory is selected.
+- Dedicated TLS tests cover Fedora/Bazzite path fallback, invalid explicit environment paths, SSL context construction, diagnostics, and actionable GameBanana errors.
+- The frozen DEB and AppImage are both inspected for the bundled `certifi/cacert.pem` file.
+- Complete frozen-runtime parity checks between the source bundle, DEB, and AppImage remain required.
+
 ## 0.2.0~alpha4 - 2026-07-22
 
 ### Added
