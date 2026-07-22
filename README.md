@@ -32,7 +32,7 @@ Download the DEB or AppImage from [GitHub Releases](https://github.com/EvelynLim
 
 ### UMML Manager preview
 
-Current manager preview: **`0.2.0~alpha8`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
+Current manager preview: **`0.2.0~alpha9`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
 
 Until it becomes a permanent Release asset, open the [manager branch workflow runs](https://github.com/EvelynLimaB/UMML-Linux/actions/workflows/manager-checks.yml?query=branch%3Aagent%2Fumml-manager-foundation) and download:
 
@@ -43,7 +43,7 @@ Until it becomes a permanent Release asset, open the [manager branch workflow ru
 #### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha8_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha9_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -52,15 +52,15 @@ The absolute command is useful when testing upgrades from early source previews.
 #### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha8_x86_64.AppImage
-./umml-manager_0.2.0-alpha8_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha9_x86_64.AppImage
+./umml-manager_0.2.0-alpha9_x86_64.AppImage
 ```
 
 CLI mode is available from the same file:
 
 ```bash
-./umml-manager_0.2.0-alpha8_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha8_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha9_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha9_x86_64.AppImage --cli list
 ```
 
 The DEB and AppImage are built from the same frozen runtime and use the same user data directory, `~/.local/share/umml-manager`. CI extracts both finished packages and compares their complete embedded runtime trees.
@@ -77,6 +77,8 @@ sha256sum -c SHA256SUMS
 
 - guided Steam/Proton/DMM installation detection and prepared-metadata fingerprinting;
 - immutable installed source versions and editable workspace copies;
+- automatic preparation of compatible imports while profile application remains explicit;
+- safe normalization of provider-confirmed loose legacy UMML asset archives;
 - named profiles with explicit load order, target region, and installation identity;
 - blockers for missing dependencies, declared incompatibilities, wrong regions, unsupported backends, stale prepared caches, and invalid manifests;
 - path-contained, hash-verified deployment with target-scoped active state and vanilla baselines;
@@ -97,7 +99,7 @@ Read [MANAGER_README.md](MANAGER_README.md) for the user workflow, [docs/MANAGER
 
 1. Open the manager and let **Settings** detect the installation and prepare metadata.
 2. Browse GameBanana or scan Downloads/custom folders in **Discover**.
-3. Import and prepare compatible mods in **Library**.
+3. Import a compatible mod; the manager prepares it automatically when metadata is ready.
 4. Enable and order mods in a profile bound to the intended installation.
 5. Inspect **Conflicts** for file winners and every deployment blocker.
 6. Close the game and apply the profile.
