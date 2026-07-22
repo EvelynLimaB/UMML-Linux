@@ -1,5 +1,20 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha2 - 2026-07-21
+
+### Fixed
+
+- First launch now invokes the existing Steam, Proton, DMM, and regional installation detector instead of leaving every path field blank.
+- Detected encrypted metadata is automatically converted into UMML's validated readable `meta_decrypted_*.db` cache.
+- Saved paths are validated at startup and re-detected when missing or stale.
+- Background-task error callbacks now capture exceptions safely instead of retaining a cleared Python exception variable.
+
+### Changed
+
+- Settings begins with a guided **Auto-detect installation** action and explains when manual paths are needed.
+- Path labels now distinguish the game installation, `Persistent/dat`, and the prepared metadata database.
+- Taiwan is retained as a selectable game region even though the GameBanana browser currently exposes Global and Japan catalogues.
+
 ## 0.2.0~alpha1 - 2026-07-21
 
 ### Added
