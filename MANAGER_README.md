@@ -2,12 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but it deliberately preserves the loader's useful editing tools rather than replacing them with a decorative list of toggles.
 
-> **Preview:** `0.2.0~alpha3`. Profiles, conflict planning, transactional deployment, automatic installation detection, local discovery, GameBanana browsing, editable workspaces, and the legacy Studio bridge are implemented. Real-game testing is still required before a stable release.
+> **Preview:** `0.2.0~alpha4`. Profiles, conflict planning, transactional deployment, automatic installation detection, local discovery, GameBanana browsing, editable workspaces, the legacy Studio bridge, and separate DEB/AppImage packaging are implemented. Real-game testing is still required before a stable release.
 
 ## Install
 
+### Debian package
+
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha3_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha4_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -15,10 +17,33 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 
 The Debian desktop file launches `/usr/bin/umml-manager` directly. This avoids an older source-installed `~/.local/bin/umml-manager` shadowing the package.
 
-Current CI artifact DEB SHA-256:
+### AppImage
+
+```bash
+chmod +x ./umml-manager_0.2.0-alpha4_x86_64.AppImage
+./umml-manager_0.2.0-alpha4_x86_64.AppImage
+```
+
+The AppImage supports the same CLI without installing files into `/usr`:
+
+```bash
+./umml-manager_0.2.0-alpha4_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli browse --region global
+```
+
+The DEB and AppImage are built from the same PyInstaller bundle. CI extracts the AppImage and compares its embedded `umml-manager-bin` byte-for-byte with the frozen bundle used to build the DEB.
+
+Both formats use the same user data directory:
 
 ```text
-4e446e27a81280336d539279dda9457cce0e9d85c38cd1ccfdd9d52fc0aabe1e
+~/.local/share/umml-manager
+```
+
+Changing package format does not create a second library or alter profiles. Download the external `umml-manager-checksums` workflow artifact and verify either package with:
+
+```bash
+sha256sum -c SHA256SUMS
 ```
 
 ### Historical source-install cleanup
@@ -78,6 +103,8 @@ umml-manager-cli browse --region japan --query texture
 umml-manager-cli gamebanana https://gamebanana.com/mods/123456
 ```
 
+For AppImage CLI usage, prefix those commands with the AppImage filename and `--cli`.
+
 ## Automatic mod detection
 
 The local Discover page scans bounded roots such as Downloads, Documents, Desktop, and user-added folders. It detects:
@@ -90,6 +117,15 @@ The local Discover page scans bounded roots such as Downloads, Documents, Deskto
 - ZIP and TAR archives containing recognizable mod markers.
 
 The scanner is depth- and entry-limited and skips Steam libraries, Proton prefixes, VCS directories, caches, and dependency trees. Selecting a parent download folder is enough; the importer resolves the real nested mod root.
+
+Archive extraction is independently constrained before any files are written:
+
+- maximum 20,000 entries;
+- maximum 8 GiB declared expanded size;
+- traversal and absolute paths rejected;
+- links, devices, FIFOs, and ZIP special files rejected;
+- encrypted ZIP entries rejected;
+- unusually long member names rejected.
 
 A pure Hachimi package may be discovered and preserved in the library, but the current transactional hash-asset deployer does not install Hachimi runtime layouts. It remains **unprepared** and therefore blocks profile application instead of silently pretending to work.
 
@@ -117,7 +153,7 @@ The Studio compatibility host exposes the complete legacy loader interface plus 
 - master database reset;
 - regular asset preview, manual loading, restoration, and the rest of the legacy workspace.
 
-Mutating legacy actions are guarded and refuse to run while Umamusume is detected. The compatibility host is included in the manager package, so installing the separate legacy DEB is not required for Studio.
+Mutating legacy actions are guarded and refuse to run while Umamusume is detected. The compatibility host is included in both manager package formats, so installing the separate legacy DEB is not required for Studio.
 
 ## Profiles and deployment
 
@@ -148,7 +184,14 @@ umml-manager-cli plan Default
 umml-manager-cli apply Default --dat /path/to/Persistent/dat --game-dir /path/to/game
 ```
 
-## Development
+AppImage equivalent:
+
+```bash
+./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli plan Default
+```
+
+## Development and packaging
 
 ```bash
 python3 -m venv .venv
@@ -157,7 +200,10 @@ python -m pip install -r requirements.txt -r requirements-build.txt
 bash scripts/check_manager.sh
 bash scripts/build_manager_frozen.sh
 bash scripts/build_manager_deb.sh
+bash scripts/build_manager_appimage.sh
 ```
+
+`build_manager_appimage.sh` downloads the official AppImageKit `appimagetool` continuous asset over HTTPS and verifies it against a pinned SHA-256 before running it. Upstream replacement of that tool therefore fails CI until the new binary is reviewed and its pin is deliberately updated.
 
 Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMENT.md`, and `docs/PACKAGING.md` before changing state, deployment, providers, archives, or packaging.
 
