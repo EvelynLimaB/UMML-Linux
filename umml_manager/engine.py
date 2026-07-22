@@ -17,7 +17,9 @@ from .safety import (
     atomic_copy_file,
     atomic_write_json,
     hash_file,
+    normalize_relative_path,
     path_under,
+    validate_sha256,
 )
 from .store import ManagerStore
 
@@ -65,7 +67,7 @@ class ApplyEngine:
                 self._assert_game_closed()
                 self._ensure_baseline_scope()
                 active_document = self._read_active_document()
-                active = dict(active_document.get("files", {}))
+                active = dict(active_document["files"])
                 desired = resolution.winners
                 affected = sorted(set(active) | set(desired))
                 self._validate_sources(desired)
@@ -92,15 +94,23 @@ class ApplyEngine:
             ("Missing dependencies", resolution.missing_dependencies),
             ("Declared incompatibilities", resolution.incompatibility_conflicts),
         )
-        problems = [f"{label}: {', '.join(values)}" for label, values in groups if values]
+        problems = [
+            f"{label}: {', '.join(values)}"
+            for label, values in groups
+            if values
+        ]
         if problems:
             raise ApplyError("Profile cannot be applied.\n" + "\n".join(problems))
 
     def _assert_game_closed(self) -> None:
         running = self.process_check(self.game_dir)
         if running:
-            names = ", ".join(sorted({getattr(item, "name", "game") for item in running}))
-            raise ApplyError(f"Game is running ({names}); close it before applying changes")
+            names = ", ".join(
+                sorted({getattr(item, "name", "game") for item in running})
+            )
+            raise ApplyError(
+                f"Game is running ({names}); close it before applying changes"
+            )
 
     def _validate_sources(self, desired: dict) -> None:
         failures: list[str] = []
@@ -199,7 +209,7 @@ class ApplyEngine:
                 recovered_transactions=recovered,
             )
         except Exception as exc:
-            rollback_error = None
+            rollback_error: Exception | None = None
             try:
                 self._rollback(snapshots, manifest)
                 if active_written:
@@ -218,19 +228,29 @@ class ApplyEngine:
                 raise
             raise ApplyError(f"Apply failed and was rolled back: {exc}") from exc
 
-    def _capture_baseline(self, relative: str, target: Path, active_record: object) -> None:
+    def _capture_baseline(
+        self,
+        relative: str,
+        target: Path,
+        active_record: object,
+    ) -> None:
         baseline = path_under(self.store.paths.baseline, relative)
         marker = baseline.with_name(baseline.name + ".umml-missing")
         if baseline.exists() or marker.exists():
             if active_record:
                 return
-            if baseline.is_file() and target.is_file() and hash_file(baseline) == hash_file(target):
+            if (
+                baseline.is_file()
+                and target.is_file()
+                and hash_file(baseline) == hash_file(target)
+            ):
                 return
             if marker.is_file() and not target.exists():
                 return
             raise ApplyError(
                 f"The vanilla baseline for {relative} no longer matches the game. "
-                "A game update or another tool changed this path. Baseline refresh must be explicit."
+                "A game update or another tool changed this path. Baseline refresh "
+                "must be explicit."
             )
         baseline.parent.mkdir(parents=True, exist_ok=True)
         if target.is_file():
@@ -257,7 +277,12 @@ class ApplyEngine:
             "The active state was preserved and no further files were changed."
         )
 
-    def _check_external_changes(self, active: dict, affected: list[str], force: bool) -> None:
+    def _check_external_changes(
+        self,
+        active: dict,
+        affected: list[str],
+        force: bool,
+    ) -> None:
         if force:
             return
         conflicts: list[str] = []
@@ -266,14 +291,14 @@ class ApplyEngine:
             if not isinstance(record, dict):
                 continue
             target = path_under(self.dat_path, relative)
-            expected = str(record.get("sha256", ""))
-            if not target.is_file() or not expected or hash_file(target) != expected:
+            expected = str(record["sha256"])
+            if not target.is_file() or hash_file(target) != expected:
                 conflicts.append(relative)
         if conflicts:
             sample = ", ".join(conflicts[:5])
             raise ApplyError(
-                f"{len(conflicts)} active asset(s) changed outside UMML Manager ({sample}). "
-                "Refusing to overwrite them without --force."
+                f"{len(conflicts)} active asset(s) changed outside UMML Manager "
+                f"({sample}). Refusing to overwrite them without --force."
             )
 
     def _rollback(self, snapshots: Path, manifest: dict[str, bool]) -> None:
@@ -293,7 +318,10 @@ class ApplyEngine:
             except Exception as exc:
                 failures.append(f"{relative}: {exc}")
         if failures:
-            raise ApplyError("Rollback could not restore every path:\n" + "\n".join(failures[:20]))
+            raise ApplyError(
+                "Rollback could not restore every path:\n"
+                + "\n".join(failures[:20])
+            )
 
     def _recover_incomplete_transactions(self) -> int:
         root = self.store.paths.transactions
@@ -316,23 +344,52 @@ class ApplyEngine:
             phase = str(journal.get("phase", ""))
             manifest = journal.get("manifest", {})
             if not isinstance(manifest, dict):
-                raise ApplyError(f"Invalid deployment snapshot manifest: {journal_path}")
+                raise ApplyError(
+                    f"Invalid deployment snapshot manifest: {journal_path}"
+                )
+            normalized_manifest = self._validate_snapshot_manifest(manifest, journal_path)
+
+            # Snapshotting cannot have modified the game. It is deliberately
+            # cleaned before active-state migration, including old alpha state.
+            if phase == "snapshotting":
+                shutil.rmtree(transaction, ignore_errors=True)
+                recovered += 1
+                continue
+
             active_document = self._read_active_document(allow_legacy=False)
             if active_document.get("transaction_id") == transaction.name:
                 shutil.rmtree(transaction, ignore_errors=True)
                 recovered += 1
                 continue
-            if phase == "snapshotting":
-                shutil.rmtree(transaction, ignore_errors=True)
-                recovered += 1
-                continue
             if phase in {"applying", "committed"}:
-                self._rollback(transaction / "snapshots", {str(key): bool(value) for key, value in manifest.items()})
+                self._rollback(transaction / "snapshots", normalized_manifest)
                 shutil.rmtree(transaction, ignore_errors=True)
                 recovered += 1
                 continue
-            raise ApplyError(f"Unknown deployment journal phase {phase!r}: {journal_path}")
+            raise ApplyError(
+                f"Unknown deployment journal phase {phase!r}: {journal_path}"
+            )
         return recovered
+
+    @staticmethod
+    def _validate_snapshot_manifest(
+        manifest: dict,
+        journal_path: Path,
+    ) -> dict[str, bool]:
+        result: dict[str, bool] = {}
+        for relative, existed in manifest.items():
+            try:
+                canonical = normalize_relative_path(str(relative))
+            except SafetyError as exc:
+                raise ApplyError(
+                    f"Unsafe path in deployment journal {journal_path}: {relative!r}"
+                ) from exc
+            if canonical in result:
+                raise ApplyError(
+                    f"Duplicate path in deployment journal {journal_path}: {canonical}"
+                )
+            result[canonical] = bool(existed)
+        return result
 
     def _read_active_document(self, *, allow_legacy: bool = True) -> dict:
         path = self.store.paths.state
@@ -361,15 +418,48 @@ class ApplyEngine:
                 "The active deployment state belongs to another game installation. "
                 f"Recorded target {recorded_target}; current target {self.target_id}."
             )
-        if not recorded_target and data.get("files"):
+        if not recorded_target and data["files"]:
             if not allow_legacy or not self._saved_dat_matches():
                 raise ApplyError(
-                    "Legacy deployment state has no installation identity. Open the installation "
-                    "saved when it was created before migrating or recovering it."
+                    "Legacy deployment state has no installation identity. Open the "
+                    "installation saved when it was created before migrating or recovering it."
                 )
             data["target_id"] = self.target_id
             data["dat_path"] = str(self.dat_path.resolve())
+        data["files"] = self._validate_active_files(data["files"], path)
         return data
+
+    @staticmethod
+    def _validate_active_files(files: dict, state_path: Path) -> dict:
+        validated: dict[str, dict[str, str]] = {}
+        for relative, raw_record in files.items():
+            try:
+                canonical = normalize_relative_path(str(relative))
+            except SafetyError as exc:
+                raise ApplyError(
+                    f"Unsafe managed path in active state {state_path}: {relative!r}"
+                ) from exc
+            if canonical in validated:
+                raise ApplyError(
+                    f"Duplicate managed path in active state {state_path}: {canonical}"
+                )
+            if not isinstance(raw_record, dict):
+                raise ApplyError(
+                    f"Invalid active record for {canonical} in {state_path}"
+                )
+            try:
+                sha256 = validate_sha256(str(raw_record.get("sha256", "")))
+            except SafetyError as exc:
+                raise ApplyError(
+                    f"Invalid active SHA-256 for {canonical} in {state_path}"
+                ) from exc
+            validated[canonical] = {
+                "owner": str(raw_record.get("owner", "")),
+                "version": str(raw_record.get("version", "")),
+                "sha256": sha256,
+                "profile": str(raw_record.get("profile", "")),
+            }
+        return validated
 
     def _write_active(self, files: dict, *, transaction_id: str) -> None:
         self._write_active_document(
@@ -392,7 +482,9 @@ class ApplyEngine:
             try:
                 data = json.loads(manifest.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as exc:
-                raise ApplyError(f"Baseline target manifest is unreadable: {manifest}") from exc
+                raise ApplyError(
+                    f"Baseline target manifest is unreadable: {manifest}"
+                ) from exc
             if not isinstance(data, dict) or data.get("target_id") != self.target_id:
                 raise ApplyError(
                     "The vanilla baseline belongs to another game installation. "
@@ -400,12 +492,13 @@ class ApplyEngine:
                 )
             return
         has_baseline = self.store.paths.baseline.is_dir() and any(
-            path.name != manifest.name for path in self.store.paths.baseline.rglob("*")
+            path.name != manifest.name
+            for path in self.store.paths.baseline.rglob("*")
         )
         if has_baseline and not self._saved_dat_matches():
             raise ApplyError(
-                "Legacy vanilla baseline has no installation identity and the saved game path "
-                "does not match the current target."
+                "Legacy vanilla baseline has no installation identity and the saved game "
+                "path does not match the current target."
             )
         atomic_write_json(
             manifest,
@@ -426,7 +519,12 @@ class ApplyEngine:
         except OSError:
             return False
 
-    def _journal(self, transaction_id: str, phase: str, manifest: dict[str, bool]) -> dict:
+    def _journal(
+        self,
+        transaction_id: str,
+        phase: str,
+        manifest: dict[str, bool],
+    ) -> dict:
         return {
             "version": JOURNAL_VERSION,
             "transaction_id": transaction_id,
@@ -443,4 +541,6 @@ def _target_id(dat_path: Path) -> str:
         canonical = str(dat_path.resolve())
     except OSError:
         canonical = str(dat_path.absolute())
-    return hashlib.sha256(canonical.encode("utf-8", errors="surrogateescape")).hexdigest()[:20]
+    return hashlib.sha256(
+        canonical.encode("utf-8", errors="surrogateescape")
+    ).hexdigest()[:20]
