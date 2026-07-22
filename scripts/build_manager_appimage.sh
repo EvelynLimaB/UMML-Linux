@@ -5,7 +5,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 BUNDLE="${1:-$ROOT/build/manager-frozen/umml-manager}"
 OUT_DIR="${2:-$ROOT/dist}"
 VERSION="$(tr -d '[:space:]' < "$ROOT/MANAGER_VERSION")"
-DISPLAY_VERSION="${VERSION//~/-}"
+DISPLAY_VERSION="${VERSION//\~/-}"
 ARCH="x86_64"
 DESKTOP_ID="io.github.evelynlimab.ummlmanager"
 BUILD_ROOT="$ROOT/build/appimage"
@@ -20,6 +20,10 @@ APPIMAGETOOL_SHA256="${APPIMAGETOOL_SHA256:-a6d71e2b6cd66f8e8d16c37ad164658985e0
 OUTPUT="$OUT_DIR/umml-manager_${DISPLAY_VERSION}_${ARCH}.AppImage"
 
 [[ -n "$VERSION" ]] || { echo "MANAGER_VERSION is empty" >&2; exit 1; }
+[[ "$DISPLAY_VERSION" != *"~"* ]] || {
+  echo "Portable AppImage version still contains Debian's '~': $DISPLAY_VERSION" >&2
+  exit 1
+}
 [[ -x "$BUNDLE/umml-manager-bin" ]] || {
   echo "Frozen manager bundle not found: $BUNDLE" >&2
   echo "Run scripts/build_manager_frozen.sh first." >&2
