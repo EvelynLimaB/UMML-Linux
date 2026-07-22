@@ -1,5 +1,26 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha9 - 2026-07-22
+
+### Import and preparation
+
+- Compatible legacy UMML asset packages are prepared automatically immediately after import when the detected metadata database is available.
+- A failed preparation no longer discards the downloaded or imported source; the mod remains safely in Library and can be retried with **Prepare now**.
+- Applying a profile remains a separate explicit action and still requires the game to be closed.
+- Provider-confirmed GameBanana archives that contain valid loose UnityFS/audio/video/hash payloads but omit the modern `assets/` wrapper are normalized into an immutable UMML package automatically.
+
+### Safety
+
+- Loose-archive normalization is limited to the GameBanana provider path and requires recognizable game-asset evidence.
+- Archives containing executable, script, or native-library payloads are rejected instead of being wrapped as ordinary assets.
+- Plain documents and unrelated ZIP files remain unrecognized rather than being imported optimistically.
+
+### Tests
+
+- Added integration coverage for the loose legacy archive shape seen in existing UM:PD GameBanana uploads.
+- Added rejection tests for document-only and executable-bearing archives.
+- Added policy tests for automatic preparation eligibility.
+
 ## 0.2.0~alpha8 - 2026-07-22
 
 ### Fixed
