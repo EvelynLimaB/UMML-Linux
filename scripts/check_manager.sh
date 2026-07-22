@@ -8,9 +8,9 @@ python3 -m py_compile \
   umml_manager/*.py \
   umml_manager/providers/*.py \
   umml_manager_packaged.py \
-  tests/test_manager.py
+  tests/test_manager*.py
 
-python3 -m unittest discover -s tests -p 'test_manager.py' -v
+python3 -m unittest discover -s tests -p 'test_manager*.py' -v
 
 bash -n \
   install-manager.sh \
