@@ -77,11 +77,16 @@ jobs:
       - name: Inspect both package formats
         run: |
           set -Eeuo pipefail
+          VERSION="$(tr -d '[:space:]' < MANAGER_VERSION)"
+          DISPLAY_VERSION="$(printf '%s' "$VERSION" | tr '~' '-')"
+          EXPECTED_DEB="dist/umml-manager_${VERSION}_amd64.deb"
+          EXPECTED_APPIMAGE="dist/umml-manager_${DISPLAY_VERSION}_x86_64.AppImage"
           DEB="$(find dist -maxdepth 1 -name 'umml-manager_*_amd64.deb' -print -quit)"
           APPIMAGE="$(find dist -maxdepth 1 -name 'umml-manager_*_x86_64.AppImage' -print -quit)"
-          test -n "$DEB"
-          test -n "$APPIMAGE"
+          test "$DEB" = "$EXPECTED_DEB"
+          test "$APPIMAGE" = "$EXPECTED_APPIMAGE"
           test "$(dpkg-deb --field "$DEB" Package)" = 'umml-manager'
+          test "$(dpkg-deb --field "$DEB" Version)" = "$VERSION"
           test "$(dpkg-deb --field "$DEB" Architecture)" = 'amd64'
           dpkg-deb --info "$DEB"
           dpkg-deb --contents "$DEB"
