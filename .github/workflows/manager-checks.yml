@@ -21,6 +21,7 @@ on:
       - 'scripts/build_manager_*.sh'
       - 'packaging/pyinstaller/umml-manager.spec'
       - 'packaging/linux/io.github.evelynlimab.ummlmanager.*'
+      - 'packaging/appimage/io.github.evelynlimab.ummlmanager.desktop'
       - 'assets/umml-manager.svg'
       - '.github/pull_request_template.md'
       - '.github/workflows/manager-checks.yml'
@@ -47,7 +48,7 @@ jobs:
       - name: Run manager validation
         run: bash scripts/check_manager.sh
 
-  manager-deb:
+  manager-packages:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
@@ -58,24 +59,58 @@ jobs:
       - name: Install package build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev python3-tk
+          sudo apt-get install -y \
+            appstream-util \
+            curl \
+            desktop-file-utils \
+            dpkg-dev \
+            file \
+            python3-tk
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements.txt -r requirements-build.txt
       - name: Build frozen manager
         run: bash scripts/build_manager_frozen.sh
-      - name: Build separate Debian package
+      - name: Build Debian package
         run: bash scripts/build_manager_deb.sh
-      - name: Inspect package
+      - name: Build AppImage
+        run: bash scripts/build_manager_appimage.sh
+      - name: Inspect both package formats
         run: |
-          PACKAGE="$(find dist -maxdepth 1 -name 'umml-manager_*_amd64.deb' -print -quit)"
-          test -n "$PACKAGE"
-          test "$(dpkg-deb --field "$PACKAGE" Package)" = 'umml-manager'
-          test "$(dpkg-deb --field "$PACKAGE" Architecture)" = 'amd64'
-          dpkg-deb --info "$PACKAGE"
-          dpkg-deb --contents "$PACKAGE"
+          set -Eeuo pipefail
+          DEB="$(find dist -maxdepth 1 -name 'umml-manager_*_amd64.deb' -print -quit)"
+          APPIMAGE="$(find dist -maxdepth 1 -name 'umml-manager_*_x86_64.AppImage' -print -quit)"
+          test -n "$DEB"
+          test -n "$APPIMAGE"
+          test "$(dpkg-deb --field "$DEB" Package)" = 'umml-manager'
+          test "$(dpkg-deb --field "$DEB" Architecture)" = 'amd64'
+          dpkg-deb --info "$DEB"
+          dpkg-deb --contents "$DEB"
+          file "$APPIMAGE" | grep -q 'ELF 64-bit'
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --cli --help >/dev/null
+          (
+            cd dist
+            sha256sum \
+              "$(basename "$DEB")" \
+              "$(basename "$APPIMAGE")" \
+              > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
       - uses: actions/upload-artifact@v4
         with:
           name: umml-manager-deb
           path: dist/umml-manager_*_amd64.deb
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: umml-manager-appimage
+          path: dist/umml-manager_*_x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: umml-manager-checksums
+          path: dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
