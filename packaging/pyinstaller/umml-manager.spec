@@ -28,6 +28,7 @@ hiddenimports = [
     "umml_manager.network",
     "umml_manager.preview_images",
     "umml_manager.providers.base",
+    "umml_manager.providers.gamebanana_previews",
     "umml_manager.safety",
     "umml_manager.ui_discover",
     "umml_manager.ui_discover_actions",
