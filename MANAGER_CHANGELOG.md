@@ -1,5 +1,21 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha8 - 2026-07-22
+
+### Fixed
+
+- Selecting a GameBanana catalogue row no longer leaves **Install** disabled merely because the index response omitted full downloadable-file metadata.
+- The selected submission now fetches its detail record in a dedicated background task and replaces the fallback with the actual file selector when available.
+- **Install latest** remains usable while details are loading or when prefetch fails; installation retries the detail endpoint instead of treating an incomplete catalogue row as a submission with no files.
+- Stale detail responses are discarded after selection changes, page changes, or shutdown.
+- GameBanana file containers are normalized from arrays, numeric-keyed objects, and nested containers before file selection.
+- The interactive install path now uses the same preview-aware provider used by browsing and the provider registry.
+
+### Tests
+
+- Added regression coverage for mapping-shaped and nested GameBanana file containers.
+- Retained the dependency-complete manager suite, structural audit, package parity checks, and legacy validation.
+
 ## 0.2.0~alpha7 - 2026-07-22
 
 ### Triple-audit corrections
