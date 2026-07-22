@@ -1,5 +1,21 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha7 - 2026-07-22
+
+### Triple-audit corrections
+
+- Manager regression CI now installs the complete pinned runtime dependency set before running tests, so Pillow-backed preview tests cannot silently skip in the manager workflow.
+- The default provider registry now registers the preview-aware GameBanana client instead of the legacy metadata-only client.
+- Provider integration tests verify that real GameBanana media fields are normalized through the registered client, not merely through an isolated helper.
+- Package inspection now checks for Pillow's compiled imaging extension in both the DEB and AppImage as well as the existing full-runtime parity comparison.
+- Dependency installation is followed by `pip check` in both test and packaging jobs.
+
+### Documentation and release preparation
+
+- Preview images are recorded as implemented; persistent offline image caching and before/after comparison remain roadmap items.
+- The release checklist now distinguishes completed region/dependency planning support from missing GUI and automatic-install workflows.
+- Alpha7 is a distinct package version so corrected artifacts cannot be confused with the previously distributed alpha6 binary.
+
 ## 0.2.0~alpha6 - 2026-07-22
 
 ### Audit and verification
