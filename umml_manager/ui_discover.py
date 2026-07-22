@@ -3,6 +3,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from PIL import Image, ImageTk
+
 from .ui_theme import SURFACE, SURFACE_2, TEXT
 
 
@@ -10,6 +12,7 @@ class DiscoverPage(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self._gb_preview_photo: ImageTk.PhotoImage | None = None
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         notebook = ttk.Notebook(self)
@@ -84,7 +87,7 @@ class DiscoverPage(ttk.Frame):
         right = ttk.Frame(page, style="Surface.TFrame", padding=16)
         right.grid(row=1, column=1, sticky="nsew", padx=(7, 0))
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(4, weight=1)
+        right.rowconfigure(5, weight=1)
         self.gb_title = ttk.Label(
             right, text="Browse Umamusume mods", style="CardTitle.TLabel"
         )
@@ -98,6 +101,38 @@ class DiscoverPage(ttk.Frame):
         self.gb_meta.grid(row=1, column=0, sticky="w", pady=(3, 8))
         self.gb_stats = ttk.Label(right, text="", style="Badge.TLabel")
         self.gb_stats.grid(row=2, column=0, sticky="w", pady=(0, 8))
+
+        self.gb_preview_frame = tk.Frame(
+            right,
+            background=SURFACE_2,
+            height=210,
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        self.gb_preview_frame.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        self.gb_preview_frame.grid_propagate(False)
+        self.gb_preview_frame.columnconfigure(0, weight=1)
+        self.gb_preview_frame.rowconfigure(0, weight=1)
+        self.gb_preview = tk.Label(
+            self.gb_preview_frame,
+            text="Select a mod to load its preview.",
+            background=SURFACE_2,
+            foreground=TEXT,
+            compound="center",
+            anchor="center",
+            justify="center",
+            padx=10,
+            pady=10,
+        )
+        self.gb_preview.grid(row=0, column=0, sticky="nsew")
+        self.gb_preview_source = ttk.Label(
+            right,
+            text="",
+            style="SurfaceMuted.TLabel",
+            anchor="e",
+        )
+        self.gb_preview_source.grid(row=4, column=0, sticky="ew", pady=(0, 6))
+
         self.gb_description = tk.Text(
             right,
             wrap="word",
@@ -109,12 +144,12 @@ class DiscoverPage(ttk.Frame):
             padx=10,
             pady=10,
         )
-        self.gb_description.grid(row=4, column=0, sticky="nsew")
+        self.gb_description.grid(row=5, column=0, sticky="nsew")
         self.gb_description.configure(state="disabled")
         self.gb_files = ttk.Combobox(right, state="readonly")
-        self.gb_files.grid(row=5, column=0, sticky="ew", pady=(10, 5))
+        self.gb_files.grid(row=6, column=0, sticky="ew", pady=(10, 5))
         buttons = ttk.Frame(right, style="Surface.TFrame")
-        buttons.grid(row=6, column=0, sticky="ew")
+        buttons.grid(row=7, column=0, sticky="ew")
         self.open_gb_button = ttk.Button(
             buttons, text="Open page", command=self.app.open_gamebanana_page
         )
@@ -214,3 +249,19 @@ class DiscoverPage(ttk.Frame):
         self.gb_description.delete("1.0", "end")
         self.gb_description.insert("1.0", value)
         self.gb_description.configure(state="disabled")
+
+    def set_gb_preview_state(self, message: str, *, source: str = "") -> None:
+        self._gb_preview_photo = None
+        self.gb_preview.configure(image="", text=message)
+        self.gb_preview_source.configure(text=source)
+
+    def set_gb_preview_image(
+        self,
+        image: Image.Image,
+        *,
+        source: str = "GameBanana preview",
+    ) -> None:
+        photo = ImageTk.PhotoImage(image)
+        self._gb_preview_photo = photo
+        self.gb_preview.configure(image=photo, text="")
+        self.gb_preview_source.configure(text=source)
