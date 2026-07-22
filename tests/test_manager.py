@@ -29,7 +29,7 @@ class JsonResponse(io.BytesIO):
 
 class ManagerTests(unittest.TestCase):
     def test_version_comes_from_independent_manager_version_file(self):
-        self.assertEqual(manager_version(), "0.2.0~alpha4")
+        self.assertEqual(manager_version(), "0.2.0~alpha5")
 
     def test_resolver_uses_profile_order_and_reports_conflict(self):
         first = ModRecord(
