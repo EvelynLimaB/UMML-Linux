@@ -2,14 +2,18 @@ import io
 import unittest
 from unittest.mock import patch
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:  # Legacy-only validation intentionally installs no manager deps.
+    Image = None
 
-from umml_manager.preview_images import (
-    MAX_PREVIEW_BYTES,
-    PreviewImageError,
-    PreviewImageLoader,
-    decode_preview_image,
-)
+if Image is not None:
+    from umml_manager.preview_images import (
+        MAX_PREVIEW_BYTES,
+        PreviewImageError,
+        PreviewImageLoader,
+        decode_preview_image,
+    )
 
 
 class FakeHeaders(dict):
@@ -57,6 +61,7 @@ def png_bytes(size=(800, 400)) -> bytes:
     return stream.getvalue()
 
 
+@unittest.skipUnless(Image is not None, "Pillow is a manager-only dependency")
 class ManagerPreviewTests(unittest.TestCase):
     def test_verified_preview_is_loaded_and_scaled(self):
         payload = png_bytes()
