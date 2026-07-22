@@ -25,6 +25,7 @@ class Resolution:
     winners: dict[str, Claim] = field(default_factory=dict)
     conflicts: list[Conflict] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
+    unprepared: list[str] = field(default_factory=list)
 
 
 def resolve_profile(profile: Profile, mods: list[ModRecord]) -> Resolution:
@@ -35,6 +36,9 @@ def resolve_profile(profile: Profile, mods: list[ModRecord]) -> Resolution:
         record = records.get(mod_id)
         if record is None:
             resolution.missing.append(mod_id)
+            continue
+        if not record.prepared_path or not record.files:
+            resolution.unprepared.append(mod_id)
             continue
         for relative, sha256 in sorted(record.files.items()):
             claims.setdefault(relative, []).append(
