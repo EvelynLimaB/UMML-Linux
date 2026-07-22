@@ -2,14 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but it deliberately preserves the loader's useful editing tools rather than replacing them with a decorative list of toggles.
 
-> **Preview:** `0.2.0~alpha4`. Profiles, conflict planning, transactional deployment, automatic installation detection, local discovery, GameBanana browsing, editable workspaces, the legacy Studio bridge, and separate DEB/AppImage packaging are implemented. Real-game testing is still required before a stable release.
+> **Preview:** `0.2.0~alpha5`. Profiles, conflict planning, transactional deployment, automatic installation detection, local discovery, GameBanana browsing, editable workspaces, the legacy Studio bridge, separate DEB/AppImage packaging, and portable verified HTTPS trust are implemented. Real-game testing is still required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha4_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha5_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -20,19 +20,19 @@ The Debian desktop file launches `/usr/bin/umml-manager` directly. This avoids a
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha4_x86_64.AppImage
-./umml-manager_0.2.0-alpha4_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha5_x86_64.AppImage
+./umml-manager_0.2.0-alpha5_x86_64.AppImage
 ```
 
 The AppImage supports the same CLI without installing files into `/usr`:
 
 ```bash
-./umml-manager_0.2.0-alpha4_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha5_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha5_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha5_x86_64.AppImage --cli browse --region global
 ```
 
-The DEB and AppImage are built from the same PyInstaller bundle. CI extracts the AppImage and compares its embedded `umml-manager-bin` byte-for-byte with the frozen bundle used to build the DEB.
+The DEB and AppImage are built from the same PyInstaller bundle. CI extracts both packages and compares their complete frozen runtime trees against the shared source bundle and each other.
 
 Both formats use the same user data directory:
 
@@ -88,7 +88,16 @@ Manual path selection is retained for unusual layouts. The three paths are:
 - prepared metadata: UMML's `meta_decrypted_*.db`, not the encrypted game file named `meta`;
 - game installation directory: the Steam/DMM directory containing the executable.
 
-## GameBanana browser
+## HTTPS and GameBanana
+
+Alpha5 fixes frozen-build certificate discovery on Fedora-family systems, including Bazzite. UMML resolves trust in this order:
+
+1. validated `SSL_CERT_FILE` and `SSL_CERT_DIR` values;
+2. OpenSSL's usable target-system defaults;
+3. known Fedora/Bazzite, RHEL, Debian, Ubuntu, Mint, Alpine, SUSE, and BSD-style CA locations;
+4. the bundled `certifi` Mozilla CA bundle.
+
+Certificate verification is never disabled. **Run diagnostics** shows the selected trust source and CA path. An explicitly configured but missing CA file fails closed with an actionable error rather than silently switching trust stores.
 
 The Discover page browses the separate GameBanana listings for:
 
@@ -140,33 +149,13 @@ Imported source versions remain immutable. Re-importing the same ID and version 
 
 **Edit copy** creates a timestamped workspace under the manager data directory and writes `.umml-workspace.json` with provenance. Change the edited package's version or import ID before importing it as a new immutable local mod.
 
-The Studio compatibility host exposes the complete legacy loader interface plus direct launch cards for:
-
-- character attributes;
-- personality;
-- dresses;
-- training;
-- story and concert editing;
-- body/head/tail/chibi character swaps;
-- translation merge;
-- unused-asset cleanup;
-- master database reset;
-- regular asset preview, manual loading, restoration, and the rest of the legacy workspace.
+The Studio compatibility host exposes the complete legacy loader interface plus direct launch cards for character attributes, personality, dresses, training, story/concert editing, body/head/tail/chibi swaps, translation merge, cleanup, database reset, preview, manual loading, and restoration.
 
 Mutating legacy actions are guarded and refuse to run while Umamusume is detected. The compatibility host is included in both manager package formats, so installing the separate legacy DEB is not required for Studio.
 
 ## Profiles and deployment
 
-Profiles are ordered lists. Later mods win conflicts. Applying a profile:
-
-1. resolves the complete file plan;
-2. rejects missing or unprepared enabled mods;
-3. checks whether the game is running;
-4. validates the previous deployment state instead of treating corruption as empty state;
-5. verifies active files against the previous deployment manifest;
-6. captures untouched vanilla files once;
-7. stages and commits replacements transactionally;
-8. records ownership and hashes for recovery.
+Profiles are ordered lists. Later mods win conflicts. Applying a profile resolves the complete plan, rejects missing or unprepared mods, checks the game process, validates deployment state, verifies active files, captures vanilla data once, commits transactionally, and records ownership hashes.
 
 An empty profile restores previously managed paths. Files changed by another tool are never overwritten silently.
 
@@ -187,8 +176,8 @@ umml-manager-cli apply Default --dat /path/to/Persistent/dat --game-dir /path/to
 AppImage equivalent:
 
 ```bash
-./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha4_x86_64.AppImage --cli plan Default
+./umml-manager_0.2.0-alpha5_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha5_x86_64.AppImage --cli plan Default
 ```
 
 ## Development and packaging
@@ -203,7 +192,7 @@ bash scripts/build_manager_deb.sh
 bash scripts/build_manager_appimage.sh
 ```
 
-`build_manager_appimage.sh` downloads the official `AppImage/appimagetool` continuous release asset over HTTPS and verifies it against GitHub's published SHA-256 digest before running it. Replacement of that asset therefore fails CI until the new binary is reviewed and its pin is deliberately updated.
+`build_manager_appimage.sh` downloads the official `AppImage/appimagetool` continuous release asset over HTTPS and verifies it against GitHub's published SHA-256 digest before running it.
 
 Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMENT.md`, and `docs/PACKAGING.md` before changing state, deployment, providers, archives, or packaging.
 
