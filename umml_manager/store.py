@@ -57,7 +57,7 @@ class ManagerStore:
         self.paths.root.mkdir(parents=True, exist_ok=True)
 
     def list_mods(self) -> list[ModRecord]:
-        data = _read_json(self.paths.registry, {"mods": []})
+        data = _read_json(self.paths.registry, {"mods": []}, strict=True)
         return [ModRecord.from_dict(item) for item in data.get("mods", [])]
 
     def get_mod(self, mod_id: str) -> ModRecord:
@@ -69,14 +69,24 @@ class ManagerStore:
     def save_mod(self, record: ModRecord) -> None:
         mods = {item.id: item for item in self.list_mods()}
         mods[record.id] = record
-        _write_json(self.paths.registry, {"version": 1, "mods": [mods[key].to_dict() for key in sorted(mods)]})
+        _write_json(
+            self.paths.registry,
+            {"version": 1, "mods": [mods[key].to_dict() for key in sorted(mods)]},
+        )
 
     def remove_mod(self, mod_id: str) -> None:
         mods = [record for record in self.list_mods() if record.id != mod_id]
-        _write_json(self.paths.registry, {"version": 1, "mods": [record.to_dict() for record in mods]})
+        _write_json(
+            self.paths.registry,
+            {"version": 1, "mods": [record.to_dict() for record in mods]},
+        )
 
     def list_profiles(self) -> list[Profile]:
-        data = _read_json(self.paths.profiles, {"profiles": [{"name": "Default", "enabled": []}]})
+        data = _read_json(
+            self.paths.profiles,
+            {"profiles": [{"name": "Default", "enabled": []}]},
+            strict=True,
+        )
         return [Profile.from_dict(item) for item in data.get("profiles", [])]
 
     def get_profile(self, name: str) -> Profile:
@@ -88,7 +98,13 @@ class ManagerStore:
     def save_profile(self, profile: Profile) -> None:
         profiles = {item.name: item for item in self.list_profiles()}
         profiles[profile.name] = profile
-        _write_json(self.paths.profiles,{"version":1,"profiles":[profiles[key].to_dict() for key in sorted(profiles)]})
+        _write_json(
+            self.paths.profiles,
+            {
+                "version": 1,
+                "profiles": [profiles[key].to_dict() for key in sorted(profiles)],
+            },
+        )
 
     def load_settings(self) -> dict[str, Any]:
         return dict(_read_json(self.paths.settings, {}))
@@ -98,7 +114,13 @@ class ManagerStore:
         current.update(values)
         _write_json(self.paths.settings, current)
 
-    def import_folder(self, folder: str | Path, *, mod_id: str | None = None, source: SourceSpec | None = None) -> ModRecord:
+    def import_folder(
+        self,
+        folder: str | Path,
+        *,
+        mod_id: str | None = None,
+        source: SourceSpec | None = None,
+    ) -> ModRecord:
         folder = Path(folder).expanduser().resolve()
         if not folder.is_dir():
             raise StoreError(f"Mod folder not found: {folder}")
@@ -108,15 +130,40 @@ class ManagerStore:
             except ValueError as exc:
                 raise StoreError(str(exc)) from exc
         metadata = read_mod_metadata(folder)
-        chosen_id = sanitize_id(mod_id or metadata.get("id") or metadata.get("title") or folder.name)
+        base_id = sanitize_id(mod_id or metadata.get("id") or metadata.get("title") or folder.name)
         version = str(metadata.get("mod_version") or metadata.get("version") or "0")
+        existing = self.list_mods()
+        chosen_id = _available_record_id(base_id, version, existing)
         destination = self.paths.sources / chosen_id / version
-        _copy_tree_atomic(folder, destination)
-        record = ModRecord(id=chosen_id, name=str(metadata.get("title") or chosen_id), version=version, description=str(metadata.get("description") or ""), author=str(metadata.get("author") or metadata.get("submitter") or ""), regions=_regions(metadata), source=source or SourceSpec(), source_path=str(destination), imported_at=_now())
+        if destination.exists():
+            if _tree_digest(folder) != _tree_digest(destination):
+                raise StoreError(
+                    f"Immutable source already exists for {chosen_id} {version} with different contents. "
+                    "Change the mod version or import it with a different ID."
+                )
+        else:
+            _copy_tree_atomic(folder, destination)
+        record = ModRecord(
+            id=chosen_id,
+            name=str(metadata.get("title") or base_id),
+            version=version,
+            description=str(metadata.get("description") or ""),
+            author=str(metadata.get("author") or metadata.get("submitter") or ""),
+            regions=_regions(metadata),
+            source=source or SourceSpec(),
+            source_path=str(destination),
+            imported_at=_now(),
+        )
         self.save_mod(record)
         return record
 
-    def import_archive(self, archive: str | Path, *, mod_id: str | None = None, source: SourceSpec | None = None) -> ModRecord:
+    def import_archive(
+        self,
+        archive: str | Path,
+        *,
+        mod_id: str | None = None,
+        source: SourceSpec | None = None,
+    ) -> ModRecord:
         archive = Path(archive).expanduser().resolve()
         if not archive.is_file():
             raise StoreError(f"Archive not found: {archive}")
@@ -137,8 +184,19 @@ class ManagerStore:
         destination = self.paths.workspaces / mod_id / stamp
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, destination)
-        marker = {"base_mod_id":record.id,"base_version":record.version,"created_at":_now(),"instructions":"Edit this copy, then import the workspace as a new local mod version."}
-        (destination / ".umml-workspace.json").write_text(json.dumps(marker,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+        marker = {
+            "base_mod_id": record.id,
+            "base_version": record.version,
+            "created_at": _now(),
+            "instructions": (
+                "Edit this copy, then change its version or ID before importing it "
+                "as a new immutable local mod."
+            ),
+        }
+        (destination / ".umml-workspace.json").write_text(
+            json.dumps(marker, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         return destination
 
 
@@ -168,24 +226,25 @@ def read_mod_metadata(root: Path) -> dict[str, Any]:
         if yaml_path.is_file():
             try:
                 import yaml
+
                 data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-                return data if isinstance(data,dict) else {}
+                return data if isinstance(data, dict) else {}
             except Exception as exc:
                 raise StoreError(f"Invalid {name}: {exc}") from exc
-    return {"title":root.name,"mod_version":"0"}
+    return {"title": root.name, "mod_version": "0"}
 
 
 def find_mod_root(extracted: Path) -> Path:
     if is_mod_root(extracted):
         return extracted
     try:
-        return locate_mod_root(extracted,max_depth=8)
+        return locate_mod_root(extracted, max_depth=8)
     except ValueError as exc:
         raise StoreError("Archive has no recognizable UMML/Hachimi mod folder") from exc
 
 
 def extract_archive(archive: Path, destination: Path) -> None:
-    destination.mkdir(parents=True,exist_ok=True)
+    destination.mkdir(parents=True, exist_ok=True)
     if zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive) as package:
             for member in package.infolist():
@@ -201,7 +260,7 @@ def extract_archive(archive: Path, destination: Path) -> None:
                 _safe_member(member.name)
                 if member.issym() or member.islnk() or member.isdev():
                     raise StoreError(f"Archive link/device rejected: {member.name}")
-            package.extractall(destination,members=members)
+            package.extractall(destination, members=members)
         return
     raise StoreError("Unsupported archive; use ZIP or TAR")
 
@@ -209,13 +268,13 @@ def extract_archive(archive: Path, destination: Path) -> None:
 def hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024*1024),b""):
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
 
 
 def _safe_member(name: str) -> PurePosixPath:
-    normalized = name.replace("\\","/")
+    normalized = name.replace("\\", "/")
     path = PurePosixPath(normalized)
     if not normalized or path.is_absolute() or ".." in path.parts:
         raise StoreError(f"Unsafe archive path rejected: {name!r}")
@@ -224,39 +283,71 @@ def _safe_member(name: str) -> PurePosixPath:
     return path
 
 
+def _available_record_id(base_id: str, version: str, existing: list[ModRecord]) -> str:
+    records = {record.id: record for record in existing}
+    current = records.get(base_id)
+    if current is None or current.version == version:
+        return base_id
+    suffix = sanitize_id(version) if version.strip() else "version"
+    candidate = sanitize_id(f"{base_id}-{suffix}")
+    counter = 2
+    while candidate in records and records[candidate].version != version:
+        candidate = sanitize_id(f"{base_id}-{suffix}-{counter}")
+        counter += 1
+    return candidate
+
+
+def _tree_digest(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        relative = path.relative_to(root).as_posix()
+        digest.update(relative.encode("utf-8", errors="surrogateescape"))
+        digest.update(b"\0")
+        digest.update(hash_file(path).encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def _copy_tree_atomic(source: Path, destination: Path) -> None:
-    destination.parent.mkdir(parents=True,exist_ok=True)
-    temp = Path(tempfile.mkdtemp(prefix=f".{destination.name}-",dir=destination.parent))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp = Path(tempfile.mkdtemp(prefix=f".{destination.name}-", dir=destination.parent))
     try:
-        shutil.copytree(source,temp/"content",dirs_exist_ok=True)
+        shutil.copytree(source, temp / "content", dirs_exist_ok=True)
         if destination.exists():
-            shutil.rmtree(destination)
-        (temp/"content").replace(destination)
+            raise StoreError(f"Immutable source destination already exists: {destination}")
+        (temp / "content").replace(destination)
     finally:
-        shutil.rmtree(temp,ignore_errors=True)
+        shutil.rmtree(temp, ignore_errors=True)
 
 
-def _read_json(path: Path, default: Any) -> Any:
+def _read_json(path: Path, default: Any, *, strict: bool = False) -> Any:
     if not path.is_file():
         return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as exc:
+        if strict:
+            raise StoreError(
+                f"Manager state file is unreadable: {path}. It was not replaced or reset."
+            ) from exc
         return default
 
 
 def _write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True,exist_ok=True)
-    temp = path.with_suffix(path.suffix+".tmp")
-    temp.write_text(json.dumps(data,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    os.replace(temp,path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temp, path)
 
 
 def _regions(metadata: dict[str, Any]) -> list[str]:
-    value = metadata.get("regions",metadata.get("region",[]))
-    if isinstance(value,str):
+    value = metadata.get("regions", metadata.get("region", []))
+    if isinstance(value, str):
         return [value]
-    if isinstance(value,list):
+    if isinstance(value, list):
         return [str(item) for item in value]
     return []
 
