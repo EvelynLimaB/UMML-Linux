@@ -4,6 +4,8 @@ import urllib.parse
 from dataclasses import replace
 from typing import Any
 
+from ..legacy_archive import import_loose_legacy_archive
+from ..store import ManagerStore, StoreError
 from .gamebanana import GameBananaClient, GameBananaMod
 
 
@@ -16,14 +18,50 @@ class PreviewGameBananaClient(GameBananaClient):
         mod = super()._mod(normalized, fallback_id=fallback_id)
         return replace(mod, image_url=primary_preview_url(data))
 
+    def import_mod(
+        self,
+        store: ManagerStore,
+        value: str,
+        *,
+        file_id: int | None = None,
+    ):
+        mod = self.fetch(value)
+        archive, source = self.download(
+            mod,
+            store.paths.root / "downloads",
+            file_id=file_id,
+        )
+        game_name = mod.game_name.casefold()
+        region = "global" if "global" in game_name else "japan" if "japan" in game_name else ""
+        metadata = {
+            "title": mod.name,
+            "author": mod.author,
+            "description": mod.description,
+            "mod_version": mod.version or str(source.file_id or 0),
+            "regions": [region] if region else [],
+        }
+        record_id = f"gamebanana-{mod.id}"
+        try:
+            return store.import_archive(
+                archive,
+                mod_id=record_id,
+                source=source,
+                metadata_overrides=metadata,
+            )
+        except StoreError as exc:
+            if "No recognizable UMML/Hachimi mod folder" not in str(exc):
+                raise
+            return import_loose_legacy_archive(
+                store,
+                archive,
+                mod_id=record_id,
+                source=source,
+                metadata_overrides=metadata,
+            )
+
 
 def normalize_file_records(value: Any) -> list[dict[str, Any]]:
-    """Normalize current and legacy GameBanana file containers.
-
-    The catalogue and detail endpoints have returned file arrays, numeric-keyed
-    objects, and nested file containers at different times. Only dictionaries
-    that look like actual downloadable-file records are retained.
-    """
+    """Normalize current and legacy GameBanana file containers."""
 
     if isinstance(value, (list, tuple)):
         return [
@@ -35,14 +73,11 @@ def normalize_file_records(value: Any) -> list[dict[str, Any]]:
         return []
     if _looks_like_file_record(value):
         return [dict(value)]
-
     for key in ("_aFiles", "files", "items", "records", "data"):
-        if key not in value:
-            continue
-        nested = normalize_file_records(value[key])
-        if nested:
-            return nested
-
+        if key in value:
+            nested = normalize_file_records(value[key])
+            if nested:
+                return nested
     return [
         dict(item)
         for item in value.values()
@@ -68,7 +103,6 @@ def primary_preview_url(data: dict[str, Any]) -> str:
     images = preview.get("_aImages") if isinstance(preview, dict) else []
     if not isinstance(images, list):
         return ""
-
     for item in images:
         if not isinstance(item, dict):
             continue
