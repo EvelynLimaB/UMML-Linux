@@ -37,13 +37,31 @@ class LibraryActions:
         needle = self.search_library.get().casefold().strip()
         mods = self.store.list_mods()
         if needle:
-            mods = [mod for mod in mods if needle in f"{mod.name} {mod.author} {mod.id} {mod.description}".casefold()]
+            mods = [
+                mod
+                for mod in mods
+                if needle
+                in f"{mod.name} {mod.author} {mod.id} {mod.description}".casefold()
+            ]
         mods.sort(key=lambda mod: (order.get(mod.id, 10**9), mod.name.casefold()))
         tree = self.library.tree
         tree.delete(*tree.get_children())
         for mod in mods:
-            tree.insert("", "end", iid=mod.id, text=mod.name, values=(order.get(mod.id, "off"), mod.version, mod.source.provider, "prepared" if mod.files else "needs prepare"))
-        self.status.set(f"{len(mods)} mod(s); {len(profile.enabled)} enabled in {profile.name}")
+            tree.insert(
+                "",
+                "end",
+                iid=mod.id,
+                text=mod.name,
+                values=(
+                    order.get(mod.id, "off"),
+                    mod.version,
+                    mod.source.provider,
+                    "prepared" if mod.files else "needs prepare",
+                ),
+            )
+        self.status.set(
+            f"{len(mods)} mod(s); {len(profile.enabled)} enabled in {profile.name}"
+        )
         self.save_settings(silent=True)
 
     def show_selected_mod(self):
@@ -52,13 +70,22 @@ class LibraryActions:
             return
         mod = self.store.get_mod(mod_id)
         self.library.mod_title.configure(text=mod.name)
-        self.library.mod_meta.configure(text=f"{mod.author or 'Unknown author'} • {mod.version} • {mod.source.provider}")
+        self.library.mod_meta.configure(
+            text=f"{mod.author or 'Unknown author'} • {mod.version} • {mod.source.provider}"
+        )
         enabled = mod_id in self.profile().enabled
-        self.library.mod_state.configure(text=("Enabled" if enabled else "Disabled") + (" • prepared" if mod.files else " • needs preparation"))
-        self.library.set_description(mod.description or "No description was supplied by this package.")
+        self.library.mod_state.configure(
+            text=("Enabled" if enabled else "Disabled")
+            + (" • prepared" if mod.files else " • needs preparation")
+        )
+        self.library.set_description(
+            mod.description or "No description was supplied by this package."
+        )
 
     def new_profile(self):
-        name = simpledialog.askstring("New profile", "Profile name:", parent=self.root)
+        name = simpledialog.askstring(
+            "New profile", "Profile name:", parent=self.root
+        )
         if name and name.strip():
             self.store.save_profile(Profile(name.strip(), []))
             self.profile_name.set(name.strip())
@@ -69,7 +96,11 @@ class LibraryActions:
         if not mod_id:
             return
         profile = self.profile()
-        profile.enabled = [item for item in profile.enabled if item != mod_id] if mod_id in profile.enabled else profile.enabled + [mod_id]
+        profile.enabled = (
+            [item for item in profile.enabled if item != mod_id]
+            if mod_id in profile.enabled
+            else profile.enabled + [mod_id]
+        )
         self.store.save_profile(profile)
         self.refresh()
         if self.library.tree.exists(mod_id):
@@ -95,7 +126,13 @@ class LibraryActions:
             self._import(lambda: self.store.import_folder(path))
 
     def import_archive(self):
-        path = filedialog.askopenfilename(parent=self.root, filetypes=(("Supported archives", "*.zip *.tar *.tar.gz *.tgz"), ("All files", "*")))
+        path = filedialog.askopenfilename(
+            parent=self.root,
+            filetypes=(
+                ("Supported archives", "*.zip *.tar *.tar.gz *.tgz"),
+                ("All files", "*"),
+            ),
+        )
         if path:
             self._import(lambda: self.store.import_archive(path))
 
@@ -116,9 +153,22 @@ class LibraryActions:
         if not mod_id:
             return
         if not self.meta_path.get().strip():
-            messagebox.showinfo("Metadata required", "Choose the decrypted metadata database in Settings first.", parent=self.root)
+            messagebox.showinfo(
+                "Metadata required",
+                "Run installation auto-detection in Settings first.",
+                parent=self.root,
+            )
             return
-        self._run_task(f"Preparing {mod_id}…", lambda: LegacyAssetAdapter(self.store, self.meta_path.get()).prepare(self.store.get_mod(mod_id)), lambda record: (self.refresh(), self.status.set(f"Prepared {len(record.files)} asset(s)")))
+        self._run_task(
+            f"Preparing {mod_id}…",
+            lambda: LegacyAssetAdapter(self.store, self.meta_path.get()).prepare(
+                self.store.get_mod(mod_id)
+            ),
+            lambda record: (
+                self.refresh(),
+                self.status.set(f"Prepared {len(record.files)} asset(s)"),
+            ),
+        )
 
     def create_workspace(self):
         mod_id = self.selected_id()
@@ -136,22 +186,44 @@ class LibraryActions:
         if not mod_id:
             return
         if any(mod_id in profile.enabled for profile in self.store.list_profiles()):
-            messagebox.showwarning("Mod is enabled", "Disable this mod in every profile before removing it.", parent=self.root)
+            messagebox.showwarning(
+                "Mod is enabled",
+                "Disable this mod in every profile before removing it.",
+                parent=self.root,
+            )
             return
-        if messagebox.askyesno("Remove mod", f"Remove {mod_id} from the manager registry?", parent=self.root):
+        if messagebox.askyesno(
+            "Remove mod",
+            f"Remove {mod_id} from the manager registry? Preserved source files are not deleted.",
+            parent=self.root,
+        ):
             self.store.remove_mod(mod_id)
             self.refresh()
 
     def render_plan(self):
         resolution = resolve_profile(self.profile(), self.store.list_mods())
-        lines = [f"PROFILE   {resolution.profile}", f"FILES     {len(resolution.winners)}", f"CONFLICTS {len(resolution.conflicts)}", ""]
+        lines = [
+            f"PROFILE     {resolution.profile}",
+            f"FILES       {len(resolution.winners)}",
+            f"CONFLICTS   {len(resolution.conflicts)}",
+            f"UNPREPARED  {len(resolution.unprepared)}",
+            "",
+        ]
         if resolution.missing:
             lines.append("Missing mods: " + ", ".join(resolution.missing))
+        if resolution.unprepared:
+            lines.append(
+                "Enabled but not prepared: " + ", ".join(resolution.unprepared)
+            )
+            lines.append("These mods block deployment until they are prepared.\n")
         if resolution.conflicts:
             lines.extend(("Conflict winners", "=" * 72))
             for conflict in resolution.conflicts:
-                lines.append(f"{conflict.path}\n  winner: {conflict.winner}\n  overrides: {', '.join(conflict.overridden)}\n")
-        else:
+                lines.append(
+                    f"{conflict.path}\n  winner: {conflict.winner}\n"
+                    f"  overrides: {', '.join(conflict.overridden)}\n"
+                )
+        elif not resolution.unprepared and not resolution.missing:
             lines.append("No file conflicts in this profile.")
         self._set_text(self.plan_text, "\n".join(lines))
 
@@ -160,11 +232,38 @@ class LibraryActions:
 
     def apply_profile(self):
         if not self.dat_path.get().strip():
-            messagebox.showinfo("Game data required", "Choose Persistent/dat in Settings first.", parent=self.root)
+            messagebox.showinfo(
+                "Game data required",
+                "Run installation auto-detection in Settings first.",
+                parent=self.root,
+            )
             return
         resolution = resolve_profile(self.profile(), self.store.list_mods())
-        operation = lambda: ApplyEngine(self.store, self.dat_path.get(), game_dir=self.game_dir.get() or None).apply(resolution)
+        if resolution.missing or resolution.unprepared:
+            details = []
+            if resolution.missing:
+                details.append("Missing: " + ", ".join(resolution.missing))
+            if resolution.unprepared:
+                details.append("Needs preparation: " + ", ".join(resolution.unprepared))
+            messagebox.showwarning(
+                "Profile is not ready",
+                "The profile was not applied.\n\n" + "\n".join(details),
+                parent=self.root,
+            )
+            self.show_page("conflicts")
+            return
+        operation = lambda: ApplyEngine(
+            self.store,
+            self.dat_path.get(),
+            game_dir=self.game_dir.get() or None,
+        ).apply(resolution)
+
         def finished(result):
-            messagebox.showinfo("Profile applied", f"Installed {result.installed}; restored {result.restored}; unchanged {result.unchanged}", parent=self.root)
+            messagebox.showinfo(
+                "Profile applied",
+                f"Installed {result.installed}; restored {result.restored}; unchanged {result.unchanged}",
+                parent=self.root,
+            )
             self.status.set(f"Applied {resolution.profile}")
+
         self._run_task("Applying profile transactionally…", operation, finished)
