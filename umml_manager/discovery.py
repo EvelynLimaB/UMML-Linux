@@ -28,7 +28,6 @@ _SKIP_DIRS = {
 _METADATA_HINTS = {
     "id",
     "title",
-    "name",
     "author",
     "submitter",
     "version",
@@ -37,6 +36,7 @@ _METADATA_HINTS = {
     "region",
     "regions",
 }
+_ARCHIVE_NAME_HINT = re.compile(r"(?:uma|umml|hachimi|mod|skin|texture)", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,7 @@ def describe_mod_root(path: str | Path) -> ModCandidate | None:
     metadata = _recognized_metadata(root)
     assets = (root / "assets").is_dir() and _has_any_regular_file(root / "assets")
     hachimi = (root / "hachimi").is_dir() and _has_any_regular_file(root / "hachimi")
-    if not (metadata or assets or hachimi):
+    if not (assets or hachimi or metadata == "umml-mod.json"):
         return None
     if metadata and assets:
         confidence = "high"
@@ -82,9 +82,6 @@ def describe_mod_root(path: str | Path) -> ModCandidate | None:
     elif metadata == "umml-mod.json":
         confidence = "high"
         reason = metadata
-    elif metadata:
-        confidence = "medium"
-        reason = f"recognized {metadata}"
     elif assets:
         confidence = "medium"
         reason = "assets/ with regular mod files"
@@ -113,8 +110,7 @@ def scan_mod_candidates(
         inspected += 1
         candidate = describe_mod_root(current)
         if candidate:
-            resolved = _resolve_or_original(current)
-            candidates[resolved] = candidate
+            candidates[_resolve_or_original(current)] = candidate
             continue
         if depth >= max_depth:
             continue
@@ -127,12 +123,11 @@ def scan_mod_candidates(
                 inspected += 1
                 if inspected > max_entries:
                     break
-                name = entry.name
                 try:
                     if entry.is_symlink():
                         continue
                     if entry.is_dir(follow_symlinks=False):
-                        if name.casefold() in _SKIP_DIRS or name.startswith("."):
+                        if entry.name.casefold() in _SKIP_DIRS or entry.name.startswith("."):
                             continue
                         queue.append((Path(entry.path), depth + 1))
                     elif include_archives and entry.is_file(follow_symlinks=False):
@@ -180,14 +175,16 @@ def describe_archive(path: str | Path) -> ModCandidate | None:
     try:
         names = list(_archive_names(archive, limit=3000))
         if names:
-            base_names = {PureName(name).name.casefold() for name in names}
+            base_names = {_base_name(name).casefold() for name in names}
             has_manifest = "umml-mod.json" in base_names
             has_metadata = any(marker.casefold() in base_names for marker in _METADATA)
             has_assets = any(
-                "/assets/" in f"/{name.casefold().strip('/')}/" for name in names
+                "/assets/" in f"/{name.casefold().strip('/')}/"
+                for name in names
             )
             has_hachimi = any(
-                "/hachimi/" in f"/{name.casefold().strip('/')}/" for name in names
+                "/hachimi/" in f"/{name.casefold().strip('/')}/"
+                for name in names
             )
             if has_manifest and has_assets:
                 confidence = "high"
@@ -200,7 +197,17 @@ def describe_archive(path: str | Path) -> ModCandidate | None:
                 reason += " containing mod content"
     except (OSError, tarfile.TarError, zipfile.BadZipFile):
         return None
-    return ModCandidate(archive, "archive", _archive_stem(archive), confidence, reason)
+    if confidence == "low" and not _ARCHIVE_NAME_HINT.search(archive.stem):
+        return None
+    if confidence == "low":
+        reason += " with a mod-like filename; contents need manual verification"
+    return ModCandidate(
+        archive,
+        "archive",
+        _archive_stem(archive),
+        confidence,
+        reason,
+    )
 
 
 def _archive_names(archive: Path, *, limit: int) -> Iterator[str]:
@@ -245,13 +252,20 @@ def _recognized_metadata(root: Path) -> str:
 
 def _archive_suffix(path: Path) -> str:
     lower = path.name.casefold()
-    return next((suffix for suffix in _ARCHIVES if lower.endswith(suffix)), "")
+    return next(
+        (suffix for suffix in _ARCHIVES if lower.endswith(suffix)),
+        "",
+    )
 
 
 def _archive_stem(path: Path) -> str:
     name = path.name
     suffix = _archive_suffix(path)
     return name[: -len(suffix)] if suffix else path.stem
+
+
+def _base_name(value: str) -> str:
+    return value.rstrip("/").rsplit("/", 1)[-1]
 
 
 def _has_any_regular_file(root: Path) -> bool:
@@ -273,13 +287,20 @@ def _xdg_user_directories(home: Path) -> list[Path]:
     environment = os.environ.get("XDG_DOWNLOAD_DIR", "").strip().strip('"')
     if environment:
         values.append(Path(os.path.expandvars(environment)).expanduser())
-    config = Path(os.environ.get("XDG_CONFIG_HOME", home / ".config")) / "user-dirs.dirs"
+    config = (
+        Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
+        / "user-dirs.dirs"
+    )
     try:
         text = config.read_text(encoding="utf-8")
     except OSError:
         return values
     for key in ("DOWNLOAD", "DOCUMENTS", "DESKTOP"):
-        match = re.search(rf'^XDG_{key}_DIR="([^"]+)"', text, flags=re.MULTILINE)
+        match = re.search(
+            rf'^XDG_{key}_DIR="([^"]+)"',
+            text,
+            flags=re.MULTILINE,
+        )
         if match:
             raw = match.group(1).replace("$HOME", str(home))
             values.append(Path(os.path.expandvars(raw)).expanduser())
@@ -291,12 +312,3 @@ def _resolve_or_original(path: Path) -> Path:
         return path.resolve()
     except OSError:
         return path
-
-
-@dataclass(frozen=True)
-class PureName:
-    value: str
-
-    @property
-    def name(self) -> str:
-        return self.value.rstrip("/").rsplit("/", 1)[-1]
