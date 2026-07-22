@@ -2,16 +2,33 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but it deliberately preserves the loader's useful editing tools rather than replacing them with a decorative list of toggles.
 
-> **Preview:** `0.2.0~alpha1`. Profiles, conflict planning, transactional deployment, local discovery, GameBanana browsing, editable workspaces, and the legacy Studio bridge are implemented. Real-game testing is still required before a stable release.
+> **Preview:** `0.2.0~alpha3`. Profiles, conflict planning, transactional deployment, automatic installation detection, local discovery, GameBanana browsing, editable workspaces, and the legacy Studio bridge are implemented. Real-game testing is still required before a stable release.
 
 ## Install
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha1_amd64.deb
-umml-manager
+sudo apt install ./umml-manager_0.2.0~alpha3_amd64.deb
+/usr/bin/umml-manager
 ```
 
-The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `umml-manager`, and `umml-manager-cli` only.
+The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/usr/bin/umml-manager`, and `/usr/bin/umml-manager-cli` only.
+
+The Debian desktop file launches `/usr/bin/umml-manager` directly. This avoids an older source-installed `~/.local/bin/umml-manager` shadowing the package.
+
+### Historical source-install cleanup
+
+Early manager previews installed application code into the same directory as manager data. **Do not use an old alpha1 `uninstall-manager.sh`**, because it could delete the mixed directory.
+
+To remove only the stale alpha1 launchers while preserving the library and profiles:
+
+```bash
+rm -f ~/.local/bin/umml-manager ~/.local/bin/umml-manager-cli
+rm -f ~/.local/share/applications/io.github.evelynlimab.ummlmanager.desktop
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+hash -r
+```
+
+The current source installer stores application files in `~/.local/share/umml-manager-app` and keeps user data in `~/.local/share/umml-manager`. It creates `umml-manager-source` and `umml-manager-source-cli`; generic compatibility commands prefer the Debian package when installed.
 
 ## Interface
 
@@ -21,7 +38,24 @@ The dark desktop shell is split into focused workspaces:
 - **Discover:** browse Umamusume mods on GameBanana or scan Downloads and custom folders for compatible packages.
 - **Studio:** open every legacy character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tool.
 - **Conflicts:** inspect the exact winning provider for every overlapping file before deployment.
-- **Settings:** game paths, metadata database, region, diagnostics, manager data, and workspace locations.
+- **Settings:** automatic installation setup, game paths, metadata database, region, diagnostics, manager data, and workspace locations.
+
+## First run
+
+1. Launch the game once and complete its download.
+2. Open UMML Manager. Detection may run while the game is open, but deployment cannot.
+3. The manager detects Steam/Proton and prepares a readable `meta_decrypted_*.db` automatically.
+4. If detection does not complete, use **Settings → Auto-detect installation**, then **Run diagnostics**.
+5. Browse GameBanana or scan local folders from **Discover**.
+6. Import and prepare compatible mods.
+7. Enable them in a profile and arrange load order.
+8. Close the game, inspect **Conflicts**, and apply the profile.
+
+Manual path selection is retained for unusual layouts. The three paths are:
+
+- game asset data: `.../Persistent/dat`;
+- prepared metadata: UMML's `meta_decrypted_*.db`, not the encrypted game file named `meta`;
+- game installation directory: the Steam/DMM directory containing the executable.
 
 ## GameBanana browser
 
@@ -30,9 +64,7 @@ The Discover page browses the separate GameBanana listings for:
 - Umamusume Pretty Derby Global;
 - Umamusume Pretty Derby Japan.
 
-It supports paging, text search, sorting by updated/new/popular/downloads/views, descriptions, authors, versions, statistics, downloadable file selection, opening the original page, direct download, and import into the immutable manager library.
-
-The provider still supports a pasted URL or numeric submission ID through the CLI:
+It supports paging, text search, sorting by updated/new/popular/downloads/views, descriptions, authors, versions, statistics, downloadable file selection, opening the original page, direct download, and import into the manager library. Changing pages clears the previous selection so an old result cannot be installed accidentally.
 
 ```bash
 umml-manager-cli browse --region global --sort popular
@@ -53,6 +85,8 @@ The local Discover page scans bounded roots such as Downloads, Documents, Deskto
 
 The scanner is depth- and entry-limited and skips Steam libraries, Proton prefixes, VCS directories, caches, and dependency trees. Selecting a parent download folder is enough; the importer resolves the real nested mod root.
 
+A pure Hachimi package may be discovered and preserved in the library, but the current transactional hash-asset deployer does not install Hachimi runtime layouts. It remains **unprepared** and therefore blocks profile application instead of silently pretending to work.
+
 ```bash
 umml-manager-cli scan ~/Downloads ~/Mods
 umml-manager-cli import ~/Downloads/author-package
@@ -60,7 +94,9 @@ umml-manager-cli import ~/Downloads/author-package
 
 ## Editing without losing features
 
-Imported source versions remain immutable. **Edit copy** creates a timestamped workspace under the manager data directory and writes `.umml-workspace.json` with provenance. Editing that copy cannot mutate the downloaded source version.
+Imported source versions remain immutable. Re-importing the same ID and version with different contents is rejected. A different version receives a distinct manager record so the registered previous version is not replaced.
+
+**Edit copy** creates a timestamped workspace under the manager data directory and writes `.umml-workspace.json` with provenance. Change the edited package's version or import ID before importing it as a new immutable local mod.
 
 The Studio compatibility host exposes the complete legacy loader interface plus direct launch cards for:
 
@@ -82,25 +118,15 @@ Mutating legacy actions are guarded and refuse to run while Umamusume is detecte
 Profiles are ordered lists. Later mods win conflicts. Applying a profile:
 
 1. resolves the complete file plan;
-2. validates prepared sources;
+2. rejects missing or unprepared enabled mods;
 3. checks whether the game is running;
-4. verifies active files against the previous deployment manifest;
-5. captures untouched vanilla files once;
-6. stages and commits replacements transactionally;
-7. records ownership and hashes for recovery.
+4. validates the previous deployment state instead of treating corruption as empty state;
+5. verifies active files against the previous deployment manifest;
+6. captures untouched vanilla files once;
+7. stages and commits replacements transactionally;
+8. records ownership and hashes for recovery.
 
 An empty profile restores previously managed paths. Files changed by another tool are never overwritten silently.
-
-## First run
-
-1. Launch the game once and complete its download.
-2. Close the game.
-3. Open **Settings** and select `Persistent/dat`, the game directory, and a decrypted metadata DB.
-4. Browse GameBanana or scan local folders from **Discover**.
-5. Import and prepare compatible mods.
-6. Enable them in a profile and arrange load order.
-7. Inspect **Conflicts**.
-8. Apply the profile.
 
 ## CLI
 
