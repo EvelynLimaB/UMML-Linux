@@ -1,6 +1,16 @@
 # UMML Manager feature roadmap
 
-This roadmap follows the alpha6 audit. Order matters: each phase creates a stable boundary needed by the next one. Skipping straight to an in-game overlay would produce a very attractive mechanism for corrupting files faster.
+This roadmap follows the alpha6/alpha7 audit. Order matters: each phase creates a stable boundary needed by the next one. Skipping straight to an in-game overlay would produce a very attractive mechanism for corrupting files faster.
+
+## Foundations already implemented
+
+- Versioned critical state and fail-closed schema handling.
+- Immutable source versions, staged preparation, and metadata fingerprints.
+- Target-bound deployment state, baselines, locks, journals, and integrity records.
+- Provider and deployment-backend contracts.
+- Global/Japan GameBanana browsing, exact download provenance, and bounded selected-mod preview images.
+- A preview-aware default GameBanana provider registry and full-dependency regression CI.
+- Matching DEB and AppImage runtimes with package-parity checks.
 
 ## Phase 1: installation targets and recovery UX
 
@@ -13,7 +23,7 @@ Manage multiple Global/Japan/Taiwan installations without sharing active state, 
 - Add a versioned target registry with stable target keys.
 - Persist label, region, platform, game directory, `Persistent/dat`, metadata source, prepared metadata path, and last-seen fingerprints.
 - Let profiles select an installation key.
-- Scope active deployment state and vanilla baselines per target.
+- Scope active deployment state and vanilla baselines per target directory rather than one implicit current target.
 - Add a target chooser when more than one viable installation is detected.
 - Surface stale metadata, interrupted transactions, and external changes in one Recovery page.
 - Add explicit operations for recover, abandon untouched snapshot setup, export diagnostics, and verified baseline rebase.
@@ -33,10 +43,10 @@ Turn Discover into a provider-neutral catalogue and a durable download queue.
 
 ### Work
 
-- Make GameBanana implement the provider protocol directly.
-- Move provider registration into an explicit default registry.
+- Make the GUI consume the default provider registry rather than constructing provider classes directly.
+- Move provider registration into an explicit configuration layer.
 - Add cached catalogue pages with expiry and an offline view.
-- Add image caching with bounded dimensions, MIME checks, and storage quotas.
+- Promote the current bounded in-memory preview cache to a persistent disk cache with dimensions, MIME checks, expiry, and storage quotas.
 - Add resumable or restartable downloads where the server supports ranges.
 - Add retry/backoff for transient HTTP failures without retrying certificate failures.
 - Add download states: queued, downloading, verified, imported, failed, cancelled.
@@ -49,6 +59,7 @@ Turn Discover into a provider-neutral catalogue and a durable download queue.
 - Downloads never overwrite an immutable prior archive.
 - Every imported remote record links to exact submission, file, version, hash, size, and fetch time.
 - Offline browsing clearly distinguishes cache from live results.
+- Preview/cache failure never blocks mod inspection or local management.
 
 ## Phase 3: update staging and version selection
 
@@ -138,7 +149,7 @@ Expose safe runtime-aware status and explicitly allowlisted actions without turn
 
 - Accessible scalable fonts and keyboard navigation.
 - Responsive layouts for smaller screens.
-- Preview images and before/after comparison.
+- Before/after asset comparison and richer mod galleries.
 - Profile duplicate, rename, delete, export, and import.
 - Structured logs with redaction and one-click support bundles.
 - Storage quotas and safe pruning for downloads, old versions, caches, and transactions.
@@ -155,3 +166,4 @@ Expose safe runtime-aware status and explicitly allowlisted actions without turn
 5. Source versions are immutable; edits and updates create new versions.
 6. Unknown state, builds, schemas, and package types fail closed.
 7. DEB and AppImage are built from one frozen runtime and compared in CI.
+8. Manager regressions run with the pinned runtime dependencies used by packaging.
