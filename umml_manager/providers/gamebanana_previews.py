@@ -12,8 +12,7 @@ class PreviewGameBananaClient(GameBananaClient):
 
     def _mod(self, data: dict[str, Any], fallback_id: int = 0) -> GameBananaMod:
         mod = super()._mod(data, fallback_id=fallback_id)
-        image_url = primary_preview_url(data)
-        return replace(mod, image_url=image_url or mod.image_url)
+        return replace(mod, image_url=primary_preview_url(data))
 
 
 def primary_preview_url(data: dict[str, Any]) -> str:
