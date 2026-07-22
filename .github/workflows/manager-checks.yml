@@ -67,6 +67,14 @@ jobs:
             tail -n 180 /tmp/umml-manager-tests.log
           fi
           exit "$status"
+      - name: Upload failed manager test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: umml-manager-test-failure-log
+          path: /tmp/umml-manager-tests.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Validate shell and desktop metadata
         run: |
           bash -n \
