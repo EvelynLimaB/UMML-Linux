@@ -2,7 +2,10 @@ import io
 import unittest
 from unittest.mock import patch
 
-from umml_manager.providers.gamebanana_previews import primary_preview_url
+from umml_manager.providers.gamebanana_previews import (
+    PreviewGameBananaClient,
+    primary_preview_url,
+)
 
 try:
     from PIL import Image
@@ -49,6 +52,35 @@ class PreviewUrlTests(unittest.TestCase):
             }
         }
         self.assertEqual(primary_preview_url(data), "")
+
+    def test_external_https_preview_is_ignored(self):
+        data = {
+            "_aPreviewMedia": {
+                "_aImages": [
+                    {
+                        "_sBaseUrl": "https://example.invalid/tracker",
+                        "_sFile530": "image.jpg",
+                    }
+                ]
+            }
+        }
+        self.assertEqual(primary_preview_url(data), "")
+
+    def test_gui_client_does_not_fall_back_to_untrusted_legacy_url(self):
+        data = {
+            "_idRow": 123,
+            "_sName": "Synthetic mod",
+            "_aPreviewMedia": {
+                "_aImages": [
+                    {
+                        "_sBaseUrl": "https://example.invalid/tracker",
+                        "_sFile": "image.jpg",
+                    }
+                ]
+            },
+        }
+        client = PreviewGameBananaClient(opener=lambda *_args, **_kwargs: None)
+        self.assertEqual(client._mod(data).image_url, "")
 
 
 class FakeHeaders(dict):
