@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from ..models import ModRecord
@@ -23,7 +22,7 @@ class ModProvider(Protocol):
     """Contract for remote mod catalogs.
 
     Providers own remote metadata, downloads, and provenance. They do not prepare
-    assets, resolve profiles, or write into the game installation.
+    assets, resolve profiles, infer manager storage paths, or write into the game.
     """
 
     descriptor: ProviderDescriptor
@@ -78,18 +77,6 @@ class ProviderRegistry:
         )
 
     def values(self) -> tuple[ModProvider, ...]:
-        return tuple(provider for _, provider in sorted(self._providers.items()))
-
-
-def preserve_download_path(record: ModRecord) -> Path | None:
-    """Return the recorded provider archive when its provenance still matches."""
-
-    if not record.source.file_name or not record.source.sha256:
-        return None
-    source = Path(record.source_path)
-    root = source.parents[2] if len(source.parents) >= 3 else None
-    if root is None:
-        return None
-    candidate = root / "downloads" / str(record.source.submission_id or "local")
-    matches = list(candidate.rglob(record.source.file_name)) if candidate.is_dir() else []
-    return matches[0] if len(matches) == 1 else None
+        return tuple(
+            provider for _, provider in sorted(self._providers.items())
+        )
