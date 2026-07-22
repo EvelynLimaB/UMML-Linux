@@ -29,7 +29,7 @@ class JsonResponse(io.BytesIO):
 
 class ManagerTests(unittest.TestCase):
     def test_version_comes_from_independent_manager_version_file(self):
-        self.assertEqual(manager_version(), "0.2.0~alpha3")
+        self.assertEqual(manager_version(), "0.2.0~alpha4")
 
     def test_resolver_uses_profile_order_and_reports_conflict(self):
         first = ModRecord(
@@ -60,6 +60,34 @@ class ManagerTests(unittest.TestCase):
             archive = root / "bad.zip"
             with zipfile.ZipFile(archive, "w") as package:
                 package.writestr("../escape", "bad")
+            with self.assertRaises(StoreError):
+                ManagerStore(root / "manager").import_archive(archive)
+
+    def test_archive_expansion_limit_is_enforced_before_extraction(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive = root / "large.zip"
+            with zipfile.ZipFile(archive, "w") as package:
+                package.writestr(
+                    "setting.json",
+                    json.dumps({"title": "Large", "mod_version": "1"}),
+                )
+                package.writestr("assets/file", b"12345678")
+            with patch("umml_manager.store.MAX_ARCHIVE_UNCOMPRESSED_BYTES", 4):
+                with self.assertRaises(StoreError):
+                    ManagerStore(root / "manager").import_archive(archive)
+            self.assertFalse((root / "manager" / "sources").exists())
+
+    def test_archive_special_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive = root / "link.zip"
+            link = zipfile.ZipInfo("assets/link")
+            link.create_system = 3
+            link.external_attr = 0o120777 << 16
+            with zipfile.ZipFile(archive, "w") as package:
+                package.writestr("setting.json", '{"title":"Link","mod_version":"1"}')
+                package.writestr(link, "target")
             with self.assertRaises(StoreError):
                 ManagerStore(root / "manager").import_archive(archive)
 
