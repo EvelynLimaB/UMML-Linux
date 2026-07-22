@@ -1,5 +1,25 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha3 - 2026-07-21
+
+### Fixed
+
+- Debian desktop launches now use `/usr/bin/umml-manager` directly so stale user-level PATH entries cannot silently start an older source copy.
+- Source application files now live in `~/.local/share/umml-manager-app`; manager library and deployment state remain separately preserved in `~/.local/share/umml-manager`.
+- The source installer uses a distinct desktop ID and source-specific launchers. Its compatibility commands prefer the Debian package whenever installed.
+- The source uninstaller no longer deletes the manager library, profiles, settings, baselines, transactions, downloads, or workspaces.
+- Enabled but unprepared mods now block profile deployment instead of producing a misleading successful no-op.
+- Corrupt `active.json`, mod registry, and profile registry files fail closed instead of being silently treated as empty state.
+- Re-importing the same mod ID and version with different contents can no longer overwrite immutable source files.
+- Different versions of the same logical mod coexist under distinct record IDs instead of replacing the registered version.
+- GameBanana result changes now clear stale selections, disable invalid install actions, and honor previous/next page availability.
+
+### Changed
+
+- Conflict plans explicitly list missing and unprepared enabled mods.
+- Workspace instructions require a new version or ID before importing edited content.
+- GameBanana and local discovery tables now include vertical scrollbars.
+
 ## 0.2.0~alpha2 - 2026-07-21
 
 ### Fixed
