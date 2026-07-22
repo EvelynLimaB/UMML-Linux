@@ -4,9 +4,12 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from umml_manager.discovery import scan_mod_candidates
 from umml_manager.engine import ApplyEngine, ApplyError
+from umml_manager.installations import InstallationError, detect_preferred_installation
 from umml_manager.models import ModRecord, Profile
 from umml_manager.providers.gamebanana import GameBananaClient
 from umml_manager.resolver import resolve_profile
@@ -26,7 +29,7 @@ class JsonResponse(io.BytesIO):
 
 class ManagerTests(unittest.TestCase):
     def test_version_comes_from_independent_manager_version_file(self):
-        self.assertEqual(manager_version(), "0.2.0~alpha1")
+        self.assertEqual(manager_version(), "0.2.0~alpha2")
 
     def test_resolver_uses_profile_order_and_reports_conflict(self):
         first = ModRecord("a", "A", prepared_path="/a", files={"aa/aafile": "one"})
@@ -72,6 +75,58 @@ class ManagerTests(unittest.TestCase):
             (workspace / "assets" / "file").write_text("edited")
             self.assertEqual((Path(record.source_path) / "assets" / "file").read_text(), "original")
             self.assertTrue((workspace / ".umml-workspace.json").is_file())
+
+    def test_installation_detection_prefers_region_and_prepares_metadata(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            global_game = root / "global-game"
+            global_dat = root / "global-persistent" / "dat"
+            global_meta = root / "global-persistent" / "meta"
+            global_dec = root / "global-persistent" / "meta_decrypted_test.db"
+            japan_game = root / "japan-game"
+            japan_dat = root / "japan-persistent" / "dat"
+            japan_meta = root / "japan-persistent" / "meta"
+            for directory in (global_game, global_dat, japan_game, japan_dat):
+                directory.mkdir(parents=True)
+            for path in (global_meta, global_dec, japan_meta):
+                path.write_bytes(b"db")
+            installs = [
+                SimpleNamespace(
+                    key="steam-japan",
+                    label="Steam Japan",
+                    region="Japan",
+                    game_dir=japan_game,
+                    dat_path=japan_dat,
+                    meta_path=japan_meta,
+                    detected=True,
+                ),
+                SimpleNamespace(
+                    key="steam-global",
+                    label="Steam Global",
+                    region="Global",
+                    game_dir=global_game,
+                    dat_path=global_dat,
+                    meta_path=global_meta,
+                    detected=True,
+                ),
+            ]
+            calls = []
+
+            def decryptor(dat_path, meta_path, region):
+                calls.append((dat_path, meta_path, region))
+                return global_dec
+
+            with patch("umml_platform.detect_installations", return_value=installs):
+                selected = detect_preferred_installation("global", decryptor=decryptor)
+            self.assertEqual(selected.key, "steam-global")
+            self.assertEqual(selected.region, "global")
+            self.assertEqual(selected.meta_path, global_dec.resolve())
+            self.assertEqual(calls, [(global_dat.resolve(), global_meta.resolve(), "Global")])
+
+    def test_installation_detection_reports_missing_game(self):
+        with patch("umml_platform.detect_installations", return_value=[]):
+            with self.assertRaises(InstallationError):
+                detect_preferred_installation("global")
 
     def test_gamebanana_browse_parses_rich_records(self):
         payload = {
