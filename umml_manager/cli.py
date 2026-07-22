@@ -10,6 +10,7 @@ from .legacy_adapter import LegacyAssetAdapter
 from .models import Profile
 from .providers.gamebanana import GameBananaClient
 from .resolver import Resolution, resolve_profile
+from .safety import hash_file
 from .store import ManagerStore, StoreError, default_root
 from .studio import LegacyToolLauncher
 from .version import manager_version
@@ -19,7 +20,11 @@ REGIONS = ("global", "japan", "taiwan", "korea")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="umml-manager-cli")
-    parser.add_argument("--version", action="version", version=manager_version())
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=manager_version(),
+    )
     parser.add_argument(
         "--root",
         default=str(default_root()),
@@ -37,7 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--depth", type=int, default=5)
 
     browse = sub.add_parser("browse")
-    browse.add_argument("--region", choices=("global", "japan"), default="global")
+    browse.add_argument(
+        "--region",
+        choices=("global", "japan"),
+        default="global",
+    )
     browse.add_argument("--page", type=int, default=1)
     browse.add_argument(
         "--sort",
@@ -65,13 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     plan = sub.add_parser("plan")
     plan.add_argument("profile")
-    plan.add_argument("--region", choices=REGIONS, default="")
+    _add_target_options(plan, dat_required=False)
 
     apply_command = sub.add_parser("apply")
     apply_command.add_argument("profile")
-    apply_command.add_argument("--dat", required=True)
+    _add_target_options(apply_command, dat_required=True)
     apply_command.add_argument("--game-dir")
-    apply_command.add_argument("--region", choices=REGIONS, default="")
     apply_command.add_argument("--force", action="store_true")
 
     updates = sub.add_parser("updates")
@@ -84,6 +92,25 @@ def build_parser() -> argparse.ArgumentParser:
     studio.add_argument("--meta", default="")
     studio.add_argument("--region", default="global")
     return parser
+
+
+def _add_target_options(
+    parser: argparse.ArgumentParser,
+    *,
+    dat_required: bool,
+) -> None:
+    parser.add_argument("--region", choices=REGIONS, default="")
+    parser.add_argument("--installation-key", default="")
+    parser.add_argument(
+        "--meta",
+        default="",
+        help=(
+            "Prepared metadata DB used to reject stale prepared caches. "
+            "Recommended for plans and required by release workflows."
+        ),
+    )
+    if dat_required:
+        parser.add_argument("--dat", required=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,7 +134,10 @@ def main(argv: list[str] | None = None) -> int:
             print(record.id)
         elif args.command == "scan":
             roots = [Path(item) for item in args.paths] or default_search_roots()
-            for candidate in scan_mod_candidates(roots, max_depth=args.depth):
+            for candidate in scan_mod_candidates(
+                roots,
+                max_depth=args.depth,
+            ):
                 print(
                     f"{candidate.kind}\t{candidate.confidence}\t"
                     f"{candidate.path}\t{candidate.reason}"
@@ -135,7 +165,9 @@ def main(argv: list[str] | None = None) -> int:
             record = LegacyAssetAdapter(store, args.meta).prepare(
                 store.get_mod(args.mod_id)
             )
-            print(f"Prepared {len(record.files)} assets for {record.id}")
+            print(
+                f"Prepared {len(record.files)} assets for {record.id}"
+            )
         elif args.command == "workspace":
             print(store.create_workspace(args.mod_id))
         elif args.command == "profile":
@@ -150,23 +182,35 @@ def main(argv: list[str] | None = None) -> int:
             print(args.name)
         elif args.command in {"plan", "apply"}:
             profile = store.get_profile(args.profile)
+            fingerprint = _metadata_fingerprint(args.meta)
             resolution = resolve_profile(
                 profile,
                 store.list_mods(),
                 target_region=args.region or profile.region,
+                target_installation_key=args.installation_key,
+                metadata_fingerprint=fingerprint,
             )
             if args.command == "plan":
-                print(json.dumps(_resolution_dict(resolution), indent=2))
+                print(
+                    json.dumps(
+                        _resolution_dict(resolution),
+                        indent=2,
+                    )
+                )
             else:
                 result = ApplyEngine(
                     store,
                     args.dat,
                     game_dir=args.game_dir,
-                ).apply(resolution, force=args.force)
+                ).apply(
+                    resolution,
+                    force=args.force,
+                )
                 print(
-                    f"Installed {result.installed}; restored {result.restored}; "
-                    f"unchanged {result.unchanged}; recovered "
-                    f"{result.recovered_transactions} interrupted transaction(s)"
+                    f"Installed {result.installed}; restored "
+                    f"{result.restored}; unchanged {result.unchanged}; "
+                    f"recovered {result.recovered_transactions} interrupted "
+                    "transaction(s)"
                 )
         elif args.command == "updates":
             client = GameBananaClient()
@@ -178,7 +222,9 @@ def main(argv: list[str] | None = None) -> int:
             for record in records:
                 update = client.update_available(record)
                 if update:
-                    print(f"{record.id}\t{update.id}\t{update.name}")
+                    print(
+                        f"{record.id}\t{update.id}\t{update.name}"
+                    )
         elif args.command == "studio":
             LegacyToolLauncher().launch(
                 args.tool,
@@ -196,21 +242,36 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
+def _metadata_fingerprint(value: str) -> str:
+    if not value:
+        return ""
+    path = Path(value).expanduser()
+    if not path.is_file():
+        raise StoreError(f"Metadata database not found: {path}")
+    return hash_file(path)
+
+
 def _resolution_dict(resolution: Resolution) -> dict:
     return {
         "profile": resolution.profile,
         "target_region": resolution.target_region,
+        "target_installation_key": resolution.target_installation_key,
+        "metadata_fingerprint": resolution.metadata_fingerprint,
         "files": len(resolution.winners),
         "blocking": resolution.blocking_issues,
         "missing": resolution.missing,
         "unprepared": resolution.unprepared,
+        "stale_prepared": resolution.stale_prepared,
         "unsupported": resolution.unsupported,
         "incompatible": resolution.incompatible,
+        "wrong_installation": resolution.wrong_installation,
         "invalid": resolution.invalid,
         "missing_dependencies": resolution.missing_dependencies,
         "incompatibility_conflicts": resolution.incompatibility_conflicts,
         "duplicates": resolution.duplicates,
-        "conflicts": [conflict.__dict__ for conflict in resolution.conflicts],
+        "conflicts": [
+            conflict.__dict__ for conflict in resolution.conflicts
+        ],
     }
 
 
