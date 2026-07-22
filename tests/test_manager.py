@@ -43,7 +43,9 @@ class MemoryResponse(io.BytesIO):
 
 class ManagerTests(unittest.TestCase):
     def test_version_comes_from_independent_manager_version_file(self):
-        self.assertEqual(manager_version(), "0.2.0~alpha6")
+        version_file = Path(__file__).resolve().parents[1] / "MANAGER_VERSION"
+        expected = version_file.read_text(encoding="utf-8").strip()
+        self.assertEqual(manager_version(), expected)
 
     def test_resolver_uses_profile_order_and_reports_conflict(self):
         first = ModRecord(
