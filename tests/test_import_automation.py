@@ -2,7 +2,9 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
+from umml_manager.cli import main as cli_main
 from umml_manager.legacy_archive import import_loose_legacy_archive
 from umml_manager.models import ModRecord, SourceSpec
 from umml_manager.providers.gamebanana import GameBananaFile, GameBananaMod
@@ -154,6 +156,19 @@ class AutomaticPreparationPolicyTests(unittest.TestCase):
             )
             self.assertFalse(should_prepare_automatically(prepared, str(meta)))
             self.assertFalse(should_prepare_automatically(unsupported, str(meta)))
+
+
+class CliProviderTests(unittest.TestCase):
+    def test_offline_list_does_not_initialize_network_provider(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with patch(
+                "umml_manager.cli.PreviewGameBananaClient",
+                side_effect=AssertionError("network provider should stay lazy"),
+            ):
+                self.assertEqual(
+                    cli_main(["--root", str(Path(temp) / "manager"), "list"]),
+                    0,
+                )
 
 
 if __name__ == "__main__":
