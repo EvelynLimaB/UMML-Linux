@@ -9,6 +9,10 @@ PACKAGE_UNKNOWN = "unknown"
 SUPPORTED_UPDATE_POLICIES = {"notify", "download", "manual"}
 
 
+def _asset_capabilities() -> list[str]:
+    return ["prepare-assets", "deploy-files"]
+
+
 @dataclass(frozen=True)
 class SourceSpec:
     provider: str = "local"
@@ -52,7 +56,7 @@ class ModRecord:
     imported_at: str = ""
     update_policy: str = "notify"
     package_type: str = PACKAGE_UMML_ASSETS
-    capabilities: list[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=_asset_capabilities)
     dependencies: list[str] = field(default_factory=list)
     incompatibilities: list[str] = field(default_factory=list)
     prepared_against: str = ""
@@ -138,7 +142,7 @@ class Profile:
 
 def _default_capabilities(package_type: str) -> list[str]:
     if package_type == PACKAGE_UMML_ASSETS:
-        return ["prepare-assets", "deploy-files"]
+        return _asset_capabilities()
     if package_type == PACKAGE_HACHIMI:
         return ["hachimi-runtime"]
     return []
