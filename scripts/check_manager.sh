@@ -17,11 +17,13 @@ bash -n \
   uninstall-manager.sh \
   scripts/build_manager_frozen.sh \
   scripts/build_manager_deb.sh \
+  scripts/build_manager_appimage.sh \
   scripts/check_manager.sh
 
 if command -v desktop-file-validate >/dev/null 2>&1; then
   desktop-file-validate \
-    packaging/linux/io.github.evelynlimab.ummlmanager.desktop
+    packaging/linux/io.github.evelynlimab.ummlmanager.desktop \
+    packaging/appimage/io.github.evelynlimab.ummlmanager.desktop
 else
   printf 'Skipping desktop-file validation: desktop-file-validate not installed.\n' >&2
 fi
