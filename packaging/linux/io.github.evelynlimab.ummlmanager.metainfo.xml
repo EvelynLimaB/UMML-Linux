@@ -7,7 +7,7 @@
   <project_license>MIT</project_license>
   <description>
     <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and verified transactional deployment.</p>
-    <p>It detects supported game installations, browses Global and Japan Umamusume GameBanana mods with bounded preview images, finds compatible local packages, creates editable copies, and rejects stale or incompatible profile plans.</p>
+    <p>It detects supported game installations, browses Global and Japan Umamusume GameBanana mods with bounded preview images, automatically prepares compatible imports, finds compatible local packages, creates editable copies, and rejects stale or incompatible profile plans.</p>
     <p>The built-in Studio preserves the legacy loader's character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.</p>
   </description>
   <launchable type="desktop-id">io.github.evelynlimab.ummlmanager.desktop</launchable>
@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha9" date="2026-07-22">
+      <description>
+        <p>Automatically prepares compatible imports, preserves source packages when preparation fails, and safely normalizes provider-confirmed loose legacy UMML asset archives that omit the modern assets wrapper.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha8" date="2026-07-22">
       <description>
         <p>Fixes disabled GameBanana installation controls when catalogue rows omit downloadable files by hydrating submission details asynchronously, preserving an Install latest fallback, and normalizing alternate file-container response shapes.</p>
