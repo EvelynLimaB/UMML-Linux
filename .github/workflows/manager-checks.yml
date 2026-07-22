@@ -43,10 +43,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - name: Install metadata validators
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install manager runtime dependencies and metadata validators
         run: |
           sudo apt-get update
           sudo apt-get install -y desktop-file-utils appstream-util
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip check
+          python - <<'PY'
+          from PIL import Image
+          print('Pillow', Image.__version__)
+          PY
       - name: Compile every manager Python file
         run: |
           python -m compileall -q \
@@ -98,6 +107,9 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
       - name: Install package build dependencies
         run: |
           sudo apt-get update
@@ -110,6 +122,7 @@ jobs:
             python3-tk
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements.txt -r requirements-build.txt
+          python -m pip check
       - name: Build frozen manager
         run: bash scripts/build_manager_frozen.sh
       - name: Build Debian package
@@ -157,6 +170,10 @@ jobs:
             -type f -path '*/certifi/cacert.pem' -print -quit | grep -q .
           find "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager" \
             -type f -path '*/certifi/cacert.pem' -print -quit | grep -q .
+          find "$VERIFY_ROOT/deb/usr/lib/umml-manager" \
+            -type f -path '*/PIL/_imaging*.so' -print -quit | grep -q .
+          find "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager" \
+            -type f -path '*/PIL/_imaging*.so' -print -quit | grep -q .
           rm -rf "$VERIFY_ROOT"
           trap - EXIT
 
