@@ -24,7 +24,8 @@ from .safety import (
 from .store import ManagerStore
 
 ACTIVE_VERSION = 2
-JOURNAL_VERSION = 1
+JOURNAL_VERSION = 2
+BASELINE_VERSION = 1
 
 
 class ApplyError(RuntimeError):
@@ -150,8 +151,9 @@ class ApplyEngine:
         snapshots = transaction / "snapshots"
         snapshots.mkdir(parents=True, exist_ok=True)
         journal_path = transaction / "journal.json"
-        manifest: dict[str, bool] = {}
+        manifest: dict[str, dict[str, object]] = {}
         active_written = False
+        mutation_started = False
         atomic_write_json(
             journal_path,
             self._journal(transaction_id, "snapshotting", manifest),
@@ -163,14 +165,17 @@ class ApplyEngine:
                 if target.exists() and not target.is_file():
                     raise ApplyError(f"Managed target is not a regular file: {target}")
                 existed = target.is_file()
-                manifest[relative] = existed
+                entry: dict[str, object] = {"existed": existed, "sha256": ""}
                 if existed:
                     atomic_copy_file(target, snapshot)
+                    entry["sha256"] = hash_file(snapshot)
+                manifest[relative] = entry
             atomic_write_json(
                 journal_path,
                 self._journal(transaction_id, "applying", manifest),
             )
             self._assert_game_closed()
+            mutation_started = True
 
             installed = restored = unchanged = 0
             new_active: dict[str, dict[str, str]] = {}
@@ -187,6 +192,12 @@ class ApplyEngine:
                 else:
                     self._capture_baseline(relative, target, active.get(relative))
                     atomic_copy_file(source, target)
+                    installed_hash = hash_file(target)
+                    if installed_hash != claim.sha256:
+                        raise ApplyError(
+                            f"Installed asset verification failed for {relative}: "
+                            f"expected {claim.sha256}, found {installed_hash}"
+                        )
                     installed += 1
                 new_active[relative] = {
                     "owner": claim.mod_id,
@@ -209,6 +220,12 @@ class ApplyEngine:
                 recovered_transactions=recovered,
             )
         except Exception as exc:
+            if not mutation_started:
+                shutil.rmtree(transaction, ignore_errors=True)
+                if isinstance(exc, ApplyError):
+                    raise
+                raise ApplyError(f"Apply failed before game-file mutation: {exc}") from exc
+
             rollback_error: Exception | None = None
             try:
                 self._rollback(snapshots, manifest)
@@ -228,45 +245,86 @@ class ApplyEngine:
                 raise
             raise ApplyError(f"Apply failed and was rolled back: {exc}") from exc
 
+    def _baseline_paths(self, relative: str) -> tuple[Path, Path, Path]:
+        baseline = path_under(self.store.paths.baseline, relative)
+        marker = baseline.with_name(baseline.name + ".umml-missing")
+        digest = baseline.with_name(baseline.name + ".umml-sha256")
+        return baseline, marker, digest
+
     def _capture_baseline(
         self,
         relative: str,
         target: Path,
         active_record: object,
     ) -> None:
-        baseline = path_under(self.store.paths.baseline, relative)
-        marker = baseline.with_name(baseline.name + ".umml-missing")
-        if baseline.exists() or marker.exists():
-            if active_record:
-                return
-            if (
-                baseline.is_file()
-                and target.is_file()
-                and hash_file(baseline) == hash_file(target)
-            ):
-                return
-            if marker.is_file() and not target.exists():
-                return
+        baseline, marker, digest = self._baseline_paths(relative)
+        if baseline.exists() or marker.exists() or digest.exists():
+            if baseline.is_file():
+                baseline_hash = self._verify_baseline_file(
+                    baseline,
+                    digest,
+                    relative,
+                )
+                if active_record:
+                    return
+                if target.is_file() and hash_file(target) == baseline_hash:
+                    return
+                raise ApplyError(
+                    f"The vanilla baseline for {relative} no longer matches the game. "
+                    "A game update or another tool changed this path. Baseline refresh "
+                    "must be explicit."
+                )
+            if marker.is_file():
+                self._validate_missing_marker(marker, relative)
+                if active_record or not target.exists():
+                    return
+                raise ApplyError(
+                    f"The vanilla baseline records {relative} as absent, but the game now "
+                    "contains that path. Baseline refresh must be explicit."
+                )
             raise ApplyError(
-                f"The vanilla baseline for {relative} no longer matches the game. "
-                "A game update or another tool changed this path. Baseline refresh "
-                "must be explicit."
+                f"Vanilla baseline metadata is incomplete for {relative}. "
+                "Do not deploy until the baseline is inspected."
             )
+
         baseline.parent.mkdir(parents=True, exist_ok=True)
         if target.is_file():
             atomic_copy_file(target, baseline)
+            baseline_hash = hash_file(baseline)
+            atomic_write_json(
+                digest,
+                {
+                    "version": BASELINE_VERSION,
+                    "sha256": baseline_hash,
+                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
         elif target.exists():
             raise ApplyError(f"Cannot capture a non-file baseline: {target}")
         else:
-            atomic_write_json(marker, {"version": 1, "missing": True})
+            atomic_write_json(
+                marker,
+                {
+                    "version": BASELINE_VERSION,
+                    "missing": True,
+                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
     def _restore_baseline(self, relative: str, target: Path) -> bool:
-        baseline = path_under(self.store.paths.baseline, relative)
-        marker = baseline.with_name(baseline.name + ".umml-missing")
+        baseline, marker, digest = self._baseline_paths(relative)
         if baseline.is_file():
+            expected = self._verify_baseline_file(baseline, digest, relative)
             atomic_copy_file(baseline, target)
+            restored_hash = hash_file(target)
+            if restored_hash != expected:
+                raise ApplyError(
+                    f"Restored baseline verification failed for {relative}: "
+                    f"expected {expected}, found {restored_hash}"
+                )
             return True
         if marker.is_file():
+            self._validate_missing_marker(marker, relative)
             if target.exists() and not target.is_file():
                 raise ApplyError(f"Cannot remove non-file managed target: {target}")
             existed = target.exists()
@@ -276,6 +334,69 @@ class ApplyEngine:
             f"No vanilla baseline exists for previously managed path {relative}. "
             "The active state was preserved and no further files were changed."
         )
+
+    def _verify_baseline_file(
+        self,
+        baseline: Path,
+        digest_path: Path,
+        relative: str,
+    ) -> str:
+        if not digest_path.is_file():
+            if not self._saved_dat_matches():
+                raise ApplyError(
+                    f"Legacy baseline for {relative} has no integrity record and the saved "
+                    "installation does not match the current target."
+                )
+            migrated_hash = hash_file(baseline)
+            atomic_write_json(
+                digest_path,
+                {
+                    "version": BASELINE_VERSION,
+                    "sha256": migrated_hash,
+                    "migrated_from_legacy": True,
+                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            return migrated_hash
+        try:
+            data = json.loads(digest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ApplyError(
+                f"Baseline integrity record is unreadable for {relative}: {digest_path}"
+            ) from exc
+        if not isinstance(data, dict):
+            raise ApplyError(
+                f"Baseline integrity record has an invalid format for {relative}"
+            )
+        version = _document_version(data, BASELINE_VERSION, "baseline integrity record")
+        if version < 1:
+            raise ApplyError(f"Unsupported baseline integrity version for {relative}")
+        try:
+            expected = validate_sha256(str(data.get("sha256", "")))
+        except SafetyError as exc:
+            raise ApplyError(
+                f"Baseline integrity record has an invalid SHA-256 for {relative}"
+            ) from exc
+        actual = hash_file(baseline)
+        if actual != expected:
+            raise ApplyError(
+                f"Vanilla baseline was changed for {relative}: expected {expected}, found {actual}"
+            )
+        return expected
+
+    @staticmethod
+    def _validate_missing_marker(marker: Path, relative: str) -> None:
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ApplyError(
+                f"Missing-file baseline marker is unreadable for {relative}: {marker}"
+            ) from exc
+        if not isinstance(data, dict) or data.get("missing") is not True:
+            raise ApplyError(
+                f"Missing-file baseline marker has an invalid format for {relative}"
+            )
+        _document_version(data, BASELINE_VERSION, "missing-file baseline marker")
 
     def _check_external_changes(
         self,
@@ -301,16 +422,29 @@ class ApplyEngine:
                 f"({sample}). Refusing to overwrite them without --force."
             )
 
-    def _rollback(self, snapshots: Path, manifest: dict[str, bool]) -> None:
+    def _rollback(self, snapshots: Path, manifest: dict) -> None:
         failures: list[str] = []
-        for relative, existed in manifest.items():
+        for relative, raw_entry in manifest.items():
             try:
-                target = path_under(self.dat_path, relative)
-                snapshot = path_under(snapshots, relative)
+                canonical = normalize_relative_path(str(relative))
+                existed, expected = self._snapshot_entry(raw_entry, canonical)
+                target = path_under(self.dat_path, canonical)
+                snapshot = path_under(snapshots, canonical)
                 if existed:
                     if not snapshot.is_file():
                         raise ApplyError(f"Recovery snapshot is missing: {snapshot}")
+                    if expected:
+                        actual_snapshot = hash_file(snapshot)
+                        if actual_snapshot != expected:
+                            raise ApplyError(
+                                f"Recovery snapshot hash mismatch for {canonical}: "
+                                f"expected {expected}, found {actual_snapshot}"
+                            )
                     atomic_copy_file(snapshot, target)
+                    if expected and hash_file(target) != expected:
+                        raise ApplyError(
+                            f"Recovery target verification failed for {canonical}"
+                        )
                 else:
                     if target.exists() and not target.is_file():
                         raise ApplyError(f"Recovery target is not a file: {target}")
@@ -341,21 +475,25 @@ class ApplyEngine:
                 ) from exc
             if not isinstance(journal, dict) or journal.get("target_id") != self.target_id:
                 raise ApplyError(f"Invalid deployment journal: {journal_path}")
+            _document_version(journal, JOURNAL_VERSION, "deployment journal")
             phase = str(journal.get("phase", ""))
             manifest = journal.get("manifest", {})
             if not isinstance(manifest, dict):
                 raise ApplyError(
                     f"Invalid deployment snapshot manifest: {journal_path}"
                 )
-            normalized_manifest = self._validate_snapshot_manifest(manifest, journal_path)
 
-            # Snapshotting cannot have modified the game. It is deliberately
-            # cleaned before active-state migration, including old alpha state.
+            # Snapshot setup cannot have modified the game. Clean it before
+            # active-state migration, even if an old state document is present.
             if phase == "snapshotting":
                 shutil.rmtree(transaction, ignore_errors=True)
                 recovered += 1
                 continue
 
+            normalized_manifest = self._validate_snapshot_manifest(
+                manifest,
+                journal_path,
+            )
             active_document = self._read_active_document(allow_legacy=False)
             if active_document.get("transaction_id") == transaction.name:
                 shutil.rmtree(transaction, ignore_errors=True)
@@ -371,13 +509,13 @@ class ApplyEngine:
             )
         return recovered
 
-    @staticmethod
     def _validate_snapshot_manifest(
+        self,
         manifest: dict,
         journal_path: Path,
-    ) -> dict[str, bool]:
-        result: dict[str, bool] = {}
-        for relative, existed in manifest.items():
+    ) -> dict[str, dict[str, object]]:
+        result: dict[str, dict[str, object]] = {}
+        for relative, raw_entry in manifest.items():
             try:
                 canonical = normalize_relative_path(str(relative))
             except SafetyError as exc:
@@ -388,8 +526,34 @@ class ApplyEngine:
                 raise ApplyError(
                     f"Duplicate path in deployment journal {journal_path}: {canonical}"
                 )
-            result[canonical] = bool(existed)
+            existed, sha256 = self._snapshot_entry(raw_entry, canonical)
+            result[canonical] = {"existed": existed, "sha256": sha256}
         return result
+
+    @staticmethod
+    def _snapshot_entry(raw_entry: object, relative: str) -> tuple[bool, str]:
+        if isinstance(raw_entry, bool):
+            return raw_entry, ""
+        if not isinstance(raw_entry, dict):
+            raise ApplyError(f"Invalid recovery snapshot entry for {relative}")
+        existed = raw_entry.get("existed")
+        if not isinstance(existed, bool):
+            raise ApplyError(
+                f"Recovery snapshot entry has no boolean existed flag for {relative}"
+            )
+        raw_hash = str(raw_entry.get("sha256", ""))
+        if existed:
+            try:
+                return True, validate_sha256(raw_hash)
+            except SafetyError as exc:
+                raise ApplyError(
+                    f"Recovery snapshot entry has an invalid SHA-256 for {relative}"
+                ) from exc
+        if raw_hash:
+            raise ApplyError(
+                f"Recovery snapshot for absent path {relative} unexpectedly has a hash"
+            )
+        return False, ""
 
     def _read_active_document(self, *, allow_legacy: bool = True) -> dict:
         path = self.store.paths.state
@@ -412,6 +576,7 @@ class ApplyEngine:
                 f"UMML Manager's active deployment state has an invalid format: {path}. "
                 "No game files were changed."
             )
+        _document_version(data, ACTIVE_VERSION, "active deployment state")
         recorded_target = str(data.get("target_id", ""))
         if recorded_target and recorded_target != self.target_id:
             raise ApplyError(
@@ -485,7 +650,12 @@ class ApplyEngine:
                 raise ApplyError(
                     f"Baseline target manifest is unreadable: {manifest}"
                 ) from exc
-            if not isinstance(data, dict) or data.get("target_id") != self.target_id:
+            if not isinstance(data, dict):
+                raise ApplyError(
+                    f"Baseline target manifest has an invalid format: {manifest}"
+                )
+            _document_version(data, BASELINE_VERSION, "baseline target manifest")
+            if data.get("target_id") != self.target_id:
                 raise ApplyError(
                     "The vanilla baseline belongs to another game installation. "
                     "Do not reuse it across Global/Japan or different Steam libraries."
@@ -503,7 +673,7 @@ class ApplyEngine:
         atomic_write_json(
             manifest,
             {
-                "version": 1,
+                "version": BASELINE_VERSION,
                 "target_id": self.target_id,
                 "dat_path": str(self.dat_path.resolve()),
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -523,7 +693,7 @@ class ApplyEngine:
         self,
         transaction_id: str,
         phase: str,
-        manifest: dict[str, bool],
+        manifest: dict,
     ) -> dict:
         return {
             "version": JOURNAL_VERSION,
@@ -534,6 +704,18 @@ class ApplyEngine:
             "manifest": dict(manifest),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+
+def _document_version(data: dict, supported: int, label: str) -> int:
+    try:
+        version = int(data.get("version", 1))
+    except (TypeError, ValueError) as exc:
+        raise ApplyError(f"{label} has an invalid schema version") from exc
+    if version < 1 or version > supported:
+        raise ApplyError(
+            f"{label} uses unsupported schema version {version}; supported up to {supported}"
+        )
+    return version
 
 
 def _target_id(dat_path: Path) -> str:
