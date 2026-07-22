@@ -1,5 +1,6 @@
 import io
 import unittest
+import urllib.request
 from unittest.mock import patch
 
 from umml_manager.providers.gamebanana_previews import (
@@ -15,6 +16,7 @@ except ImportError:  # Legacy-only validation intentionally installs no manager 
 if Image is not None:
     from umml_manager.preview_images import (
         MAX_PREVIEW_BYTES,
+        GameBananaPreviewRedirectHandler,
         PreviewImageError,
         PreviewImageLoader,
         decode_preview_image,
@@ -162,6 +164,35 @@ class ManagerPreviewTests(unittest.TestCase):
             )
         self.assertFalse(called)
 
+    def test_external_https_url_is_rejected_before_network_access(self):
+        called = False
+
+        def opener(_request, timeout=30):
+            nonlocal called
+            called = True
+            return FakeResponse(b"")
+
+        with self.assertRaises(PreviewImageError):
+            PreviewImageLoader(opener=opener).load(
+                "https://example.invalid/test.png"
+            )
+        self.assertFalse(called)
+
+    def test_redirect_handler_rejects_external_host_before_following(self):
+        request = urllib.request.Request(
+            "https://images.gamebanana.com/test.png"
+        )
+        handler = GameBananaPreviewRedirectHandler()
+        with self.assertRaises(PreviewImageError):
+            handler.redirect_request(
+                request,
+                None,
+                302,
+                "Found",
+                {},
+                "https://example.invalid/tracker.png",
+            )
+
     def test_downgraded_redirect_is_rejected(self):
         payload = png_bytes()
         response = FakeResponse(
@@ -172,7 +203,7 @@ class ManagerPreviewTests(unittest.TestCase):
 
         with self.assertRaises(PreviewImageError) as raised:
             loader.load("https://images.gamebanana.com/test.png")
-        self.assertIn("verified HTTPS", str(raised.exception))
+        self.assertIn("GameBanana HTTPS", str(raised.exception))
 
     def test_non_image_content_type_is_rejected(self):
         response = FakeResponse(
