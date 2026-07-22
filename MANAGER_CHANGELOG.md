@@ -42,6 +42,9 @@
 
 ### GUI and Studio
 
+- Selected GameBanana mods now display their parsed preview image above the description and file selector.
+- Preview loading is asynchronous, selection-tokened, session-cached, verified HTTPS-only, limited to 12 MiB and 40 megapixels, and non-blocking when an image is unavailable.
+- Pillow raster codecs are included in both frozen package formats so JPEG, PNG, GIF, and WebP previews render consistently.
 - Background task callbacks are discarded after GUI shutdown instead of calling a destroyed Tcl interpreter.
 - Corrupt settings are quarantined with their original bytes preserved, then reset to defaults with a diagnostics warning.
 - Installation detection stores an installation key and prepared-metadata fingerprint; manual path edits deliberately clear verified identity.
