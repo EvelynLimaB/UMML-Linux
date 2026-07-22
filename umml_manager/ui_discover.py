@@ -29,48 +29,124 @@ class DiscoverPage(ttk.Frame):
         bar = ttk.Frame(page)
         bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         ttk.Label(bar, text="Game").pack(side="left")
-        ttk.Combobox(bar, textvariable=self.app.gb_region, values=("global", "japan"), state="readonly", width=10).pack(side="left", padx=(6, 12))
+        ttk.Combobox(
+            bar,
+            textvariable=self.app.gb_region,
+            values=("global", "japan"),
+            state="readonly",
+            width=10,
+        ).pack(side="left", padx=(6, 12))
         ttk.Label(bar, text="Sort").pack(side="left")
-        ttk.Combobox(bar, textvariable=self.app.gb_sort, values=("updated", "newest", "popular", "downloads", "views"), state="readonly", width=11).pack(side="left", padx=(6, 12))
-        ttk.Entry(bar, textvariable=self.app.gb_query, width=30).pack(side="left", fill="x", expand=True)
-        ttk.Button(bar, text="Browse", style="Accent.TButton", command=self.app.browse_gamebanana).pack(side="left", padx=(8, 0))
+        ttk.Combobox(
+            bar,
+            textvariable=self.app.gb_sort,
+            values=("updated", "newest", "popular", "downloads", "views"),
+            state="readonly",
+            width=11,
+        ).pack(side="left", padx=(6, 12))
+        ttk.Entry(bar, textvariable=self.app.gb_query, width=30).pack(
+            side="left", fill="x", expand=True
+        )
+        ttk.Button(
+            bar,
+            text="Browse",
+            style="Accent.TButton",
+            command=self.app.browse_gamebanana,
+        ).pack(side="left", padx=(8, 0))
 
         left = ttk.Frame(page, style="Surface.TFrame", padding=10)
         left.grid(row=1, column=0, sticky="nsew", padx=(0, 7))
         left.rowconfigure(0, weight=1)
         left.columnconfigure(0, weight=1)
-        self.gb_tree = ttk.Treeview(left, columns=("author", "version", "downloads"), show="tree headings")
-        for col, title, width in (("#0", "Mod", 280), ("author", "Author", 130), ("version", "Version", 80), ("downloads", "Downloads", 90)):
+        self.gb_tree = ttk.Treeview(
+            left,
+            columns=("author", "version", "downloads"),
+            show="tree headings",
+        )
+        for col, title, width in (
+            ("#0", "Mod", 280),
+            ("author", "Author", 130),
+            ("version", "Version", 80),
+            ("downloads", "Downloads", 90),
+        ):
             self.gb_tree.heading(col, text=title)
-            self.gb_tree.column(col, width=width, anchor="center" if col != "#0" else "w")
+            self.gb_tree.column(
+                col, width=width, anchor="center" if col != "#0" else "w"
+            )
+        gb_scroll = ttk.Scrollbar(left, orient="vertical", command=self.gb_tree.yview)
+        self.gb_tree.configure(yscrollcommand=gb_scroll.set)
         self.gb_tree.grid(row=0, column=0, sticky="nsew")
-        self.gb_tree.bind("<<TreeviewSelect>>", lambda _e: self.app.select_gamebanana_mod())
+        gb_scroll.grid(row=0, column=1, sticky="ns")
+        self.gb_tree.bind(
+            "<<TreeviewSelect>>", lambda _e: self.app.select_gamebanana_mod()
+        )
 
         right = ttk.Frame(page, style="Surface.TFrame", padding=16)
         right.grid(row=1, column=1, sticky="nsew", padx=(7, 0))
         right.columnconfigure(0, weight=1)
         right.rowconfigure(4, weight=1)
-        self.gb_title = ttk.Label(right, text="Browse Umamusume mods", style="CardTitle.TLabel")
+        self.gb_title = ttk.Label(
+            right, text="Browse Umamusume mods", style="CardTitle.TLabel"
+        )
         self.gb_title.grid(row=0, column=0, sticky="w")
-        self.gb_meta = ttk.Label(right, text="Global and Japan are separate GameBanana games.", style="SurfaceMuted.TLabel", wraplength=400)
+        self.gb_meta = ttk.Label(
+            right,
+            text="Global and Japan are separate GameBanana games.",
+            style="SurfaceMuted.TLabel",
+            wraplength=400,
+        )
         self.gb_meta.grid(row=1, column=0, sticky="w", pady=(3, 8))
         self.gb_stats = ttk.Label(right, text="", style="Badge.TLabel")
         self.gb_stats.grid(row=2, column=0, sticky="w", pady=(0, 8))
-        self.gb_description = tk.Text(right, wrap="word", background=SURFACE_2, foreground=TEXT, insertbackground=TEXT, relief="flat", borderwidth=0, padx=10, pady=10)
+        self.gb_description = tk.Text(
+            right,
+            wrap="word",
+            background=SURFACE_2,
+            foreground=TEXT,
+            insertbackground=TEXT,
+            relief="flat",
+            borderwidth=0,
+            padx=10,
+            pady=10,
+        )
         self.gb_description.grid(row=4, column=0, sticky="nsew")
         self.gb_description.configure(state="disabled")
         self.gb_files = ttk.Combobox(right, state="readonly")
         self.gb_files.grid(row=5, column=0, sticky="ew", pady=(10, 5))
         buttons = ttk.Frame(right, style="Surface.TFrame")
         buttons.grid(row=6, column=0, sticky="ew")
-        ttk.Button(buttons, text="Open page", command=self.app.open_gamebanana_page).pack(side="left")
-        ttk.Button(buttons, text="Install", style="Accent.TButton", command=self.app.install_gamebanana_mod).pack(side="right")
+        self.open_gb_button = ttk.Button(
+            buttons, text="Open page", command=self.app.open_gamebanana_page
+        )
+        self.open_gb_button.pack(side="left")
+        self.install_gb_button = ttk.Button(
+            buttons,
+            text="Install",
+            style="Accent.TButton",
+            command=self.app.install_gamebanana_mod,
+        )
+        self.install_gb_button.pack(side="right")
+        self.open_gb_button.configure(state="disabled")
+        self.install_gb_button.configure(state="disabled")
+
         pager = ttk.Frame(page)
         pager.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        ttk.Button(pager, text="← Previous", command=lambda: self.app.change_gamebanana_page(-1)).pack(side="left")
+        self.prev_button = ttk.Button(
+            pager,
+            text="← Previous",
+            command=lambda: self.app.change_gamebanana_page(-1),
+        )
+        self.prev_button.pack(side="left")
         self.page_label = ttk.Label(pager, text="Page 1")
         self.page_label.pack(side="left", padx=12)
-        ttk.Button(pager, text="Next →", command=lambda: self.app.change_gamebanana_page(1)).pack(side="left")
+        self.next_button = ttk.Button(
+            pager,
+            text="Next →",
+            command=lambda: self.app.change_gamebanana_page(1),
+        )
+        self.next_button.pack(side="left")
+        self.prev_button.configure(state="disabled")
+        self.next_button.configure(state="disabled")
 
     def _build_local(self):
         page = self.local
@@ -79,22 +155,59 @@ class DiscoverPage(ttk.Frame):
         bar = ttk.Frame(page)
         bar.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         ttk.Label(bar, text="Search roots").pack(side="left")
-        ttk.Entry(bar, textvariable=self.app.scan_roots).pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Button(bar, text="Add folder", command=self.app.add_scan_root).pack(side="left", padx=4)
-        ttk.Button(bar, text="Scan", style="Accent.TButton", command=self.app.scan_local_mods).pack(side="left")
+        ttk.Entry(bar, textvariable=self.app.scan_roots).pack(
+            side="left", fill="x", expand=True, padx=8
+        )
+        ttk.Button(bar, text="Add folder", command=self.app.add_scan_root).pack(
+            side="left", padx=4
+        )
+        ttk.Button(
+            bar,
+            text="Scan",
+            style="Accent.TButton",
+            command=self.app.scan_local_mods,
+        ).pack(side="left")
         frame = ttk.Frame(page, style="Surface.TFrame", padding=10)
         frame.grid(row=1, column=0, sticky="nsew")
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
-        self.local_tree = ttk.Treeview(frame, columns=("kind", "confidence", "reason", "path"), show="tree headings")
-        for col, title, width in (("#0", "Candidate", 220), ("kind", "Type", 80), ("confidence", "Confidence", 90), ("reason", "Detected by", 180), ("path", "Path", 400)):
+        self.local_tree = ttk.Treeview(
+            frame,
+            columns=("kind", "confidence", "reason", "path"),
+            show="tree headings",
+        )
+        for col, title, width in (
+            ("#0", "Candidate", 220),
+            ("kind", "Type", 80),
+            ("confidence", "Confidence", 90),
+            ("reason", "Detected by", 180),
+            ("path", "Path", 400),
+        ):
             self.local_tree.heading(col, text=title)
-            self.local_tree.column(col, width=width, anchor="center" if col in {"kind", "confidence"} else "w")
+            self.local_tree.column(
+                col,
+                width=width,
+                anchor="center" if col in {"kind", "confidence"} else "w",
+            )
+        local_scroll = ttk.Scrollbar(
+            frame, orient="vertical", command=self.local_tree.yview
+        )
+        self.local_tree.configure(yscrollcommand=local_scroll.set)
         self.local_tree.grid(row=0, column=0, sticky="nsew")
+        local_scroll.grid(row=0, column=1, sticky="ns")
         buttons = ttk.Frame(page)
         buttons.grid(row=2, column=0, sticky="ew", pady=(10, 0))
-        ttk.Button(buttons, text="Open location", command=self.app.open_local_candidate).pack(side="left")
-        ttk.Button(buttons, text="Import selected", style="Accent.TButton", command=self.app.import_local_candidate).pack(side="right")
+        ttk.Button(
+            buttons,
+            text="Open location",
+            command=self.app.open_local_candidate,
+        ).pack(side="left")
+        ttk.Button(
+            buttons,
+            text="Import selected",
+            style="Accent.TButton",
+            command=self.app.import_local_candidate,
+        ).pack(side="right")
 
     def set_gb_description(self, value: str):
         self.gb_description.configure(state="normal")
