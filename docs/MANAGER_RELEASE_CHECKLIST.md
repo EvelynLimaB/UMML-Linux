@@ -1,6 +1,6 @@
 # UMML Manager release checklist
 
-PR #2 remains draft until these real-machine checks are completed. CI proves that the source, tests, frozen runtime, and Debian package build reproducibly; it does not prove compatibility with every current game update or mod archive.
+PR #2 remains draft until these real-machine checks are completed. CI proves that the source, tests, shared frozen runtime, Debian package, and AppImage build reproducibly; it does not prove compatibility with every current game update, desktop, or mod archive.
 
 ## Real mod corpus
 
@@ -31,7 +31,9 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Confirm switching pages/queries cannot install the previously selected submission.
 - [ ] Retain explicit file pinning, source metadata, and archive SHA-256.
 - [ ] Add safely inspected 7z/RAR support before advertising broad one-click compatibility for those formats.
-- [ ] Add extracted-file count and uncompressed-size limits before importing untrusted large archives.
+- [x] Enforce extracted-file count and declared uncompressed-size limits for ZIP/TAR imports.
+- [x] Reject traversal, absolute paths, links, devices, special files, encrypted ZIP entries, and unreasonably long member names.
+- [ ] Exercise the archive limits with a large real-world fixture on a constrained disk.
 - [ ] Confirm failed downloads and extraction leave no importable partial record.
 - [ ] Verify third-party license and attribution metadata remain visible.
 - [ ] Add native Hachimi-runtime deployment or clearly keep pure Hachimi packages non-deployable and unprepared.
@@ -44,7 +46,15 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Verify older immutable versions remain discoverable and selectable after an update.
 - [ ] Add dependency/incompatibility metadata before advertising automatic dependency handling.
 
-## Separate Debian package
+## Shared frozen runtime
+
+- [x] Build the manager once with PyInstaller.
+- [x] Use the same frozen bundle as the input for both package formats.
+- [x] Extract the AppImage in CI and compare its embedded `umml-manager-bin` byte-for-byte with the source frozen bundle.
+- [ ] Confirm GUI, CLI, Studio, auto-detection, and GameBanana work identically in both formats on a real desktop.
+- [ ] Confirm both formats use the same XDG manager data root without divergent state.
+
+## Debian package
 
 - [x] CI builds `umml-manager_<MANAGER_VERSION>_amd64.deb` successfully.
 - [x] Package metadata reports `Package: umml-manager` and the expected version.
@@ -57,7 +67,25 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Remove `umml-manager` and confirm legacy UMML remains installed and usable.
 - [ ] Confirm package removal does not delete user library, profiles, state, or backups.
 - [x] Validate desktop and AppStream metadata.
-- [ ] Generate and publish SHA-256 checksums for the release artifact.
+
+## AppImage package
+
+- [ ] CI builds `umml-manager_<DISPLAY_VERSION>_x86_64.AppImage` successfully.
+- [ ] Confirm the AppImage reports the expected manager version.
+- [ ] Confirm `--cli --help` and an isolated-root `list` command work without a display server.
+- [ ] Launch the AppImage GUI on Linux Mint/Bazzite.
+- [ ] Launch on at least one second distribution or container-compatible desktop environment.
+- [ ] Open every Studio compatibility tool from the AppImage.
+- [ ] Confirm the AppImage can run through extraction mode when FUSE mounting is unavailable.
+- [ ] Confirm the AppImage desktop file, icon, and AppStream metadata integrate correctly.
+- [ ] Confirm no absolute `/usr/lib/umml-manager` dependency leaks into AppRun or AppDir launchers.
+
+## Checksums and release assets
+
+- [ ] Generate `SHA256SUMS` only after the DEB and AppImage are final.
+- [ ] Verify `sha256sum -c SHA256SUMS` in CI.
+- [ ] Publish DEB, AppImage, and `SHA256SUMS` together.
+- [ ] Do not embed package checksums inside documentation included in those same packages.
 
 ## Source installer
 
@@ -73,13 +101,13 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Keep remote installation opt-in.
 - [ ] Preserve previous versions for rollback.
 - [ ] Never execute code from downloaded mods.
-- [ ] Keep runtime/native plugins outside the desktop manager.
+- [ ] Keep runtime/native plugins outside the desktop manager packages.
 - [ ] Attach sanitized logs and state manifests for release-candidate smoke tests.
-- [ ] Update `MANAGER_VERSION`, `MANAGER_CHANGELOG.md`, README examples, AppStream metadata, and artifact names together.
+- [ ] Update `MANAGER_VERSION`, `MANAGER_CHANGELOG.md`, README examples, AppStream metadata, tests, and artifact names together.
 
 ## Runtime boundary
 
-- [ ] Do not bundle an injector or Unity hook in the manager DEB.
+- [ ] Do not bundle an injector or Unity hook in either manager package.
 - [ ] Unknown game builds expose zero hot-reload features.
 - [ ] Queue profile changes for restart rather than writing game files in-process.
 - [ ] Keep any future native adapter independently disableable and version-gated.
