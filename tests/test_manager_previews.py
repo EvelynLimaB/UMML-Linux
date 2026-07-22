@@ -6,6 +6,7 @@ from unittest.mock import patch
 from umml_manager.providers import default_provider_registry
 from umml_manager.providers.gamebanana_previews import (
     PreviewGameBananaClient,
+    normalize_file_records,
     primary_preview_url,
 )
 
@@ -61,6 +62,41 @@ class PreviewUrlTests(unittest.TestCase):
             client._mod(data).image_url,
             "https://images.gamebanana.com/img/ss/mods/530-90_image.jpg",
         )
+
+    def test_file_mapping_is_normalized_for_install_selection(self):
+        data = {
+            "_idRow": 123,
+            "_sName": "Synthetic mod",
+            "_aFiles": {
+                "991": {
+                    "_idRow": 991,
+                    "_sFile": "synthetic.zip",
+                    "_sDownloadUrl": "https://gamebanana.com/dl/991",
+                    "_nDownloadCount": 12,
+                },
+                "metadata": {"note": "not a downloadable file"},
+            },
+        }
+        client = PreviewGameBananaClient(opener=lambda *_args, **_kwargs: None)
+        mod = client._mod(data)
+        self.assertEqual(len(mod.files), 1)
+        self.assertEqual(mod.files[0].id, 991)
+        self.assertEqual(mod.files[0].name, "synthetic.zip")
+        self.assertEqual(mod.files[0].downloads, 12)
+
+    def test_nested_file_container_is_normalized(self):
+        records = normalize_file_records(
+            {
+                "_aFiles": [
+                    {
+                        "_idFile": 55,
+                        "_sFile": "nested.zip",
+                        "_sDownloadUrlArchive": "https://gamebanana.com/dl/55",
+                    }
+                ]
+            }
+        )
+        self.assertEqual([item["_idFile"] for item in records], [55])
 
     def test_default_registry_uses_preview_aware_provider(self):
         provider = default_provider_registry().get("gamebanana")
