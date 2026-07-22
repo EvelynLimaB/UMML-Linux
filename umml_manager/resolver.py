@@ -26,13 +26,17 @@ class Conflict:
 class Resolution:
     profile: str
     target_region: str = ""
+    target_installation_key: str = ""
+    metadata_fingerprint: str = ""
     winners: dict[str, Claim] = field(default_factory=dict)
     conflicts: list[Conflict] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
     unprepared: list[str] = field(default_factory=list)
+    stale_prepared: list[str] = field(default_factory=list)
     duplicates: list[str] = field(default_factory=list)
     unsupported: list[str] = field(default_factory=list)
     incompatible: list[str] = field(default_factory=list)
+    wrong_installation: list[str] = field(default_factory=list)
     invalid: list[str] = field(default_factory=list)
     missing_dependencies: list[str] = field(default_factory=list)
     incompatibility_conflicts: list[str] = field(default_factory=list)
@@ -42,8 +46,10 @@ class Resolution:
         return (
             self.missing
             + self.unprepared
+            + self.stale_prepared
             + self.unsupported
             + self.incompatible
+            + self.wrong_installation
             + self.invalid
             + self.missing_dependencies
             + self.incompatibility_conflicts
@@ -55,11 +61,28 @@ def resolve_profile(
     mods: list[ModRecord],
     *,
     target_region: str = "",
+    target_installation_key: str = "",
+    metadata_fingerprint: str = "",
 ) -> Resolution:
     records = {record.id: record for record in mods}
     claims: dict[str, list[Claim]] = {}
     region = normalize_region(target_region or profile.region, default="")
-    resolution = Resolution(profile=profile.name, target_region=region)
+    installation_key = str(target_installation_key or "").strip()
+    fingerprint = str(metadata_fingerprint or "").strip().casefold()
+    resolution = Resolution(
+        profile=profile.name,
+        target_region=region,
+        target_installation_key=installation_key,
+        metadata_fingerprint=fingerprint,
+    )
+    if (
+        profile.installation_key
+        and installation_key
+        and profile.installation_key != installation_key
+    ):
+        resolution.wrong_installation.append(
+            f"profile is bound to {profile.installation_key}, not {installation_key}"
+        )
     enabled = _deduplicate_profile(profile.enabled, resolution)
     enabled_set = set(enabled)
 
@@ -78,7 +101,8 @@ def resolve_profile(
             continue
         if region and record.regions:
             supported = {
-                normalize_region(value, default="") for value in record.regions
+                normalize_region(value, default="")
+                for value in record.regions
             }
             if region not in supported:
                 resolution.incompatible.append(
@@ -108,12 +132,22 @@ def resolve_profile(
         if not record.prepared_path or not record.files:
             resolution.unprepared.append(mod_id)
             continue
+        prepared_against = str(record.prepared_against or "").casefold()
+        if fingerprint and prepared_against and prepared_against != fingerprint:
+            resolution.stale_prepared.append(
+                f"{mod_id} was prepared against {prepared_against[:12]}…, "
+                f"current metadata is {fingerprint[:12]}…"
+            )
+            continue
 
         validated: list[tuple[str, str]] = []
         try:
             for relative, sha256 in sorted(record.files.items()):
                 validated.append(
-                    (normalize_relative_path(relative), validate_sha256(sha256))
+                    (
+                        normalize_relative_path(relative),
+                        validate_sha256(sha256),
+                    )
                 )
         except SafetyError as exc:
             resolution.invalid.append(f"{mod_id}: {exc}")
