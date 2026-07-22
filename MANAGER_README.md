@@ -2,14 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but preserves the loader's editing tools instead of replacing them with a polished list that cannot actually do anything.
 
-> **Preview:** `0.2.0~alpha7`. The manager includes audited persistent state, bounded imports, provider browsing, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
+> **Preview:** `0.2.0~alpha8`. The manager includes audited persistent state, bounded imports, provider browsing, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha7_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha8_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -18,16 +18,16 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha7_x86_64.AppImage
-./umml-manager_0.2.0-alpha7_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha8_x86_64.AppImage
+./umml-manager_0.2.0-alpha8_x86_64.AppImage
 ```
 
 The same file exposes the CLI:
 
 ```bash
-./umml-manager_0.2.0-alpha7_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha7_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha7_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha8_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha8_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha8_x86_64.AppImage --cli browse --region global
 ```
 
 The DEB and AppImage are built from one PyInstaller bundle. CI extracts both finished packages and compares their complete frozen runtime trees with the source bundle and each other.
@@ -99,6 +99,10 @@ UMML resolves certificate trust in this order:
 Certificate verification is never disabled. **Run diagnostics** reports the selected trust source and CA path.
 
 Discover supports paging, search, sorting, descriptions, authors, versions, statistics, downloadable-file selection, original-page links, verified download, direct import, and selected-mod preview images.
+
+Catalogue rows do not always include their complete file list. When that happens, the manager immediately offers **Install latest**, fetches the full submission details in a separate background task, and replaces the fallback with the real file selector when available. A failed prefetch does not permanently disable installation; clicking **Install latest** retries the detail request.
+
+GameBanana file containers are normalized from array, mapping, and nested response shapes before they reach the selector. Stale detail responses are ignored after changing selection or page.
 
 Preview images:
 
@@ -223,7 +227,7 @@ Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMEN
 
 ## Remaining alpha release gates
 
-- live Bazzite GameBanana browse, preview, download, and import without certificate overrides;
+- live Bazzite GameBanana browse, preview, file-detail hydration, download, and import without certificate overrides;
 - visual preview sizing and rapid-selection testing on KDE;
 - a broader real-mod corpus;
 - packaged apply/disable/restore/update tests on disposable game data;
