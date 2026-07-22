@@ -26,11 +26,27 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         self._task_serial = 0
         self._nav_buttons = {}
         settings = self.store.load_settings()
-        self.profile_name = tk.StringVar(value=str(settings.get("profile", "Default")))
-        self.dat_path = tk.StringVar(value=str(settings.get("dat_path", "")))
-        self.meta_path = tk.StringVar(value=str(settings.get("meta_path", "")))
-        self.game_dir = tk.StringVar(value=str(settings.get("game_dir", "")))
-        self.region = tk.StringVar(value=str(settings.get("region", "global")))
+        self.profile_name = tk.StringVar(
+            value=str(settings.get("profile", "Default"))
+        )
+        self.dat_path = tk.StringVar(
+            value=str(settings.get("dat_path", ""))
+        )
+        self.meta_path = tk.StringVar(
+            value=str(settings.get("meta_path", ""))
+        )
+        self.game_dir = tk.StringVar(
+            value=str(settings.get("game_dir", ""))
+        )
+        self.region = tk.StringVar(
+            value=str(settings.get("region", "global"))
+        )
+        self.installation_key = tk.StringVar(
+            value=str(settings.get("installation_key", ""))
+        )
+        self.metadata_fingerprint = tk.StringVar(
+            value=str(settings.get("metadata_fingerprint", ""))
+        )
         self.installation_status = tk.StringVar(
             value="Checking saved installation settings…"
         )
@@ -39,7 +55,9 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         self.page_title = tk.StringVar(value="Library")
         self.game_status = tk.StringVar(value="Game status: checking…")
         self.gb_region = tk.StringVar(
-            value=str(settings.get("gamebanana_region", self.region.get()))
+            value=str(
+                settings.get("gamebanana_region", self.region.get())
+            )
         )
         self.gb_sort = tk.StringVar(value="updated")
         self.gb_query = tk.StringVar()
@@ -68,6 +86,10 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         self.refresh()
         self.show_page("library")
         self._refresh_game_status()
+        if self.store.settings_warning:
+            self.status.set(
+                "Settings were reset and preserved; Run diagnostics for the path"
+            )
         if self._saved_installation_is_ready():
             self.installation_status.set("Using saved installation paths.")
         else:
@@ -136,7 +158,11 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         body.grid(row=1, column=0, sticky="nsew")
         body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
-        sidebar = ttk.Frame(body, style="Sidebar.TFrame", padding=(10, 18))
+        sidebar = ttk.Frame(
+            body,
+            style="Sidebar.TFrame",
+            padding=(10, 18),
+        )
         sidebar.grid(row=0, column=0, sticky="ns")
         for key, label in (
             ("library", "Library"),
@@ -218,12 +244,20 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         footer = ttk.Frame(self.root, padding=(22, 7, 22, 12))
         footer.grid(row=2, column=0, sticky="ew")
         footer.columnconfigure(0, weight=1)
-        ttk.Label(footer, textvariable=self.status, style="Muted.TLabel").grid(
+        ttk.Label(
+            footer,
+            textvariable=self.status,
+            style="Muted.TLabel",
+        ).grid(
             row=0,
             column=0,
             sticky="w",
         )
-        self.progress = ttk.Progressbar(footer, mode="indeterminate", length=210)
+        self.progress = ttk.Progressbar(
+            footer,
+            mode="indeterminate",
+            length=210,
+        )
         self.progress.grid(row=0, column=1, sticky="e")
 
     def show_page(self, key: str):
@@ -233,7 +267,11 @@ class ManagerGUI(LibraryActions, DiscoverActions, SystemActions):
         self.page_title.set(key.title())
         for name, button in self._nav_buttons.items():
             button.configure(
-                style="Active.Nav.TButton" if name == key else "Nav.TButton"
+                style=(
+                    "Active.Nav.TButton"
+                    if name == key
+                    else "Nav.TButton"
+                )
             )
         if key == "conflicts":
             self.render_plan()
