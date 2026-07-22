@@ -88,6 +88,27 @@ jobs:
           file "$APPIMAGE" | grep -q 'ELF 64-bit'
           APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --version
           APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --cli --help >/dev/null
+
+          VERIFY_ROOT="$(mktemp -d)"
+          trap 'rm -rf "$VERIFY_ROOT"' EXIT
+          mkdir -p "$VERIFY_ROOT/deb"
+          dpkg-deb -x "$DEB" "$VERIFY_ROOT/deb"
+          (
+            cd "$VERIFY_ROOT"
+            "$GITHUB_WORKSPACE/$APPIMAGE" --appimage-extract >/dev/null
+          )
+          diff -qr \
+            build/manager-frozen/umml-manager \
+            "$VERIFY_ROOT/deb/usr/lib/umml-manager"
+          diff -qr \
+            build/manager-frozen/umml-manager \
+            "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager"
+          diff -qr \
+            "$VERIFY_ROOT/deb/usr/lib/umml-manager" \
+            "$VERIFY_ROOT/squashfs-root/usr/lib/umml-manager"
+          rm -rf "$VERIFY_ROOT"
+          trap - EXIT
+
           (
             cd dist
             sha256sum \
