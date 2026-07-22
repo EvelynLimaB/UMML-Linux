@@ -203,7 +203,7 @@ bash scripts/build_manager_deb.sh
 bash scripts/build_manager_appimage.sh
 ```
 
-`build_manager_appimage.sh` downloads the official AppImageKit `appimagetool` continuous asset over HTTPS and verifies it against a pinned SHA-256 before running it. Upstream replacement of that tool therefore fails CI until the new binary is reviewed and its pin is deliberately updated.
+`build_manager_appimage.sh` downloads the official `AppImage/appimagetool` continuous release asset over HTTPS and verifies it against GitHub's published SHA-256 digest before running it. Replacement of that asset therefore fails CI until the new binary is reviewed and its pin is deliberately updated.
 
 Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMENT.md`, and `docs/PACKAGING.md` before changing state, deployment, providers, archives, or packaging.
 
