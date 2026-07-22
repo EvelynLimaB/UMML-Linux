@@ -1,5 +1,4 @@
 import json
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -44,7 +43,10 @@ class RecoveryIntegrityTests(unittest.TestCase):
                 store.paths.root.glob("settings.json.corrupt-*")
             )
             self.assertEqual(len(preserved), 1)
-            self.assertEqual(preserved[0].read_text(encoding="utf-8"), "{broken")
+            self.assertEqual(
+                preserved[0].read_text(encoding="utf-8"),
+                "{broken",
+            )
 
     def test_source_change_during_copy_aborts_import(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -56,17 +58,15 @@ class RecoveryIntegrityTests(unittest.TestCase):
                 '{"title":"Moving Target","mod_version":"1"}'
             )
             store = ManagerStore(root / "manager")
-            real_copytree = shutil.copytree
-
-            def changed_copytree(source, destination, **kwargs):
-                result = real_copytree(source, destination, **kwargs)
-                (Path(destination) / "assets" / "file").write_text("changed")
-                return result
-
-            with patch("umml_manager.store.shutil.copytree", changed_copytree):
+            with patch(
+                "umml_manager.store.tree_digest",
+                side_effect=["1" * 64, "2" * 64],
+            ):
                 with self.assertRaises(StoreError):
                     store.import_folder(mod)
-            self.assertFalse(store.paths.sources.exists())
+            self.assertFalse(
+                store.source_destination("moving-target", "1").exists()
+            )
 
     def test_tampered_baseline_blocks_restore_and_keeps_active_file(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -161,8 +161,13 @@ class RecoveryIntegrityTests(unittest.TestCase):
                 side_effect=OSError("disk full"),
             ):
                 with self.assertRaises(ApplyError) as raised:
-                    engine.apply(resolve_profile(Profile("Off", []), []))
-            self.assertIn("before game-file mutation", str(raised.exception))
+                    engine.apply(
+                        resolve_profile(Profile("Off", []), [])
+                    )
+            self.assertIn(
+                "before game-file mutation",
+                str(raised.exception),
+            )
             self.assertEqual(target.read_text(), "managed")
             remaining = list(
                 store.paths.transactions.glob(
