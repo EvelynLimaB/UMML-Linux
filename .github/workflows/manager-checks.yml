@@ -86,18 +86,31 @@ jobs:
           retention-days: 7
       - name: Validate shell and desktop metadata
         run: |
-          bash -n \
-            install-manager.sh \
-            uninstall-manager.sh \
-            scripts/build_manager_frozen.sh \
-            scripts/build_manager_deb.sh \
-            scripts/build_manager_appimage.sh \
-            scripts/check_manager.sh
-          desktop-file-validate \
-            packaging/linux/io.github.evelynlimab.ummlmanager.desktop \
-            packaging/appimage/io.github.evelynlimab.ummlmanager.desktop
-          appstream-util validate-relax \
-            packaging/linux/io.github.evelynlimab.ummlmanager.metainfo.xml
+          set +e
+          {
+            bash -n \
+              install-manager.sh \
+              uninstall-manager.sh \
+              scripts/build_manager_frozen.sh \
+              scripts/build_manager_deb.sh \
+              scripts/build_manager_appimage.sh \
+              scripts/check_manager.sh
+            desktop-file-validate \
+              packaging/linux/io.github.evelynlimab.ummlmanager.desktop \
+              packaging/appimage/io.github.evelynlimab.ummlmanager.desktop
+            appstream-util validate-relax \
+              packaging/linux/io.github.evelynlimab.ummlmanager.metainfo.xml
+          } 2>&1 | tee /tmp/umml-manager-metadata-validation.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+      - name: Upload failed metadata validation log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: umml-manager-metadata-validation-log
+          path: /tmp/umml-manager-metadata-validation.log
+          if-no-files-found: error
+          retention-days: 7
 
   manager-packages:
     runs-on: ubuntu-22.04
