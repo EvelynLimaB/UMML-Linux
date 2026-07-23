@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,8 @@ _base_find_mod_root = getattr(
 )
 _store._UMML_BASE_FIND_MOD_ROOT = _base_find_mod_root  # type: ignore[attr-defined]
 
+_IMPORT_MUTEX = threading.RLock()
+
 
 def find_mod_root(extracted: Path) -> Path:
     try:
@@ -37,7 +40,12 @@ def find_mod_root(extracted: Path) -> Path:
 
 
 class ManagerStore(_BaseManagerStore):
-    """Manager store with whole-import identity allocation serialization."""
+    """Manager store with whole-import identity allocation serialization.
+
+    Threads in one manager process wait on the local mutex. A separate manager
+    process still receives the normal fail-fast advisory-lock error instead of
+    waiting indefinitely behind an invisible application.
+    """
 
     def import_folder(
         self,
@@ -47,19 +55,20 @@ class ManagerStore(_BaseManagerStore):
         source: SourceSpec | None = None,
         metadata_overrides: dict[str, Any] | None = None,
     ) -> ModRecord:
-        try:
-            with FileLock(
-                self.paths.locks / "imports.lock",
-                purpose="allocating and importing an immutable mod version",
-            ):
-                return super().import_folder(
-                    folder,
-                    mod_id=mod_id,
-                    source=source,
-                    metadata_overrides=metadata_overrides,
-                )
-        except LockError as exc:
-            raise _store.StoreError(str(exc)) from exc
+        with _IMPORT_MUTEX:
+            try:
+                with FileLock(
+                    self.paths.locks / "imports.lock",
+                    purpose="allocating and importing an immutable mod version",
+                ):
+                    return super().import_folder(
+                        folder,
+                        mod_id=mod_id,
+                        source=source,
+                        metadata_overrides=metadata_overrides,
+                    )
+            except LockError as exc:
+                raise _store.StoreError(str(exc)) from exc
 
 
 # Compatibility bridge for modules that historically imported from store.py.
