@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from .engine import ApplyEngine as _TransactionalApplyEngine
+from . import engine as _engine
 from .engine import ApplyError, ApplyResult
 from .resolver import Resolution
 
 
-class ApplyEngine(_TransactionalApplyEngine):
+class ApplyEngine(_engine.ApplyEngine):
     """Public deployment engine with complete resolver and process guards.
 
     The transactional implementation remains isolated in ``engine.py``. Every
-    supported GUI, CLI, and package-level entry point imports this class so a
-    caller cannot accidentally ignore blocker categories added by the planner.
+    supported GUI, CLI, package-level, and compatibility entry point resolves to
+    this class so callers cannot accidentally ignore planner blocker categories
+    or treat failed process inspection as proof that the game is closed.
     """
 
     def _validate_resolution(self, resolution: Resolution) -> None:
@@ -54,5 +55,11 @@ class ApplyEngine(_TransactionalApplyEngine):
                 f"Game is running ({names}); close it before applying changes"
             )
 
+
+# Compatibility bridge for older internal imports. Package import executes this
+# module before ``umml_manager.cli`` or the GUI action modules, so their existing
+# ``from .engine import ApplyEngine`` statements receive the validated facade.
+# New code should import from ``umml_manager.deployment`` or package root.
+_engine.ApplyEngine = ApplyEngine
 
 __all__ = ["ApplyEngine", "ApplyError", "ApplyResult"]
