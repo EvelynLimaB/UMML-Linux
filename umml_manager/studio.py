@@ -17,16 +17,65 @@ class LegacyTool:
 
 
 LEGACY_TOOLS: tuple[LegacyTool, ...] = (
-    LegacyTool("full", "Full legacy workspace", "Every original loader action and editor in one compatibility window.", None, False),
-    LegacyTool("attributes", "Character attributes", "Edit character body and presentation attributes.", "open_chara_settings"),
-    LegacyTool("personality", "Character personality", "Edit personality and character behavior data.", "open_personality_settings"),
-    LegacyTool("dress", "Dress editor", "Inspect and edit dress assignments and colors.", "open_dress_settings"),
-    LegacyTool("training", "Training editor", "Edit Single Mode training data.", "open_training_settings"),
-    LegacyTool("concert", "Story & concert", "Add, edit, and restore story concert setups.", "open_story_concert"),
-    LegacyTool("swap", "Character / model swap", "Swap body, head, tail, attributes, and chibi components.", "open_swap_character"),
-    LegacyTool("translation", "Translation merge", "Merge Global text into the Japanese client.", "force_translate_english"),
-    LegacyTool("cleanup", "Clean unused assets", "Run the original unused-asset cleanup tool.", "clean_unused_assets"),
-    LegacyTool("database", "Database reset", "Delete master.mdb so the game downloads a clean copy.", "delete_master_db"),
+    LegacyTool(
+        "full",
+        "Full legacy workspace",
+        "Every original loader action and editor in one compatibility window.",
+    ),
+    LegacyTool(
+        "attributes",
+        "Character attributes",
+        "Edit character body and presentation attributes.",
+        "open_chara_settings",
+    ),
+    LegacyTool(
+        "personality",
+        "Character personality",
+        "Edit personality and character behavior data.",
+        "open_personality_settings",
+    ),
+    LegacyTool(
+        "dress",
+        "Dress editor",
+        "Inspect and edit dress assignments and colors.",
+        "open_dress_settings",
+    ),
+    LegacyTool(
+        "training",
+        "Training editor",
+        "Edit Single Mode training data.",
+        "open_training_settings",
+    ),
+    LegacyTool(
+        "concert",
+        "Story & concert",
+        "Add, edit, and restore story concert setups.",
+        "open_story_concert",
+    ),
+    LegacyTool(
+        "swap",
+        "Character / model swap",
+        "Swap body, head, tail, attributes, and chibi components.",
+        "open_swap_character",
+    ),
+    LegacyTool(
+        "translation",
+        "Translation merge",
+        "Merge Global text into the Japanese client.",
+        "force_translate_english",
+    ),
+    LegacyTool(
+        "cleanup",
+        "Clean unused assets",
+        "Run the original unused-asset cleanup tool.",
+        "clean_unused_assets",
+    ),
+    LegacyTool(
+        "database",
+        "Database reset",
+        "Delete master.mdb so the game downloads a clean copy.",
+        "delete_master_db",
+    ),
 )
 
 
