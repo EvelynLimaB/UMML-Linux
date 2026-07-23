@@ -1,7 +1,9 @@
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from umml_manager import engine as transaction_engine
 from umml_manager.cli import (
@@ -9,11 +11,17 @@ from umml_manager.cli import (
     _target_installation_key,
 )
 from umml_manager.deployment import ApplyEngine, ApplyError
+from umml_manager.library import (
+    ManagerStore,
+    StoreError,
+    UnrecognizedModError,
+    find_mod_root,
+)
 from umml_manager.models import ModRecord, Profile
+from umml_manager.process import ProcessInspectionError, _windows_processes
 from umml_manager.regions import region_from_game_name
 from umml_manager.resolver import Resolution, resolve_profile
 from umml_manager.safety import hash_file
-from umml_manager.store import ManagerStore, StoreError
 from umml_manager.studio import LEGACY_TOOLS
 
 
@@ -56,6 +64,14 @@ class CleanupGuardTests(unittest.TestCase):
                     dat,
                     process_check=failed_inspection,
                 ).apply(Resolution(profile="Default"))
+
+    def test_windows_process_backend_errors_are_not_game_closed(self):
+        with patch(
+            "umml_manager.process.subprocess.run",
+            side_effect=OSError("tasklist unavailable"),
+        ):
+            with self.assertRaises(ProcessInspectionError):
+                tuple(_windows_processes())
 
     def test_current_metadata_rejects_unfingerprinted_prepared_cache(self):
         fingerprint = "a" * 64
@@ -102,6 +118,66 @@ class CleanupGuardTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(StoreError, "Source specification"):
                 store.list_mods()
+
+    def test_unrecognized_package_uses_typed_exception(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(UnrecognizedModError):
+                find_mod_root(Path(temp))
+
+    def test_concurrent_imports_allocate_distinct_registry_records(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            folders = []
+            for version in ("1", "2"):
+                folder = root / f"source-{version}"
+                assets = folder / "assets"
+                assets.mkdir(parents=True)
+                (assets / f"asset-{version}").write_bytes(
+                    f"payload-{version}".encode()
+                )
+                (folder / "umml-mod.json").write_text(
+                    json.dumps(
+                        {
+                            "id": "same-mod",
+                            "title": "Same Mod",
+                            "mod_version": version,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                folders.append(folder)
+
+            barrier = threading.Barrier(3)
+            records = []
+            errors = []
+            result_lock = threading.Lock()
+
+            def worker(folder):
+                barrier.wait()
+                try:
+                    record = store.import_folder(folder)
+                except Exception as exc:  # captured for the main test thread
+                    with result_lock:
+                        errors.append(exc)
+                else:
+                    with result_lock:
+                        records.append(record)
+
+            threads = [
+                threading.Thread(target=worker, args=(folder,))
+                for folder in folders
+            ]
+            for thread in threads:
+                thread.start()
+            barrier.wait()
+            for thread in threads:
+                thread.join(timeout=10)
+
+            self.assertFalse(errors)
+            self.assertEqual(len(records), 2)
+            self.assertEqual(len({record.id for record in records}), 2)
+            self.assertEqual(len(store.list_mods()), 2)
 
     def test_full_legacy_workspace_is_marked_game_data_capable(self):
         full = next(tool for tool in LEGACY_TOOLS if tool.id == "full")
