@@ -36,6 +36,7 @@ class LibraryActions:
         )
 
     def refresh(self):
+        selected_before = self.selected_id() if hasattr(self, "library") else None
         profiles = self.store.list_profiles()
         if not profiles:
             self.store.save_profile(
@@ -89,10 +90,17 @@ class LibraryActions:
                     self._mod_status(mod),
                 ),
             )
+        if selected_before and tree.exists(selected_before):
+            tree.selection_set(selected_before)
+            tree.see(selected_before)
+            self.show_selected_mod()
+        else:
+            self.library.clear_details()
         self.status.set(
             f"{len(mods)} mod(s); {len(profile.enabled)} enabled in "
             f"{profile.name}"
         )
+        self.refresh_action_states()
 
     def _mod_status(self, mod) -> str:
         if mod.package_type != PACKAGE_UMML_ASSETS:
@@ -108,8 +116,16 @@ class LibraryActions:
     def show_selected_mod(self):
         mod_id = self.selected_id()
         if not mod_id:
+            self.library.clear_details()
+            self.refresh_action_states()
             return
-        mod = self.store.get_mod(mod_id)
+        try:
+            mod = self.store.get_mod(mod_id)
+        except Exception as exc:
+            self.library.clear_details()
+            self.status.set(f"Could not load selected mod: {exc}")
+            self.refresh_action_states()
+            return
         self.library.mod_title.configure(text=mod.name)
         regions = ", ".join(mod.regions) if mod.regions else "all regions"
         self.library.mod_meta.configure(
@@ -140,6 +156,7 @@ class LibraryActions:
                 + mod.prepared_against
             )
         self.library.set_description(details)
+        self.refresh_action_states()
 
     def new_profile(self):
         name = simpledialog.askstring(
@@ -179,6 +196,7 @@ class LibraryActions:
     def toggle_mod(self):
         mod_id = self.selected_id()
         if not mod_id:
+            self.status.set("Select a mod before changing profile membership")
             return
         profile = self.profile()
         profile.enabled = (
@@ -196,15 +214,20 @@ class LibraryActions:
         mod_id = self.selected_id()
         profile = self.profile()
         if not mod_id or mod_id not in profile.enabled:
+            self.status.set("Enable a selected mod before changing its load order")
             return
         old = profile.enabled.index(mod_id)
         new = max(0, min(len(profile.enabled) - 1, old + delta))
+        if new == old:
+            self.refresh_action_states()
+            return
         profile.enabled.pop(old)
         profile.enabled.insert(new, mod_id)
         self._save_profile(profile)
         self.refresh()
         if self.library.tree.exists(mod_id):
             self.library.tree.selection_set(mod_id)
+            self.show_selected_mod()
 
     def import_folder(self):
         path = filedialog.askdirectory(parent=self.root)
@@ -241,6 +264,7 @@ class LibraryActions:
     def prepare_selected(self):
         mod_id = self.selected_id()
         if not mod_id:
+            self.status.set("Select a mod before preparing it")
             return
         record = self.store.get_mod(mod_id)
         if record.package_type != PACKAGE_UMML_ASSETS:
@@ -258,23 +282,28 @@ class LibraryActions:
                 parent=self.root,
             )
             return
+
+        def finished(prepared):
+            self.refresh()
+            if self.library.tree.exists(prepared.id):
+                self.library.tree.selection_set(prepared.id)
+                self.library.tree.see(prepared.id)
+                self.show_selected_mod()
+            self.status.set(f"Prepared {len(prepared.files)} asset(s)")
+
         self._run_task(
             f"Preparing {mod_id}…",
             lambda: LegacyAssetAdapter(
                 self.store,
                 self.meta_path.get(),
             ).prepare(record),
-            lambda prepared: (
-                self.refresh(),
-                self.status.set(
-                    f"Prepared {len(prepared.files)} asset(s)"
-                ),
-            ),
+            finished,
         )
 
     def create_workspace(self):
         mod_id = self.selected_id()
         if not mod_id:
+            self.status.set("Select a mod before creating an editable copy")
             return
         try:
             path = self.store.create_workspace(mod_id)
@@ -290,6 +319,7 @@ class LibraryActions:
     def remove_selected(self):
         mod_id = self.selected_id()
         if not mod_id:
+            self.status.set("Select a mod before removing it")
             return
         if any(
             mod_id in profile.enabled
@@ -308,6 +338,7 @@ class LibraryActions:
             parent=self.root,
         ):
             self.store.remove_mod(mod_id)
+            self.library.clear_details()
             self.refresh()
 
     def render_plan(self):
@@ -358,11 +389,19 @@ class LibraryActions:
         elif not resolution.blocking_issues:
             lines.append("No file conflicts in this profile.")
         self._set_text(self.plan_text, "\n".join(lines))
+        self.refresh_action_states()
 
     def show_plan(self):
         self.show_page("conflicts")
 
     def apply_profile(self):
+        if getattr(self, "_game_running", False):
+            messagebox.showwarning(
+                "Close the game first",
+                "Close Umamusume before applying a profile.",
+                parent=self.root,
+            )
+            return
         if not self.dat_path.get().strip():
             messagebox.showinfo(
                 "Game data required",
@@ -400,6 +439,7 @@ class LibraryActions:
                 parent=self.root,
             )
             self.status.set(f"Applied {resolution.profile}")
+            self.refresh_action_states()
 
         self._run_task(
             "Applying profile transactionally…",
