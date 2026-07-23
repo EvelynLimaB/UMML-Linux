@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha10" date="2026-07-23">
+      <description>
+        <p>Fixes deeply nested legacy GameBanana imports and synchronizes visible button states with selection, background work, profile blockers, paging, and game-running safety.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha9" date="2026-07-22">
       <description>
         <p>Automatically prepares compatible imports, preserves source packages when preparation fails, and safely normalizes provider-confirmed loose legacy UMML asset archives that omit the modern assets wrapper.</p>
