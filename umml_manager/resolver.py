@@ -132,8 +132,15 @@ def resolve_profile(
         if not record.prepared_path or not record.files:
             resolution.unprepared.append(mod_id)
             continue
-        prepared_against = str(record.prepared_against or "").casefold()
-        if fingerprint and prepared_against and prepared_against != fingerprint:
+
+        prepared_against = str(record.prepared_against or "").strip().casefold()
+        if fingerprint and not prepared_against:
+            resolution.stale_prepared.append(
+                f"{mod_id} has no metadata fingerprint; re-prepare it against "
+                f"the current metadata {fingerprint[:12]}…"
+            )
+            continue
+        if fingerprint and prepared_against != fingerprint:
             resolution.stale_prepared.append(
                 f"{mod_id} was prepared against {prepared_against[:12]}…, "
                 f"current metadata is {fingerprint[:12]}…"
