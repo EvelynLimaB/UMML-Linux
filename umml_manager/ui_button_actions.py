@@ -14,6 +14,14 @@ class ButtonStateActions:
     correctly when a background task completes.
     """
 
+    def _refresh_game_status(self):
+        result = super()._refresh_game_status()
+        if self.game_status.get() == "Game status unknown":
+            self._game_running = True
+            self.game_status.set("Game status unknown; writes blocked")
+            self.refresh_action_states()
+        return result
+
     def browse_gamebanana(self):
         signature = (
             self.gb_region.get().strip().casefold(),
