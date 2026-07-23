@@ -21,57 +21,57 @@
     <category>Utility</category>
   </categories>
   <releases>
-    <release version="0.2.0-alpha10" date="2026-07-23">
+    <release version="0.2.0-alpha.10" date="2026-07-23">
       <description>
         <p>Fixes deeply nested legacy GameBanana imports and synchronizes visible button states with selection, background work, profile blockers, paging, and game-running safety.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha9" date="2026-07-22">
+    <release version="0.2.0-alpha.9" date="2026-07-22">
       <description>
         <p>Automatically prepares compatible imports, preserves source packages when preparation fails, and safely normalizes provider-confirmed loose legacy UMML asset archives that omit the modern assets wrapper.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha8" date="2026-07-22">
+    <release version="0.2.0-alpha.8" date="2026-07-22">
       <description>
         <p>Fixes disabled GameBanana installation controls when catalogue rows omit downloadable files by hydrating submission details asynchronously, preserving an Install latest fallback, and normalizing alternate file-container response shapes.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha7" date="2026-07-22">
+    <release version="0.2.0-alpha.7" date="2026-07-22">
       <description>
         <p>Completes the preview-provider wiring, runs manager regressions with the full pinned runtime dependency set, verifies Pillow imaging support in both package formats, and synchronizes release documentation after the triple audit.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha6" date="2026-07-22">
+    <release version="0.2.0-alpha.6" date="2026-07-22">
       <description>
         <p>Adds a full source audit, versioned persistent schemas, path-contained and hash-verified deployment, target-scoped baselines, durable recovery journals, tamper detection, stale metadata checks, provider/backend contracts, selected-mod previews, and an expanded adversarial test suite.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha5" date="2026-07-22">
+    <release version="0.2.0-alpha.5" date="2026-07-22">
       <description>
         <p>Fixes portable HTTPS trust on Fedora/Bazzite and other Linux families while retaining mandatory certificate verification.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha4" date="2026-07-22">
+    <release version="0.2.0-alpha.4" date="2026-07-22">
       <description>
         <p>Adds an AppImage built from the same frozen runtime as the Debian package, shared checksum artifacts, package-parity checks, and bounded archive extraction.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha3" date="2026-07-21">
+    <release version="0.2.0-alpha.3" date="2026-07-21">
       <description>
         <p>Separates source application files from user data, prevents stale launchers from shadowing the Debian package, and hardens profile, registry, deployment-state, import, and GameBanana behavior.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha2" date="2026-07-21">
+    <release version="0.2.0-alpha.2" date="2026-07-21">
       <description>
         <p>Adds first-launch Steam and Proton detection and automatically prepares the readable metadata database.</p>
       </description>
     </release>
-    <release version="0.2.0-alpha1" date="2026-07-21">
+    <release version="0.2.0-alpha.1" date="2026-07-21">
       <description>
         <p>Adds the polished multi-workspace interface, GameBanana browser, local mod detection, editable workspaces, and complete legacy Studio compatibility.</p>
       </description>
     </release>
-    <release version="0.1.0-alpha1" date="2026-07-21">
+    <release version="0.1.0-alpha.1" date="2026-07-21">
       <description>
         <p>Initial separately packaged manager foundation with profiles, conflict resolution, transactional deployment, and GameBanana import.</p>
       </description>
