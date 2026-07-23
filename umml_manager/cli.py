@@ -4,13 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
+from .deployment import ApplyEngine
 from .discovery import default_search_roots, scan_mod_candidates
-from .engine import ApplyEngine
 from .legacy_adapter import LegacyAssetAdapter
 from .models import Profile
 from .providers.gamebanana_previews import PreviewGameBananaClient
 from .resolver import Resolution, resolve_profile
-from .safety import hash_file
+from .safety import SafetyError, hash_file, validate_sha256
 from .store import ManagerStore, StoreError, default_root
 from .studio import LegacyToolLauncher
 from .version import manager_version
@@ -106,7 +106,7 @@ def _add_target_options(
         default="",
         help=(
             "Prepared metadata DB used to reject stale prepared caches. "
-            "Recommended for plans and required by release workflows."
+            "Apply requires this path or a valid auto-detected saved metadata path."
         ),
     )
     if dat_required:
@@ -119,7 +119,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "list":
             for mod in store.list_mods():
-                status = "prepared" if mod.files else "needs prepare"
+                status = (
+                    "prepared"
+                    if mod.files and mod.prepared_path
+                    else "needs prepare"
+                )
                 print(
                     f"{mod.id}\t{mod.version}\t{mod.package_type}\t"
                     f"{status}\t{mod.name}"
@@ -165,9 +169,7 @@ def main(argv: list[str] | None = None) -> int:
             record = LegacyAssetAdapter(store, args.meta).prepare(
                 store.get_mod(args.mod_id)
             )
-            print(
-                f"Prepared {len(record.files)} assets for {record.id}"
-            )
+            print(f"Prepared {len(record.files)} assets for {record.id}")
         elif args.command == "workspace":
             print(store.create_workspace(args.mod_id))
         elif args.command == "profile":
@@ -182,21 +184,26 @@ def main(argv: list[str] | None = None) -> int:
             print(args.name)
         elif args.command in {"plan", "apply"}:
             profile = store.get_profile(args.profile)
-            fingerprint = _metadata_fingerprint(args.meta)
+            required = args.command == "apply"
+            fingerprint = _metadata_fingerprint(
+                args.meta,
+                store=store,
+                required=required,
+            )
+            target_key = _target_installation_key(
+                args.installation_key,
+                store=store,
+                dat_path=args.dat if required else "",
+            )
             resolution = resolve_profile(
                 profile,
                 store.list_mods(),
                 target_region=args.region or profile.region,
-                target_installation_key=args.installation_key,
+                target_installation_key=target_key,
                 metadata_fingerprint=fingerprint,
             )
             if args.command == "plan":
-                print(
-                    json.dumps(
-                        _resolution_dict(resolution),
-                        indent=2,
-                    )
-                )
+                print(json.dumps(_resolution_dict(resolution), indent=2))
             else:
                 result = ApplyEngine(
                     store,
@@ -222,9 +229,7 @@ def main(argv: list[str] | None = None) -> int:
             for record in records:
                 update = provider.update_available(record)
                 if update:
-                    print(
-                        f"{record.id}\t{update.id}\t{update.name}"
-                    )
+                    print(f"{record.id}\t{update.id}\t{update.name}")
         elif args.command == "studio":
             LegacyToolLauncher().launch(
                 args.tool,
@@ -242,13 +247,70 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
-def _metadata_fingerprint(value: str) -> str:
-    if not value:
+def _metadata_fingerprint(
+    value: str,
+    *,
+    store: ManagerStore | None = None,
+    required: bool = False,
+) -> str:
+    if value:
+        path = Path(value).expanduser()
+        if not path.is_file():
+            raise StoreError(f"Metadata database not found: {path}")
+        return hash_file(path)
+
+    settings = store.load_settings() if store is not None else {}
+    saved_path = Path(str(settings.get("meta_path", ""))).expanduser()
+    if saved_path.is_file():
+        actual = hash_file(saved_path)
+        recorded = str(settings.get("metadata_fingerprint", "")).strip()
+        if recorded:
+            try:
+                expected = validate_sha256(recorded)
+            except SafetyError as exc:
+                raise StoreError(
+                    "Saved metadata fingerprint is invalid; run installation "
+                    "auto-detection again"
+                ) from exc
+            if actual != expected:
+                raise StoreError(
+                    "Saved metadata changed since installation detection; run "
+                    "auto-detection and re-prepare affected mods"
+                )
+        return actual
+
+    if required:
+        raise StoreError(
+            "Apply requires --meta or a valid auto-detected metadata database in "
+            "manager settings"
+        )
+    return ""
+
+
+def _target_installation_key(
+    value: str,
+    *,
+    store: ManagerStore,
+    dat_path: str = "",
+) -> str:
+    explicit = str(value or "").strip()
+    if explicit:
+        return explicit
+    settings = store.load_settings()
+    saved_key = str(settings.get("installation_key", "")).strip()
+    if not saved_key:
         return ""
-    path = Path(value).expanduser()
-    if not path.is_file():
-        raise StoreError(f"Metadata database not found: {path}")
-    return hash_file(path)
+    if not dat_path:
+        return saved_key
+    saved_dat = str(settings.get("dat_path", "")).strip()
+    try:
+        matches = (
+            Path(saved_dat).expanduser().resolve()
+            == Path(dat_path).expanduser().resolve()
+        )
+    except (OSError, ValueError):
+        matches = False
+    return saved_key if matches else ""
 
 
 def _resolution_dict(resolution: Resolution) -> dict:
