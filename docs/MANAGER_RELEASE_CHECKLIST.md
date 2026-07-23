@@ -6,9 +6,13 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 
 - [x] Compile every manager Python file.
 - [x] Run the structural AST and architecture audit.
+- [x] Audit every visible Tk button callback against ManagerGUI and its action mixins.
 - [x] Install the complete pinned runtime dependency set before manager regressions.
 - [x] Verify the default provider registry uses the preview-aware GameBanana client.
 - [x] Exercise preview URL normalization, host/redirect restrictions, MIME handling, byte limits, pixel limits, malformed images, and provider wiring.
+- [x] Exercise selection, busy-task, paging, blocker, game-running, unknown-status, Studio-host, and Settings target-edit button states headlessly.
+- [x] Verify changed GameBanana region/sort/query starts from page 1 and stale availability is restored after tasks.
+- [x] Verify typed target path or region changes revoke stale installation verification while detected targets retain it.
 - [x] Build one frozen runtime and compare it against complete DEB/AppImage runtime trees.
 - [x] Verify bundled certifi data and Pillow's compiled imaging extension in both packages.
 
@@ -16,6 +20,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 
 - [ ] Import and prepare at least one ZIP package and one extracted-folder mod.
 - [ ] Import UM:PD Dark Mode through the generic GameBanana provider.
+- [ ] Import and automatically prepare a deeply nested loose legacy GameBanana package such as Cafe Cat Keyhole Bra.
 - [ ] Apply two non-conflicting mods and verify exact vanilla restoration.
 - [ ] Apply two mods replacing the same hash and verify the load-order winner.
 - [ ] Switch between at least three profiles without stale targets.
@@ -25,15 +30,21 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Corrupt a copy of `active.json` and confirm deployment fails before changing a game file.
 - [ ] Exercise explicit force recovery and record the expected ownership result.
 
-## Platforms, HTTPS, previews, and game updates
+## Platforms, HTTPS, previews, controls, and game updates
 
 - [x] Add unit coverage for Fedora/Bazzite CA-bundle fallback and explicit certificate environment variables.
 - [x] Bundle `certifi/cacert.pem` and verify its presence in both package formats.
 - [ ] Browse and download a current GameBanana mod from the packaged AppImage on Bazzite without certificate environment variables.
-- [ ] Confirm diagnostics reports the Bazzite system trust store or bundled certifi fallback.
+- [x] Confirm diagnostics reports the Bazzite system trust store or bundled certifi fallback.
 - [ ] Verify selected-mod previews on Bazzite/KDE, including JPEG/PNG/WebP rendering.
 - [ ] Rapidly switch selections and confirm a slow old preview cannot replace the current mod.
 - [ ] Confirm missing or malformed previews remain nonfatal and do not disable Install/Open page.
+- [ ] Verify Library controls with no selection, enabled/disabled mods, first/middle/last load order, prepared/stale/unprepared state, blockers, and game-running state.
+- [ ] Verify Discover controls across first/last page, a changed query, incomplete file metadata, confirmed no-file submissions, local scan with and without a selected candidate, and a background import.
+- [ ] Verify all legacy Studio cards show **Close game first** while Umamusume runs and reopen after it closes.
+- [ ] Verify direct Settings entry edits clear verified target identity after Save, while Auto-detect preserves its new identity.
+- [ ] Verify all shared-state operation buttons disable during a background task and restore afterward.
+- [ ] Force game process detection to fail and confirm the badge reports unknown status while Apply and Studio writes remain blocked.
 - [ ] Repeat GameBanana browse/download from the Debian package on a Debian/Ubuntu-family system.
 - [ ] Test game-running detection on native Windows.
 - [ ] Test game-running detection under Proton.
@@ -83,7 +94,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [x] Version and CLI smoke tests run without FUSE through extraction mode.
 - [x] Complete frozen runtime matches the shared source bundle and Debian payload.
 - [x] Bundled certifi CA data and Pillow imaging support are present.
-- [ ] Launch the alpha7 graphical interface on Bazzite/KDE.
+- [ ] Launch the alpha10 graphical interface on Bazzite/KDE.
 - [ ] Launch on a second supported distribution.
 - [ ] Verify Library, Discover, Studio, Conflicts, Settings, and diagnostics.
 - [ ] Confirm AppImage and DEB see the same XDG manager data.
@@ -105,7 +116,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Keep runtime/native plugins outside the desktop manager.
 - [ ] Attach sanitized logs and state manifests for release-candidate smoke tests.
 - [x] Generate and verify external SHA-256 checksums for both package artifacts.
-- [x] Update `MANAGER_VERSION`, changelog, READMEs, AppStream metadata, and artifact names together for alpha7.
+- [x] Update `MANAGER_VERSION`, changelog, READMEs, AppStream metadata, and artifact names together for alpha10.
 
 ## Runtime boundary
 
