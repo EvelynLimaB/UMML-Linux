@@ -2,14 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but preserves the loader's editing tools instead of replacing them with a polished list that cannot actually do anything.
 
-> **Preview:** `0.2.0~alpha9`. The manager includes audited persistent state, bounded imports, provider browsing, automatic preparation of compatible imports, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
+> **Preview:** `0.2.0~alpha10`. The manager includes audited persistent state, bounded imports, provider browsing, automatic preparation of compatible imports, contextual action controls, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha9_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha10_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -18,16 +18,16 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha9_x86_64.AppImage
-./umml-manager_0.2.0-alpha9_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha10_x86_64.AppImage
+./umml-manager_0.2.0-alpha10_x86_64.AppImage
 ```
 
 The same file exposes the CLI:
 
 ```bash
-./umml-manager_0.2.0-alpha9_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha9_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha9_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha10_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha10_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha10_x86_64.AppImage --cli browse --region global
 ```
 
 The DEB and AppImage are built from one PyInstaller bundle. CI extracts both finished packages and compares their complete frozen runtime trees with the source bundle and each other.
@@ -67,6 +67,23 @@ The current source installer stores code in `~/.local/share/umml-manager-app` an
 - **Conflicts:** inspect exact file winners and every deployment blocker.
 - **Settings:** installation detection, game paths, prepared metadata, region, diagnostics, manager data, and workspaces.
 
+### Context-aware controls
+
+Alpha10 keeps visible controls synchronized with actual prerequisites instead of allowing silent no-op clicks:
+
+- selection actions remain disabled until a valid Library or local-discovery row is selected;
+- **Enable** changes to **Disable** for an enabled mod;
+- load-order arrows follow the selected mod's real position;
+- **Prepare now** and **Re-prepare** reflect package and metadata readiness;
+- **Apply profile** explains whether game data, blocker resolution, or closing the game is required;
+- GameBanana paging and installation controls restore correctly after background work;
+- a changed GameBanana query, sort, or region starts on page 1;
+- mutating Studio tools disable while the game runs;
+- unknown process status blocks writes rather than pretending the game is closed;
+- all operation buttons disable while one manager task owns the shared state.
+
+Backend validation remains authoritative. Disabled-state logic improves the interface but does not replace deployment locks, process checks, path validation, or transaction safety.
+
 ## First run
 
 1. Launch the game once and complete its data download.
@@ -92,7 +109,7 @@ The three paths are:
 The manager deliberately separates three operations:
 
 1. **Import** preserves an immutable copy of the downloaded or selected source package.
-2. **Prepare** converts compatible source assets into verified game-hash targets. Alpha9 performs this automatically after import when the package and metadata are compatible.
+2. **Prepare** converts compatible source assets into verified game-hash targets. Alpha10 performs this automatically after import when the package and metadata are compatible.
 3. **Apply** writes an enabled profile to the game. This remains a separate explicit action and requires the game to be closed.
 
 If automatic preparation fails, the imported source is not deleted. It stays in Library with **needs prepare**, and the existing manual preparation action becomes a retry and diagnostic tool rather than required routine work.
@@ -116,11 +133,13 @@ Catalogue rows do not always include their complete file list. When that happens
 
 GameBanana file containers are normalized from array, mapping, and nested response shapes before they reach the selector. Stale detail responses are ignored after changing selection or page.
 
-Some older GameBanana uploads contain the loose files accepted by the legacy UMML manual loader but omit a modern `assets/` wrapper or manifest. Alpha9 normalizes this layout only when all of the following are true:
+Some older GameBanana uploads contain the loose files accepted by the legacy UMML manual loader but omit a modern `assets/` wrapper or manifest. Alpha10 normalizes this layout only when all of the following are true:
 
 - the archive came through the verified GameBanana provider path;
 - it contains recognizable UnityFS, audio, video, bundle, or hashed asset evidence;
 - it contains no executable, script, or native-library payloads.
+
+Deep wrapper layouts are accepted after normalization through a bounded, symlink-safe traversal rather than an arbitrary shallow directory cutoff.
 
 Plain documents and unrelated archives remain rejected. The normalized package is stored immutably before automatic preparation begins.
 
@@ -239,13 +258,14 @@ bash scripts/build_manager_deb.sh
 bash scripts/build_manager_appimage.sh
 ```
 
-CI installs the complete pinned runtime dependency set before manager regressions. Package inspection verifies matching frozen runtime trees, certifi trust data, and Pillow's compiled imaging extension in both formats.
+CI installs the complete pinned runtime dependency set before manager regressions. Package inspection verifies matching frozen runtime trees, certifi trust data, and Pillow's compiled imaging extension in both formats. The static audit also verifies that every visible button callback resolves to a ManagerGUI or action-mixin method.
 
 Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMENT.md`, `docs/MANAGER_AUDIT.md`, `docs/MANAGER_FEATURE_ROADMAP.md`, and `docs/PACKAGING.md` before changing state, providers, deployment, recovery, or packaging.
 
 ## Remaining alpha release gates
 
-- live Bazzite GameBanana browse, preview, detail hydration, loose-package normalization, automatic preparation, and import without certificate overrides;
+- live Bazzite GameBanana browse, preview, detail hydration, deep loose-package normalization, automatic preparation, and import without certificate overrides;
+- real-desktop button-state smoke testing across every page;
 - visual preview sizing and rapid-selection testing on KDE;
 - a broader real-mod corpus;
 - packaged apply/disable/restore/update tests on disposable game data;
