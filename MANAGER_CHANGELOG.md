@@ -1,5 +1,18 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha10 - 2026-07-23
+
+### Fixed
+
+- Normalized legacy GameBanana packages are no longer rejected merely because their first regular asset is nested more than four directories below `assets/`.
+- Mod-root recognition now uses a bounded, symlink-safe breadth-first traversal with explicit entry and depth limits instead of an arbitrary four-component shortcut.
+- Deep wrapper layouts accepted by the legacy UMML manual loader can now continue from normalization into immutable import and automatic preparation.
+
+### Tests
+
+- Added a regression archive whose UnityFS payload remains deeply nested after the compatibility normalizer unwraps its first four wrapper directories.
+- Retained executable-content rejection, document-only rejection, automatic-preparation policy, offline-CLI, structural-audit, and package-parity coverage.
+
 ## 0.2.0~alpha9 - 2026-07-22
 
 ### Import and preparation
@@ -155,7 +168,7 @@
 - Enabled but unprepared mods now block profile deployment instead of producing a misleading successful no-op.
 - Corrupt `active.json`, mod registry, and profile registry files fail closed instead of being silently treated as empty state.
 - Re-importing the same mod ID and version with different contents can no longer overwrite immutable source files.
-- Different versions of the same logical mod coexist under distinct record IDs instead of replacing the registered version.
+- Different versions of the same logical mod coexist under distinct manager record IDs instead of replacing the registered version.
 - GameBanana result changes now clear stale selections, disable invalid install actions, and honor previous/next page availability.
 
 ### Changed
