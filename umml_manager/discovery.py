@@ -37,6 +37,8 @@ _METADATA_HINTS = {
     "regions",
 }
 _ARCHIVE_NAME_HINT = re.compile(r"(?:uma|umml|hachimi|mod|skin|texture)", re.IGNORECASE)
+_ROOT_SCAN_ENTRY_LIMIT = 20_000
+_ROOT_SCAN_DEPTH_LIMIT = 64
 
 
 @dataclass(frozen=True)
@@ -269,16 +271,40 @@ def _base_name(value: str) -> str:
 
 
 def _has_any_regular_file(root: Path) -> bool:
-    try:
-        for path in root.rglob("*"):
-            if len(path.relative_to(root).parts) > 4:
-                continue
-            if path.is_symlink():
-                continue
-            if path.is_file():
-                return True
-    except (OSError, PermissionError):
-        return False
+    """Return whether *root* contains a regular file without following links.
+
+    Real legacy UMML packages often contain a wrapper plus deeply nested Unity
+    asset paths. The previous four-level shortcut incorrectly rejected those
+    packages after the compatibility normalizer had already validated them.
+    Traversal remains bounded by entry and depth limits and never follows
+    symbolic links.
+    """
+
+    queue: deque[tuple[Path, int]] = deque([(root, 0)])
+    inspected = 0
+    while queue and inspected < _ROOT_SCAN_ENTRY_LIMIT:
+        directory, depth = queue.popleft()
+        try:
+            iterator = os.scandir(directory)
+        except (OSError, PermissionError):
+            continue
+        with iterator:
+            for entry in iterator:
+                inspected += 1
+                if inspected > _ROOT_SCAN_ENTRY_LIMIT:
+                    return False
+                try:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_file(follow_symlinks=False):
+                        return True
+                    if (
+                        depth < _ROOT_SCAN_DEPTH_LIMIT
+                        and entry.is_dir(follow_symlinks=False)
+                    ):
+                        queue.append((Path(entry.path), depth + 1))
+                except OSError:
+                    continue
     return False
 
 
