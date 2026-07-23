@@ -9,16 +9,48 @@ class StudioPage(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.tool_buttons = {}
+        self.tool_mutating = {}
         self.columnconfigure(0, weight=1)
-        ttk.Label(self, text="All legacy editing features remain available through the compatibility Studio.", style="Muted.TLabel", wraplength=850).grid(row=0, column=0, sticky="w", pady=(0, 12))
+        ttk.Label(
+            self,
+            text=(
+                "All legacy editing features remain available through the "
+                "compatibility Studio. Mutating tools are disabled while the game "
+                "is running."
+            ),
+            style="Muted.TLabel",
+            wraplength=850,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 12))
         cards = ttk.Frame(self)
         cards.grid(row=1, column=0, sticky="nsew")
         for column in range(2):
             cards.columnconfigure(column, weight=1)
         for index, tool in enumerate(LEGACY_TOOLS):
             card = ttk.Frame(cards, style="Surface.TFrame", padding=15)
-            card.grid(row=index // 2, column=index % 2, sticky="nsew", padx=(0 if index % 2 == 0 else 7, 7 if index % 2 == 0 else 0), pady=6)
+            card.grid(
+                row=index // 2,
+                column=index % 2,
+                sticky="nsew",
+                padx=(0 if index % 2 == 0 else 7, 7 if index % 2 == 0 else 0),
+                pady=6,
+            )
             card.columnconfigure(0, weight=1)
-            ttk.Label(card, text=tool.name, style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
-            ttk.Label(card, text=tool.description, style="SurfaceMuted.TLabel", wraplength=380).grid(row=1, column=0, sticky="w", pady=(4, 10))
-            ttk.Button(card, text="Open", style="Accent.TButton" if tool.id == "full" else "TButton", command=lambda item=tool: app.launch_legacy_tool(item.id)).grid(row=2, column=0, sticky="w")
+            ttk.Label(card, text=tool.name, style="CardTitle.TLabel").grid(
+                row=0, column=0, sticky="w"
+            )
+            ttk.Label(
+                card,
+                text=tool.description,
+                style="SurfaceMuted.TLabel",
+                wraplength=380,
+            ).grid(row=1, column=0, sticky="w", pady=(4, 10))
+            button = ttk.Button(
+                card,
+                text="Open",
+                style="Accent.TButton" if tool.id == "full" else "TButton",
+                command=lambda item=tool: app.launch_legacy_tool(item.id),
+            )
+            button.grid(row=2, column=0, sticky="w")
+            self.tool_buttons[tool.id] = button
+            self.tool_mutating[tool.id] = tool.mutating
