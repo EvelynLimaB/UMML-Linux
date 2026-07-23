@@ -4,8 +4,15 @@ from . import engine as _engine
 from .engine import ApplyError, ApplyResult
 from .resolver import Resolution
 
+_BaseApplyEngine = getattr(
+    _engine,
+    "_UMML_TRANSACTIONAL_APPLY_ENGINE",
+    _engine.ApplyEngine,
+)
+_engine._UMML_TRANSACTIONAL_APPLY_ENGINE = _BaseApplyEngine  # type: ignore[attr-defined]
 
-class ApplyEngine(_engine.ApplyEngine):
+
+class ApplyEngine(_BaseApplyEngine):
     """Public deployment engine with complete resolver and process guards.
 
     The transactional implementation remains isolated in ``engine.py``. Every
