@@ -3,8 +3,8 @@
 
 This deliberately uses only the Python standard library so every contributor and
 CI runner can execute it before packaging. It does not pretend to replace tests
-or a type checker. It guards a small set of architectural and security rules
-whose accidental violation would be expensive.
+or a type checker. It guards a small set of architectural, security, and visible
+UI wiring rules whose accidental violation would be expensive.
 """
 
 from __future__ import annotations
@@ -18,6 +18,21 @@ from typing import Iterable
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOTS = (ROOT / "umml_manager",)
 ENTRY_POINTS = (ROOT / "umml_manager_packaged.py",)
+UI_FILES = {
+    ROOT / "umml_manager/gui.py",
+    ROOT / "umml_manager/ui_library.py",
+    ROOT / "umml_manager/ui_discover.py",
+    ROOT / "umml_manager/ui_settings.py",
+    ROOT / "umml_manager/ui_studio.py",
+}
+ACTION_CLASS_NAMES = {
+    "ManagerGUI",
+    "AutoPrepareActions",
+    "ButtonStateActions",
+    "LibraryActions",
+    "DiscoverActions",
+    "SystemActions",
+}
 
 FORBIDDEN_CALLS = {
     "eval": "dynamic eval is not permitted",
@@ -167,15 +182,84 @@ def _duplicate_definitions(path: Path, tree: ast.Module) -> list[Finding]:
     return findings
 
 
+def _action_methods(files: list[Path]) -> set[str]:
+    methods: set[str] = set()
+    for path in files:
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (OSError, SyntaxError, UnicodeError):
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef) and node.name in ACTION_CLASS_NAMES:
+                methods.update(
+                    child.name
+                    for child in node.body
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                )
+    return methods
+
+
+def _callback_name(value: ast.expr) -> str:
+    candidate = value.body if isinstance(value, ast.Lambda) else value
+    if isinstance(candidate, ast.Call):
+        candidate = candidate.func
+    if (
+        isinstance(candidate, ast.Attribute)
+        and isinstance(candidate.value, ast.Name)
+        and candidate.value.id in {"app", "self"}
+    ):
+        return candidate.attr
+    return ""
+
+
+def audit_button_callbacks(files: list[Path]) -> list[Finding]:
+    methods = _action_methods(files)
+    findings: list[Finding] = []
+    for path in sorted(UI_FILES):
+        if not path.is_file():
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (OSError, SyntaxError, UnicodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or dotted_name(node.func) not in {
+                "ttk.Button",
+                "tk.Button",
+            }:
+                continue
+            command = next(
+                (keyword.value for keyword in node.keywords if keyword.arg == "command"),
+                None,
+            )
+            if command is None:
+                findings.append(Finding(path, node.lineno, "visible button has no command callback"))
+                continue
+            callback = _callback_name(command)
+            if callback and callback not in methods:
+                findings.append(
+                    Finding(
+                        path,
+                        node.lineno,
+                        f"button callback {callback!r} is not implemented by ManagerGUI or its action mixins",
+                    )
+                )
+    return findings
+
+
 def main() -> int:
     files = source_files()
     findings = [finding for path in files for finding in audit_file(path)]
+    findings.extend(audit_button_callbacks(files))
     if findings:
         print("UMML Manager source audit failed:", file=sys.stderr)
         for finding in findings:
             print(f"  {finding.render()}", file=sys.stderr)
         return 1
-    print(f"UMML Manager source audit passed for {len(files)} Python files.")
+    print(
+        f"UMML Manager source audit passed for {len(files)} Python files, "
+        "including visible button callbacks."
+    )
     return 0
 
 
