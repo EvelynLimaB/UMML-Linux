@@ -66,6 +66,9 @@ class ManagerButtonStateTests(unittest.TestCase):
             files={"aa/hash": "0" * 64},
         )
         profile = Profile("Default", ["mod-a", "mod-b"] if enabled else ["mod-b"])
+        resolution = Resolution(profile="Default")
+        if blockers:
+            resolution.unprepared.append("blocked")
         app = object.__new__(ManagerGUI)
         app._closing = False
         app._busy = False
@@ -85,10 +88,7 @@ class ManagerButtonStateTests(unittest.TestCase):
         app.gb_results = {}
         app.local_candidates = {}
         app.profile = lambda: profile
-        app.current_resolution = lambda: Resolution(
-            profile="Default",
-            blocking_issues=["blocked"] if blockers else [],
-        )
+        app.current_resolution = lambda: resolution
         app.store = SimpleNamespace(get_mod=lambda mod_id: mod if mod_id == mod.id else None)
 
         selected_values = (mod.id,) if selected else ()
@@ -190,7 +190,7 @@ class ManagerButtonStateTests(unittest.TestCase):
         self.assertEqual(app.studio.tool_buttons["full"].options["state"], "normal")
 
     def test_busy_state_disables_mutating_and_network_actions(self):
-        app, mod, _profile = self._app()
+        app, _mod, _profile = self._app()
         app.gb_selected = SimpleNamespace(id=123)
         app.gb_results = {"123": app.gb_selected}
         app._busy = True
