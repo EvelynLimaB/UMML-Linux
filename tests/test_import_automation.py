@@ -55,6 +55,39 @@ class LooseArchiveTests(unittest.TestCase):
             )
             self.assertEqual(record.source.file_id, 1604920)
 
+    def test_deeply_nested_legacy_asset_survives_normalization(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive = self._archive(
+                root,
+                {
+                    "wrapper/a/b/c/d/e/f/g/h/i/body": b"UnityFS\x00synthetic",
+                    "wrapper/a/b/c/d/e/f/g/h/i/readme.txt": b"legacy package",
+                },
+            )
+            store = ManagerStore(root / "manager")
+            record = import_loose_legacy_archive(
+                store,
+                archive,
+                mod_id="gamebanana-deep",
+                source=SourceSpec(
+                    provider="gamebanana",
+                    submission_id=646906,
+                    file_id=1604920,
+                ),
+                metadata_overrides={
+                    "title": "Deep legacy package",
+                    "mod_version": "1604920",
+                    "regions": ["global"],
+                },
+            )
+
+            source = Path(record.source_path)
+            self.assertEqual(record.package_type, "umml-assets")
+            self.assertTrue(
+                (source / "assets" / "d" / "e" / "f" / "g" / "h" / "i" / "body").is_file()
+            )
+
     def test_plain_document_archive_is_not_misclassified(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
