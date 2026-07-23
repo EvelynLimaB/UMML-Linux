@@ -5,7 +5,7 @@ from tkinter import ttk
 
 from PIL import Image, ImageTk
 
-from .ui_theme import SURFACE, SURFACE_2, TEXT
+from .ui_theme import SURFACE_2, TEXT
 
 
 class DiscoverPage(ttk.Frame):
@@ -32,30 +32,33 @@ class DiscoverPage(ttk.Frame):
         bar = ttk.Frame(page)
         bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         ttk.Label(bar, text="Game").pack(side="left")
-        ttk.Combobox(
+        self.gb_region_box = ttk.Combobox(
             bar,
             textvariable=self.app.gb_region,
             values=("global", "japan"),
             state="readonly",
             width=10,
-        ).pack(side="left", padx=(6, 12))
+        )
+        self.gb_region_box.pack(side="left", padx=(6, 12))
         ttk.Label(bar, text="Sort").pack(side="left")
-        ttk.Combobox(
+        self.gb_sort_box = ttk.Combobox(
             bar,
             textvariable=self.app.gb_sort,
             values=("updated", "newest", "popular", "downloads", "views"),
             state="readonly",
             width=11,
-        ).pack(side="left", padx=(6, 12))
-        ttk.Entry(bar, textvariable=self.app.gb_query, width=30).pack(
-            side="left", fill="x", expand=True
         )
-        ttk.Button(
+        self.gb_sort_box.pack(side="left", padx=(6, 12))
+        self.gb_query_entry = ttk.Entry(bar, textvariable=self.app.gb_query, width=30)
+        self.gb_query_entry.pack(side="left", fill="x", expand=True)
+        self.gb_query_entry.bind("<Return>", lambda _event: self.app.browse_gamebanana())
+        self.browse_button = ttk.Button(
             bar,
             text="Browse",
             style="Accent.TButton",
             command=self.app.browse_gamebanana,
-        ).pack(side="left", padx=(8, 0))
+        )
+        self.browse_button.pack(side="left", padx=(8, 0))
 
         left = ttk.Frame(page, style="Surface.TFrame", padding=10)
         left.grid(row=1, column=0, sticky="nsew", padx=(0, 7))
@@ -151,7 +154,10 @@ class DiscoverPage(ttk.Frame):
         buttons = ttk.Frame(right, style="Surface.TFrame")
         buttons.grid(row=7, column=0, sticky="ew")
         self.open_gb_button = ttk.Button(
-            buttons, text="Open page", command=self.app.open_gamebanana_page
+            buttons,
+            text="Open page",
+            command=self.app.open_gamebanana_page,
+            state="disabled",
         )
         self.open_gb_button.pack(side="left")
         self.install_gb_button = ttk.Button(
@@ -159,10 +165,9 @@ class DiscoverPage(ttk.Frame):
             text="Install",
             style="Accent.TButton",
             command=self.app.install_gamebanana_mod,
+            state="disabled",
         )
         self.install_gb_button.pack(side="right")
-        self.open_gb_button.configure(state="disabled")
-        self.install_gb_button.configure(state="disabled")
 
         pager = ttk.Frame(page)
         pager.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
@@ -170,6 +175,7 @@ class DiscoverPage(ttk.Frame):
             pager,
             text="← Previous",
             command=lambda: self.app.change_gamebanana_page(-1),
+            state="disabled",
         )
         self.prev_button.pack(side="left")
         self.page_label = ttk.Label(pager, text="Page 1")
@@ -178,10 +184,9 @@ class DiscoverPage(ttk.Frame):
             pager,
             text="Next →",
             command=lambda: self.app.change_gamebanana_page(1),
+            state="disabled",
         )
         self.next_button.pack(side="left")
-        self.prev_button.configure(state="disabled")
-        self.next_button.configure(state="disabled")
 
     def _build_local(self):
         page = self.local
@@ -190,18 +195,22 @@ class DiscoverPage(ttk.Frame):
         bar = ttk.Frame(page)
         bar.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         ttk.Label(bar, text="Search roots").pack(side="left")
-        ttk.Entry(bar, textvariable=self.app.scan_roots).pack(
-            side="left", fill="x", expand=True, padx=8
+        self.scan_roots_entry = ttk.Entry(bar, textvariable=self.app.scan_roots)
+        self.scan_roots_entry.pack(side="left", fill="x", expand=True, padx=8)
+        self.scan_roots_entry.bind("<Return>", lambda _event: self.app.scan_local_mods())
+        self.add_folder_button = ttk.Button(
+            bar,
+            text="Add folder",
+            command=self.app.add_scan_root,
         )
-        ttk.Button(bar, text="Add folder", command=self.app.add_scan_root).pack(
-            side="left", padx=4
-        )
-        ttk.Button(
+        self.add_folder_button.pack(side="left", padx=4)
+        self.scan_button = ttk.Button(
             bar,
             text="Scan",
             style="Accent.TButton",
             command=self.app.scan_local_mods,
-        ).pack(side="left")
+        )
+        self.scan_button.pack(side="left")
         frame = ttk.Frame(page, style="Surface.TFrame", padding=10)
         frame.grid(row=1, column=0, sticky="nsew")
         frame.columnconfigure(0, weight=1)
@@ -230,19 +239,27 @@ class DiscoverPage(ttk.Frame):
         self.local_tree.configure(yscrollcommand=local_scroll.set)
         self.local_tree.grid(row=0, column=0, sticky="nsew")
         local_scroll.grid(row=0, column=1, sticky="ns")
+        self.local_tree.bind(
+            "<<TreeviewSelect>>",
+            lambda _event: self.app.refresh_action_states(),
+        )
         buttons = ttk.Frame(page)
         buttons.grid(row=2, column=0, sticky="ew", pady=(10, 0))
-        ttk.Button(
+        self.open_local_button = ttk.Button(
             buttons,
             text="Open location",
             command=self.app.open_local_candidate,
-        ).pack(side="left")
-        ttk.Button(
+            state="disabled",
+        )
+        self.open_local_button.pack(side="left")
+        self.import_local_button = ttk.Button(
             buttons,
             text="Import selected",
             style="Accent.TButton",
             command=self.app.import_local_candidate,
-        ).pack(side="right")
+            state="disabled",
+        )
+        self.import_local_button.pack(side="right")
 
     def set_gb_description(self, value: str):
         self.gb_description.configure(state="normal")
