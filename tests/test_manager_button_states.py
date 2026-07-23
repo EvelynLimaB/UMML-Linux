@@ -12,6 +12,7 @@ if Image is not None:
     from umml_manager.gui import ManagerGUI
     from umml_manager.models import ModRecord, Profile
     from umml_manager.resolver import Resolution
+    from umml_manager.ui_button_actions import ButtonStateActions
 
 
 class FakeVar:
@@ -215,6 +216,53 @@ class ManagerButtonStateTests(unittest.TestCase):
         app.refresh_action_states()
         self.assertEqual(app.library.apply_button.options["state"], "disabled")
         self.assertEqual(app.library.apply_button.options["text"], "Fix blockers to apply")
+
+
+@unittest.skipUnless(Image is not None, "Pillow is a manager-only dependency")
+class ButtonWrapperBehaviorTests(unittest.TestCase):
+    def test_changed_browse_query_resets_to_first_page(self):
+        class BrowseBase:
+            def browse_gamebanana(self):
+                self.calls += 1
+                return self.gb_page
+
+        class Harness(ButtonStateActions, BrowseBase):
+            pass
+
+        harness = Harness()
+        harness.gb_region = FakeVar("global")
+        harness.gb_sort = FakeVar("updated")
+        harness.gb_query = FakeVar("first")
+        harness.gb_page = 4
+        harness.calls = 0
+
+        self.assertEqual(harness.browse_gamebanana(), 1)
+        harness.gb_page = 2
+        self.assertEqual(harness.browse_gamebanana(), 2)
+        harness.gb_query.set("second")
+        self.assertEqual(harness.browse_gamebanana(), 1)
+        self.assertEqual(harness.calls, 3)
+
+    def test_unknown_game_status_is_fail_closed(self):
+        class StatusBase:
+            def _refresh_game_status(self):
+                self.game_status.set("Game status unknown")
+
+        class Harness(ButtonStateActions, StatusBase):
+            def refresh_action_states(self):
+                self.refreshed = True
+
+        harness = Harness()
+        harness.game_status = FakeVar()
+        harness._game_running = False
+        harness.refreshed = False
+        harness._refresh_game_status()
+        self.assertTrue(harness._game_running)
+        self.assertTrue(harness.refreshed)
+        self.assertEqual(
+            harness.game_status.get(),
+            "Game status unknown; writes blocked",
+        )
 
 
 if __name__ == "__main__":
