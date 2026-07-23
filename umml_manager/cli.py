@@ -260,8 +260,9 @@ def _metadata_fingerprint(
         return hash_file(path)
 
     settings = store.load_settings() if store is not None else {}
-    saved_path = Path(str(settings.get("meta_path", ""))).expanduser()
-    if saved_path.is_file():
+    saved_meta = str(settings.get("meta_path", "")).strip()
+    saved_path = Path(saved_meta).expanduser() if saved_meta else None
+    if saved_path is not None and saved_path.is_file():
         actual = hash_file(saved_path)
         recorded = str(settings.get("metadata_fingerprint", "")).strip()
         if recorded:
@@ -303,6 +304,8 @@ def _target_installation_key(
     if not dat_path:
         return saved_key
     saved_dat = str(settings.get("dat_path", "")).strip()
+    if not saved_dat:
+        return ""
     try:
         matches = (
             Path(saved_dat).expanduser().resolve()
