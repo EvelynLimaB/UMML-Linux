@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.evelynlimab.ummlmanager</id>
+  <name>UMML Manager</name>
+  <summary>Browse, edit, profile, and deploy UM:PD mods</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>UMML Manager provides an immutable mod library, profiles, load order, conflict previews, and verified transactional deployment.</p>
+    <p>It detects supported game installations, browses Global and Japan Umamusume GameBanana mods with bounded preview images, automatically prepares compatible imports, finds compatible local packages, creates editable copies, and rejects stale or incompatible profile plans.</p>
+    <p>The built-in Studio preserves the legacy loader's character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.</p>
+  </description>
+  <launchable type="desktop-id">io.github.evelynlimab.ummlmanager.desktop</launchable>
+  <url type="homepage">https://github.com/EvelynLimaB/UMML-Linux</url>
+  <provides>
+    <binary>umml-manager</binary>
+    <binary>umml-manager-cli</binary>
+  </provides>
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+  <releases>
+    <release version="0.2.0-alpha.13" date="2026-07-23">
+      <description>
+        <p>Adds explicit all-or-nothing migration from legacy dat.backup originals, prevents legacy-modded files from becoming vanilla baselines, and replaces opaque first-apply failures with actionable recovery.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.12" date="2026-07-23">
+      <description>
+        <p>Hardens interrupted recovery and snapshot races, refuses unsafe baseline adoption, preserves verified installation and preparation identity, and completes the source-installed Studio runtime.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.11" date="2026-07-23">
+      <description>
+        <p>Centralizes fail-closed deployment and import safety, enforces every planner blocker for GUI and CLI callers, hardens legacy Studio process inspection, and adds concurrency and migration regressions.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.10" date="2026-07-23">
+      <description>
+        <p>Fixes deeply nested legacy GameBanana imports and synchronizes visible button states with selection, background work, profile blockers, paging, and game-running safety.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.9" date="2026-07-22">
+      <description>
+        <p>Automatically prepares compatible imports, preserves source packages when preparation fails, and safely normalizes provider-confirmed loose legacy UMML asset archives that omit the modern assets wrapper.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.8" date="2026-07-22">
+      <description>
+        <p>Fixes disabled GameBanana installation controls when catalogue rows omit downloadable files by hydrating submission details asynchronously, preserving an Install latest fallback, and normalizing alternate file-container response shapes.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.7" date="2026-07-22">
+      <description>
+        <p>Completes the preview-provider wiring, runs manager regressions with the full pinned runtime dependency set, verifies Pillow imaging support in both package formats, and synchronizes release documentation after the triple audit.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.6" date="2026-07-22">
+      <description>
+        <p>Adds a full source audit, versioned persistent schemas, path-contained and hash-verified deployment, target-scoped baselines, durable recovery journals, tamper detection, stale metadata checks, provider/backend contracts, selected-mod previews, and an expanded adversarial test suite.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.5" date="2026-07-22">
+      <description>
+        <p>Fixes portable HTTPS trust on Fedora/Bazzite and other Linux families while retaining mandatory certificate verification.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.4" date="2026-07-22">
+      <description>
+        <p>Adds an AppImage built from the same frozen runtime as the Debian package, shared checksum artifacts, package-parity checks, and bounded archive extraction.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.3" date="2026-07-21">
+      <description>
+        <p>Separates source application files from user data, prevents stale launchers from shadowing the Debian package, and hardens profile, registry, deployment-state, import, and GameBanana behavior.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.2" date="2026-07-21">
+      <description>
+        <p>Adds first-launch Steam and Proton detection and automatically prepares the readable metadata database.</p>
+      </description>
+    </release>
+    <release version="0.2.0-alpha.1" date="2026-07-21">
+      <description>
+        <p>Adds the polished multi-workspace interface, GameBanana browser, local mod detection, editable workspaces, and complete legacy Studio compatibility.</p>
+      </description>
+    </release>
+    <release version="0.1.0-alpha.1" date="2026-07-21">
+      <description>
+        <p>Initial separately packaged manager foundation with profiles, conflict resolution, transactional deployment, and GameBanana import.</p>
+      </description>
+    </release>
+  </releases>
+</component>

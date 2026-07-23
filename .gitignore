@@ -1,19 +1,39 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
 env/
 .build-venv/
 .mypy_cache/
 .pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
 *.log
 *.db
 *.db-*
 meta_decrypted_*.db
+
+# Game data and local mod-manager state
 dat/
 dat.backup/
 master/
+Persistent/
+manager-state/
+manager-library/
+manager-cache/
+
+# OS/editor clutter
 .DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Generated packages and build output
 build/
 dist/
 *.zip
