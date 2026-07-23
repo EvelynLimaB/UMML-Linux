@@ -5,6 +5,7 @@ from pathlib import Path
 from tkinter import ttk
 
 from .discovery import default_search_roots
+from .models import PACKAGE_UMML_ASSETS
 from .providers.gamebanana import GameBananaMod
 from .store import ManagerStore, default_root
 from .ui_auto_prepare_actions import AutoPrepareActions
@@ -29,8 +30,13 @@ class ManagerGUI(
         self.store = store or ManagerStore(default_root())
         self._closing = False
         self._busy = False
+        self._game_running = False
         self._task_serial = 0
         self._nav_buttons = {}
+        self._gb_install_enabled = False
+        self._gb_install_text = "Install"
+        self._gb_can_previous = False
+        self._gb_can_next = False
         settings = self.store.load_settings()
         self.profile_name = tk.StringVar(
             value=str(settings.get("profile", "Default"))
@@ -92,6 +98,7 @@ class ManagerGUI(
         self.refresh()
         self.show_page("library")
         self._refresh_game_status()
+        self.refresh_action_states()
         if self.store.settings_warning:
             self.status.set(
                 "Settings were reset and preserved; Run diagnostics for the path"
@@ -187,12 +194,13 @@ class ManagerGUI(
             button.pack(fill="x", pady=2)
             self._nav_buttons[key] = button
         ttk.Separator(sidebar).pack(fill="x", pady=14)
-        ttk.Button(
+        self.sidebar_diagnostics_button = ttk.Button(
             sidebar,
             text="Run diagnostics",
             style="Nav.TButton",
             command=self.run_diagnostics,
-        ).pack(fill="x")
+        )
+        self.sidebar_diagnostics_button.pack(fill="x")
 
         self.content = ttk.Frame(body, padding=(18, 8, 22, 18))
         self.content.grid(row=0, column=1, sticky="nsew")
@@ -224,12 +232,13 @@ class ManagerGUI(
             text="Resolved profile plan and file ownership",
             style="Muted.TLabel",
         ).pack(side="left")
-        ttk.Button(
+        self.refresh_plan_button = ttk.Button(
             top,
             text="Refresh plan",
             style="Accent.TButton",
             command=self.render_plan,
-        ).pack(side="right")
+        )
+        self.refresh_plan_button.pack(side="right")
         self.plan_text = tk.Text(
             page,
             wrap="none",
@@ -266,10 +275,199 @@ class ManagerGUI(
         )
         self.progress.grid(row=0, column=1, sticky="e")
 
+    @staticmethod
+    def _configure_button(widget, *, enabled: bool, text: str | None = None) -> None:
+        values = {"state": "normal" if enabled else "disabled"}
+        if text is not None:
+            values["text"] = text
+        widget.configure(**values)
+
+    def refresh_action_states(self) -> None:
+        if self._closing or not hasattr(self, "library"):
+            return
+        busy = bool(self._busy)
+        game_running = bool(self._game_running)
+
+        self.library.profile_box.configure(state="disabled" if busy else "readonly")
+        self.library.search_entry.configure(state="disabled" if busy else "normal")
+        for button in (
+            self.library.new_profile_button,
+            self.library.search_button,
+            self.library.import_folder_button,
+            self.library.import_archive_button,
+            self.library.preview_conflicts_button,
+        ):
+            self._configure_button(button, enabled=not busy)
+
+        selected_id = self.library.selected_id()
+        record = None
+        profile = None
+        try:
+            profile = self.profile()
+            record = self.store.get_mod(selected_id) if selected_id else None
+        except Exception:
+            record = None
+
+        selected_enabled = bool(
+            record is not None and profile is not None and record.id in profile.enabled
+        )
+        enabled_index = (
+            profile.enabled.index(record.id)
+            if selected_enabled and profile is not None and record is not None
+            else -1
+        )
+        self._configure_button(
+            self.library.toggle_button,
+            enabled=record is not None and not busy,
+            text="Disable" if selected_enabled else "Enable",
+        )
+        self._configure_button(
+            self.library.move_up_button,
+            enabled=selected_enabled and enabled_index > 0 and not busy,
+        )
+        self._configure_button(
+            self.library.move_down_button,
+            enabled=(
+                selected_enabled
+                and profile is not None
+                and enabled_index < len(profile.enabled) - 1
+                and not busy
+            ),
+        )
+
+        metadata_ready = False
+        try:
+            metadata_ready = Path(self.meta_path.get()).expanduser().is_file()
+        except (OSError, ValueError):
+            pass
+        prepared = bool(record and record.files and record.prepared_path)
+        stale = bool(
+            prepared
+            and self.metadata_fingerprint.get()
+            and record is not None
+            and record.prepared_against
+            and self.metadata_fingerprint.get().casefold()
+            != record.prepared_against.casefold()
+        )
+        prepare_text = "Prepare now"
+        if prepared:
+            prepare_text = "Re-prepare" if stale else "Re-prepare"
+        self._configure_button(
+            self.library.prepare_button,
+            enabled=(
+                record is not None
+                and record.package_type == PACKAGE_UMML_ASSETS
+                and metadata_ready
+                and not busy
+            ),
+            text=prepare_text,
+        )
+        self._configure_button(
+            self.library.workspace_button,
+            enabled=record is not None and not busy,
+        )
+        self._configure_button(
+            self.library.remove_button,
+            enabled=record is not None and not busy,
+        )
+
+        blockers = True
+        try:
+            blockers = bool(self.current_resolution().blocking_issues)
+        except Exception:
+            blockers = True
+        dat_ready = False
+        try:
+            dat_ready = Path(self.dat_path.get()).expanduser().is_dir()
+        except (OSError, ValueError):
+            pass
+        if game_running:
+            apply_text = "Close game to apply"
+        elif blockers:
+            apply_text = "Fix blockers to apply"
+        elif not dat_ready:
+            apply_text = "Set game data to apply"
+        else:
+            apply_text = "Apply profile"
+        self._configure_button(
+            self.library.apply_button,
+            enabled=not busy and not game_running and not blockers and dat_ready,
+            text=apply_text,
+        )
+
+        self.discover.gb_region_box.configure(state="disabled" if busy else "readonly")
+        self.discover.gb_sort_box.configure(state="disabled" if busy else "readonly")
+        self.discover.gb_query_entry.configure(state="disabled" if busy else "normal")
+        self._configure_button(self.discover.browse_button, enabled=not busy)
+        selected_gb = bool(
+            self.gb_selected is not None
+            and str(self.gb_selected.id) in self.gb_results
+        )
+        self._configure_button(
+            self.discover.open_gb_button,
+            enabled=selected_gb,
+        )
+        self._configure_button(
+            self.discover.install_gb_button,
+            enabled=selected_gb and self._gb_install_enabled and not busy,
+            text=self._gb_install_text,
+        )
+        self._configure_button(
+            self.discover.prev_button,
+            enabled=self._gb_can_previous and not busy,
+        )
+        self._configure_button(
+            self.discover.next_button,
+            enabled=self._gb_can_next and not busy,
+        )
+        self.discover.scan_roots_entry.configure(state="disabled" if busy else "normal")
+        self._configure_button(self.discover.add_folder_button, enabled=not busy)
+        self._configure_button(self.discover.scan_button, enabled=not busy)
+        local_selected = self.selected_local_candidate() is not None
+        self._configure_button(
+            self.discover.open_local_button,
+            enabled=local_selected,
+        )
+        self._configure_button(
+            self.discover.import_local_button,
+            enabled=local_selected and not busy,
+        )
+
+        for button in (
+            self.settings.autodetect_button,
+            self.settings.dat_browse_button,
+            self.settings.meta_browse_button,
+            self.settings.game_browse_button,
+            self.settings.save_button,
+            self.settings.diagnostics_button,
+            self.settings.open_data_button,
+            self.settings.open_workspaces_button,
+            self.sidebar_diagnostics_button,
+            self.refresh_plan_button,
+        ):
+            self._configure_button(button, enabled=not busy)
+        self.settings.region_box.configure(state="disabled" if busy else "readonly")
+
+        for tool_id, button in self.studio.tool_buttons.items():
+            mutating = self.studio.tool_mutating.get(tool_id, True)
+            self._configure_button(
+                button,
+                enabled=not busy and not (game_running and mutating),
+                text=(
+                    "Close game first"
+                    if game_running and mutating
+                    else "Open"
+                ),
+            )
+
     def show_page(self, key: str):
         if self._closing:
             return
-        self.pages[key].tkraise()
+        page = self.pages.get(key)
+        if page is None:
+            self.status.set(f"Unknown page: {key}")
+            return
+        page.tkraise()
         self.page_title.set(key.title())
         for name, button in self._nav_buttons.items():
             button.configure(
@@ -281,6 +479,7 @@ class ManagerGUI(
             )
         if key == "conflicts":
             self.render_plan()
+        self.refresh_action_states()
 
     @staticmethod
     def _set_text(widget: tk.Text, value: str):
