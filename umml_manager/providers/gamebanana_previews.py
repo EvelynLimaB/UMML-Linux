@@ -5,8 +5,8 @@ from dataclasses import replace
 from typing import Any
 
 from ..legacy_archive import import_loose_legacy_archive
+from ..library import ManagerStore, UnrecognizedModError
 from ..regions import region_from_game_name
-from ..store import ManagerStore, StoreError
 from .gamebanana import GameBananaClient, GameBananaMod
 
 
@@ -48,9 +48,7 @@ class PreviewGameBananaClient(GameBananaClient):
                 source=source,
                 metadata_overrides=metadata,
             )
-        except StoreError as exc:
-            if "No recognizable UMML/Hachimi mod folder" not in str(exc):
-                raise
+        except UnrecognizedModError:
             return import_loose_legacy_archive(
                 store,
                 archive,
