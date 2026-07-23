@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha.11" date="2026-07-23">
+      <description>
+        <p>Centralizes fail-closed deployment and import safety, enforces every planner blocker for GUI and CLI callers, hardens legacy Studio process inspection, and adds concurrency and migration regressions.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha.10" date="2026-07-23">
       <description>
         <p>Fixes deeply nested legacy GameBanana imports and synchronizes visible button states with selection, background work, profile blockers, paging, and game-running safety.</p>
