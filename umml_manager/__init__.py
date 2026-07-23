@@ -1,9 +1,9 @@
 """UMML Manager: deterministic profiles and transactional asset deployment."""
 
+from .deployment import ApplyEngine, ApplyError
 from .models import ModRecord, Profile
-from .store import ManagerStore
 from .resolver import Resolution, resolve_profile
-from .engine import ApplyEngine, ApplyError
+from .store import ManagerStore
 
 __all__ = [
     "ApplyEngine",
