@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from . import engine as _engine
-from .engine import ApplyError, ApplyResult
+from .engine import ApplyError, ApplyResult, LegacyBaselineMigrationRequired
 from .resolver import Resolution
 
 _BaseApplyEngine = getattr(
@@ -69,4 +69,9 @@ class ApplyEngine(_BaseApplyEngine):
 # New code should import from ``umml_manager.deployment`` or package root.
 _engine.ApplyEngine = ApplyEngine
 
-__all__ = ["ApplyEngine", "ApplyError", "ApplyResult"]
+__all__ = [
+    "ApplyEngine",
+    "ApplyError",
+    "ApplyResult",
+    "LegacyBaselineMigrationRequired",
+]

@@ -32,12 +32,42 @@ class ApplyError(RuntimeError):
     pass
 
 
+class LegacyBaselineMigrationRequired(ApplyError):
+    """Raised when legacy-managed files need an explicit vanilla baseline."""
+
+    def __init__(
+        self,
+        paths: list[str],
+        *,
+        backup_root: Path,
+        importable: list[str],
+        problems: dict[str, str],
+    ):
+        self.paths = tuple(paths)
+        self.backup_root = backup_root
+        self.importable = tuple(importable)
+        self.problems = dict(problems)
+        count = len(self.paths)
+        noun = "file" if count == 1 else "files"
+        message = (
+            f"{count} current game {noun} need original copies before UMML Manager "
+            "can take over safely. UMML Manager has no vanilla baseline for them. "
+            "Import the legacy originals or restore the game files before applying."
+        )
+        super().__init__(message)
+
+    @property
+    def can_import(self) -> bool:
+        return bool(self.paths) and len(self.importable) == len(self.paths)
+
+
 @dataclass(frozen=True)
 class ApplyResult:
     installed: int
     restored: int
     unchanged: int
     recovered_transactions: int = 0
+    imported_baselines: int = 0
 
 
 class ApplyEngine:
@@ -55,7 +85,13 @@ class ApplyEngine:
         self.process_check = process_check
         self.target_id = _target_id(self.dat_path)
 
-    def apply(self, resolution: Resolution, *, force: bool = False) -> ApplyResult:
+    def apply(
+        self,
+        resolution: Resolution,
+        *,
+        force: bool = False,
+        import_legacy_baselines: bool = False,
+    ) -> ApplyResult:
         self._validate_resolution(resolution)
         if not self.dat_path.is_dir():
             raise ApplyError(f"Game dat directory not found: {self.dat_path}")
@@ -81,6 +117,7 @@ class ApplyEngine:
                     affected,
                     recovered,
                     force=force,
+                    import_legacy_baselines=import_legacy_baselines,
                 )
         except LockError as exc:
             raise ApplyError(str(exc)) from exc
@@ -143,6 +180,7 @@ class ApplyEngine:
         recovered: int,
         *,
         force: bool,
+        import_legacy_baselines: bool,
     ) -> ApplyResult:
         self.store.paths.transactions.mkdir(parents=True, exist_ok=True)
         transaction = Path(
@@ -178,10 +216,11 @@ class ApplyEngine:
                 journal_path,
                 self._journal(transaction_id, "applying", manifest),
             )
-            self._validate_first_adoptions(
+            imported_baselines = self._prepare_first_baselines(
                 resolution,
                 active,
                 manifest,
+                import_legacy_baselines=import_legacy_baselines,
             )
             self._assert_game_closed()
             self._validate_snapshot_state(
@@ -209,7 +248,17 @@ class ApplyEngine:
                         )
                     unchanged += 1
                 else:
-                    self._capture_baseline(relative, target, active.get(relative))
+                    if relative in imported_baselines:
+                        self._require_existing_baseline_for_adoption(
+                            relative,
+                            target,
+                        )
+                    else:
+                        self._capture_baseline(
+                            relative,
+                            target,
+                            active.get(relative),
+                        )
                     atomic_copy_file(source, target)
                     installed_hash = hash_file(target)
                     if installed_hash != claim.sha256:
@@ -237,6 +286,7 @@ class ApplyEngine:
                 restored=restored,
                 unchanged=unchanged,
                 recovered_transactions=recovered,
+                imported_baselines=len(imported_baselines),
             )
         except Exception as exc:
             if not mutation_started:
@@ -277,14 +327,26 @@ class ApplyEngine:
                 "be adopted safely. Restore the original game file before applying, or "
                 "use an explicit recovery workflow."
             )
-        self._capture_baseline(relative, target, None)
+        if baseline.is_file():
+            self._verify_baseline_file(baseline, digest, relative)
+            return
+        if marker.is_file():
+            self._validate_missing_marker(marker, relative)
+            return
+        raise ApplyError(
+            f"Vanilla baseline metadata is incomplete for {relative}. "
+            "Do not deploy until the baseline is inspected."
+        )
 
-    def _validate_first_adoptions(
+    def _prepare_first_baselines(
         self,
         resolution: Resolution,
         active: dict,
         manifest: dict[str, dict[str, object]],
-    ) -> None:
+        *,
+        import_legacy_baselines: bool,
+    ) -> set[str]:
+        unbaselined: dict[str, tuple[bool, str, str]] = {}
         for relative, claim in resolution.winners.items():
             if relative in active:
                 continue
@@ -294,11 +356,153 @@ class ApplyEngine:
                     f"Transaction snapshot metadata is missing for {relative}"
                 )
             existed, snapshot_hash = self._snapshot_entry(entry, relative)
-            if existed and snapshot_hash == claim.sha256:
-                self._require_existing_baseline_for_adoption(
+            baseline, marker, digest = self._baseline_paths(relative)
+            if baseline.exists() or marker.exists() or digest.exists():
+                if existed and snapshot_hash == claim.sha256:
+                    self._require_existing_baseline_for_adoption(
+                        relative,
+                        path_under(self.dat_path, relative),
+                    )
+                continue
+            unbaselined[relative] = (
+                existed,
+                snapshot_hash,
+                claim.sha256,
+            )
+
+        if not unbaselined:
+            return set()
+
+        available, unavailable = self._legacy_baseline_candidates(
+            list(unbaselined),
+        )
+        required: list[str] = []
+        candidates: dict[str, tuple[Path, str]] = {}
+        problems: dict[str, str] = {}
+        for relative, (
+            existed,
+            snapshot_hash,
+            requested_hash,
+        ) in unbaselined.items():
+            candidate = available.get(relative)
+            known_hashes = resolution.known_mod_hashes.get(
+                relative,
+                (requested_hash,),
+            )
+            matches_known_mod = existed and snapshot_hash in known_hashes
+            if candidate is not None:
+                _source, backup_hash = candidate
+                matches_current = existed and backup_hash == snapshot_hash
+                if matches_current and not matches_known_mod:
+                    continue
+                required.append(relative)
+                candidates[relative] = candidate
+                continue
+            if matches_known_mod:
+                required.append(relative)
+                problems[relative] = unavailable.get(
                     relative,
-                    path_under(self.dat_path, relative),
+                    "original backup is unavailable",
                 )
+
+        if not required:
+            return set()
+        if problems or not import_legacy_baselines:
+            raise LegacyBaselineMigrationRequired(
+                required,
+                backup_root=self.legacy_backup_root,
+                importable=sorted(candidates),
+                problems=problems,
+            )
+
+        self._import_legacy_baselines(candidates)
+        for relative in required:
+            self._require_existing_baseline_for_adoption(
+                relative,
+                path_under(self.dat_path, relative),
+            )
+        return set(candidates)
+
+    @property
+    def legacy_backup_root(self) -> Path:
+        return self.dat_path.parent / "dat.backup"
+
+    def _legacy_baseline_candidates(
+        self,
+        relatives: list[str],
+    ) -> tuple[dict[str, tuple[Path, str]], dict[str, str]]:
+        candidates: dict[str, tuple[Path, str]] = {}
+        problems: dict[str, str] = {}
+        if self.legacy_backup_root.is_symlink():
+            return {}, {
+                relative: "legacy backup folder is a symbolic link"
+                for relative in relatives
+            }
+        for relative in sorted(relatives):
+            try:
+                source = path_under(self.legacy_backup_root, relative)
+            except SafetyError as exc:
+                problems[relative] = str(exc)
+                continue
+            if not source.is_file():
+                problems[relative] = "original backup is missing"
+                continue
+            target = path_under(self.dat_path, relative)
+            if target.is_file():
+                try:
+                    if source.samefile(target):
+                        problems[relative] = (
+                            "backup and current game file are the same filesystem object"
+                        )
+                        continue
+                except OSError as exc:
+                    problems[relative] = (
+                        f"could not compare backup with current game file: {exc}"
+                    )
+                    continue
+            try:
+                source_hash = hash_file(source)
+            except OSError as exc:
+                problems[relative] = f"original backup is unreadable: {exc}"
+                continue
+            candidates[relative] = (source, source_hash)
+        return candidates, problems
+
+    def _import_legacy_baselines(
+        self,
+        candidates: dict[str, tuple[Path, str]],
+    ) -> None:
+        created: list[tuple[Path, Path]] = []
+        try:
+            for relative, (source, expected) in sorted(candidates.items()):
+                baseline, marker, digest = self._baseline_paths(relative)
+                if baseline.exists() or marker.exists() or digest.exists():
+                    raise ApplyError(
+                        f"Vanilla baseline metadata appeared while importing {relative}. "
+                        "No existing baseline was replaced."
+                    )
+                atomic_copy_file(source, baseline)
+                created.append((baseline, digest))
+                actual = hash_file(baseline)
+                if actual != expected:
+                    raise ApplyError(
+                        f"Legacy backup changed while importing {relative}. "
+                        "No game files were changed."
+                    )
+                atomic_write_json(
+                    digest,
+                    {
+                        "version": BASELINE_VERSION,
+                        "sha256": actual,
+                        "origin": "legacy-dat.backup",
+                        "captured_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+        except Exception:
+            for baseline, digest in reversed(created):
+                digest.unlink(missing_ok=True)
+                baseline.unlink(missing_ok=True)
+            raise
 
     def _baseline_paths(self, relative: str) -> tuple[Path, Path, Path]:
         baseline = path_under(self.store.paths.baseline, relative)

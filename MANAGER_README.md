@@ -2,14 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML while preserving the original loader's editing tools through a guarded compatibility Studio.
 
-> **Preview:** `0.2.0~alpha12`. The manager includes bounded imports, immutable versions, provider browsing, automatic preparation, profiles, verified metadata provenance, fail-closed deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
+> **Preview:** `0.2.0~alpha13`. The manager includes bounded imports, immutable versions, provider browsing, automatic preparation, profiles, verified metadata provenance, fail-closed deployment, recovery journals, automatic installation detection, legacy-baseline migration, Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha12_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha13_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -18,16 +18,16 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha12_x86_64.AppImage
-./umml-manager_0.2.0-alpha12_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha13_x86_64.AppImage
+./umml-manager_0.2.0-alpha13_x86_64.AppImage
 ```
 
 The same file exposes the CLI:
 
 ```bash
-./umml-manager_0.2.0-alpha12_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha12_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha12_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha13_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha13_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha13_x86_64.AppImage --cli browse --region global
 ```
 
 Both formats use the same data directory:
@@ -98,6 +98,8 @@ Manual path changes clear verified installation identity and metadata fingerprin
 
 Enabling, disabling, and reordering mods never changes an existing profile binding. To intentionally move a profile to the currently detected installation, use **Settings → Bind profile here** and confirm the rebind.
 
+If the old UMML already installed enabled assets, the first **Apply profile** checks the sibling `dat.backup` tree before taking ownership. When all needed originals are present, Manager offers to copy them into its protected, target-bound baseline and continue. It never moves or deletes the old backup. If any original is unavailable, no game file changes and the dialog directs you to legacy restore or Steam file verification.
+
 The three target paths are:
 
 - `.../Persistent/dat` for game asset files;
@@ -138,6 +140,8 @@ Some older uploads contain loose files accepted by legacy UMML but omit a modern
 - no executable, script, or native-library payload exists.
 
 Other storage, permission, or registry failures are not reinterpreted as legacy package layouts. Deep wrappers are handled through bounded, symlink-safe traversal.
+
+Self-installing executables are not ordinary UMML asset packages. Manager rejects them and never runs downloaded mod code. UM:PD Dark Mode currently ships as a UABE self-installer, so supporting it requires a separate, exact-base patch backend; renaming or unpacking its EXE does not make it safe to deploy as hash-addressed assets.
 
 Preview images are GameBanana-owned HTTPS content, load off the UI thread, use stale-selection tokens and a bounded session cache, and are limited by bytes and pixels. Preview failure remains nonfatal.
 
@@ -185,7 +189,7 @@ Before mutation, the engine:
 
 After snapshotting, deployment checks the game again, verifies active ownership against the snapshots, and confirms the live targets still match those snapshots before mutation starts. Deployment then uses atomic replacement, verifies installed files, captures untouched vanilla files once, writes target-scoped ownership state, and rolls back failed transactions.
 
-An empty profile may restore managed paths from verified baselines without metadata. Enabled mods require verified metadata provenance. A matching pre-existing modded file is not adopted without a known vanilla baseline. Explicit force recovery may override a pre-existing active-state mismatch, but it never overrides a target change detected after recovery snapshots were captured.
+An empty profile may restore managed paths from verified baselines without metadata. Enabled mods require verified metadata provenance. A matching pre-existing modded file is not adopted without a known vanilla baseline. When relevant legacy originals exist, an explicitly approved first-run migration preflights the complete set, copies them into Manager-owned baselines with integrity and provenance records, and leaves `dat.backup` untouched. Explicit force recovery may override a pre-existing active-state mismatch, but it never overrides a target change detected after recovery snapshots were captured.
 
 Unreadable, future-version, wrong-target, malformed, or tampered critical state fails closed. Corrupt preferences are quarantined and reset because losing a preference is not equivalent to guessing file ownership.
 
@@ -232,6 +236,8 @@ umml-manager-cli apply Default \
 ```
 
 CLI apply requires explicit metadata or a saved metadata path whose actual hash still matches a recorded fingerprint. A saved path without a fingerprint is unverified and requires explicit `--meta` or installation auto-detection. A saved installation key is reused only when the requested `dat` path matches the saved target.
+
+The GUI prompts before legacy-baseline migration. CLI callers must make the same decision explicitly by adding `--import-legacy-baselines` to `apply`.
 
 For AppImage use, prefix CLI arguments with the AppImage filename and `--cli`.
 

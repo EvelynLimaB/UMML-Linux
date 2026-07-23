@@ -143,6 +143,8 @@ Test at least:
 - target mutation between initial verification and transaction commit;
 - interrupted recovery while the game is running or process inspection fails;
 - an already matching target with no known vanilla baseline;
+- migration from legacy `dat.backup` when the installed legacy mod both matches and differs from the requested winner;
+- incomplete legacy backup migration with no partial Manager baseline;
 - failure during staging;
 - failure during commit and rollback;
 - repeated application of an unchanged profile.

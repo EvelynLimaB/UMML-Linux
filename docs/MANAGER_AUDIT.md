@@ -1,8 +1,8 @@
 # UMML Manager code audit
 
-Audit target: `agent/umml-manager-foundation`, manager `0.2.0~alpha12`.
+Audit target: `agent/umml-manager-foundation`, manager `0.2.0~alpha13`.
 
-This document began with the code-level audit performed after the first Bazzite AppImage test and now includes the alpha12 recovery and identity follow-up. It separates corrected defects from remaining release and architecture work. A green build is evidence for one revision, not a ceremonial declaration that bugs have become extinct.
+This document began with the code-level audit performed after the first Bazzite AppImage test and now includes the alpha13 legacy-baseline migration follow-up. It separates corrected defects from remaining release and architecture work. A green build is evidence for one revision, not a ceremonial declaration that bugs have become extinct.
 
 ## Method
 
@@ -89,6 +89,19 @@ Correction:
 - live targets are compared with every snapshot after the final process check and immediately before mutation begins;
 - a post-snapshot change blocks even force recovery and is preserved without rollback;
 - an already matching unmanaged mod file is not adopted when no vanilla baseline exists.
+
+### First Manager apply could not safely take over legacy UMML files
+
+The first safe-adoption guard correctly refused a file that already matched a requested mod, but exposed only an opaque asset hash and a dead-end “explicit recovery workflow.” Worse, a different legacy-installed mod could be mistaken for untouched vanilla because it did not match the new winner.
+
+Correction:
+
+- every first-touch profile path is compared with the corresponding sibling legacy `dat.backup` entry;
+- differing legacy-managed targets use the saved original instead of being captured as vanilla;
+- the complete required migration set is preflighted and copied into Manager-owned, target-bound baselines only after explicit confirmation;
+- legacy backups are hash-verified after copy, retain provenance, and are never moved, deleted, or used to replace an existing Manager baseline;
+- missing originals leave both game files and Manager baselines unchanged and produce a short restore/Steam-verification action instead of an opaque hash dump;
+- CLI migration requires `--import-legacy-baselines`.
 
 ## Corrected high-severity findings
 

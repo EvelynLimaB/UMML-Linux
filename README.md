@@ -32,7 +32,7 @@ Download the DEB or AppImage from [GitHub Releases](https://github.com/EvelynLim
 
 ### UMML Manager preview
 
-Current manager preview: **`0.2.0~alpha12`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
+Current manager preview: **`0.2.0~alpha13`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
 
 Until it becomes a permanent Release asset, open the [manager branch workflow runs](https://github.com/EvelynLimaB/UMML-Linux/actions/workflows/manager-checks.yml?query=branch%3Aagent%2Fumml-manager-foundation) and download:
 
@@ -43,7 +43,7 @@ Until it becomes a permanent Release asset, open the [manager branch workflow ru
 #### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha12_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha13_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -52,15 +52,15 @@ The absolute command is useful when testing upgrades from early source previews.
 #### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha12_x86_64.AppImage
-./umml-manager_0.2.0-alpha12_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha13_x86_64.AppImage
+./umml-manager_0.2.0-alpha13_x86_64.AppImage
 ```
 
 CLI mode is available from the same file:
 
 ```bash
-./umml-manager_0.2.0-alpha12_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha12_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha13_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha13_x86_64.AppImage --cli list
 ```
 
 The DEB and AppImage are built from the same frozen runtime and use the same user data directory, `~/.local/share/umml-manager`. CI extracts both finished packages and compares their complete embedded runtime trees.
@@ -85,6 +85,7 @@ sha256sum -c SHA256SUMS
 - blockers for missing dependencies, declared incompatibilities, wrong regions, wrong or unverified installations, unsupported backends, stale or unverified prepared caches, and invalid manifests;
 - fail-closed GUI and CLI deployment through one guarded public engine boundary;
 - path-contained, hash-verified deployment with target-scoped active state and vanilla baselines;
+- explicit first-run migration that copies legacy `dat.backup` originals into protected manager baselines before taking ownership;
 - durable transaction journals, recovery snapshots, baseline integrity records, rollback, and external-change protection;
 - corrupt critical state fails closed; corrupt preferences are quarantined and reset with their original bytes preserved;
 - bounded ZIP/TAR extraction and local-folder validation for traversal, symlinks, special files, duplicate paths, file counts, and expanded size;

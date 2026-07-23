@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from tkinter import filedialog, messagebox, simpledialog
 
-from .engine import ApplyEngine
+from .deployment import ApplyEngine, LegacyBaselineMigrationRequired
 from .legacy_adapter import LegacyAssetAdapter
 from .models import PACKAGE_UMML_ASSETS, Profile
 from .resolver import Resolution, resolve_profile
@@ -460,30 +460,115 @@ class LibraryActions:
             )
             self.show_page("conflicts")
             return
+        self._run_profile_apply(resolution)
+
+    def _run_profile_apply(
+        self,
+        resolution: Resolution,
+        *,
+        import_legacy_baselines: bool = False,
+    ):
         operation = lambda: ApplyEngine(
             self.store,
             self.dat_path.get(),
             game_dir=self.game_dir.get() or None,
-        ).apply(resolution)
+        ).apply(
+            resolution,
+            import_legacy_baselines=import_legacy_baselines,
+        )
 
         def finished(result):
-            recovery = (
-                f"; recovered {result.recovered_transactions} interrupted "
-                "transaction(s)"
-                if result.recovered_transactions
-                else ""
-            )
+            summary = [
+                f"Installed files: {result.installed}",
+                f"Restored originals: {result.restored}",
+                f"Already current: {result.unchanged}",
+            ]
+            if result.imported_baselines:
+                summary.append(
+                    "Legacy originals protected: "
+                    f"{result.imported_baselines}"
+                )
+            if result.recovered_transactions:
+                summary.append(
+                    "Interrupted transactions recovered: "
+                    f"{result.recovered_transactions}"
+                )
             messagebox.showinfo(
                 "Profile applied",
-                f"Installed {result.installed}; restored {result.restored}; "
-                f"unchanged {result.unchanged}{recovery}",
+                f"{resolution.profile} is active.\n\n"
+                + "\n".join(summary),
                 parent=self.root,
             )
             self.status.set(f"Applied {resolution.profile}")
             self.refresh_action_states()
 
+        def failed(exc):
+            self._profile_apply_failed(
+                resolution,
+                exc,
+                import_legacy_baselines=import_legacy_baselines,
+            )
+
         self._run_task(
-            "Applying profile transactionally…",
+            (
+                "Importing legacy originals and applying…"
+                if import_legacy_baselines
+                else "Applying profile transactionally…"
+            ),
             operation,
             finished,
+            failed=failed,
+        )
+
+    def _profile_apply_failed(
+        self,
+        resolution: Resolution,
+        exc: Exception,
+        *,
+        import_legacy_baselines: bool,
+    ) -> None:
+        if not isinstance(exc, LegacyBaselineMigrationRequired):
+            self.status.set("Operation failed")
+            messagebox.showerror(
+                "Operation failed",
+                str(exc),
+                parent=self.root,
+            )
+            return
+
+        count = len(exc.paths)
+        noun = "file" if count == 1 else "files"
+        if exc.can_import and not import_legacy_baselines:
+            self.status.set("Legacy originals found")
+            should_import = messagebox.askyesno(
+                "Finish legacy UMML migration?",
+                f"{count} game {noun} belong to an older UMML install. Manager "
+                "needs their originals before it can take over safely.\n\n"
+                f"The old UMML dat.backup folder contains original copies for "
+                f"all {count}. Copy them into Manager's protected baseline and "
+                "continue applying?\n\n"
+                "The old backups will not be moved or deleted.",
+                parent=self.root,
+            )
+            if should_import:
+                self._run_profile_apply(
+                    resolution,
+                    import_legacy_baselines=True,
+                )
+            else:
+                self.status.set("Apply cancelled")
+            return
+
+        usable = len(exc.importable)
+        self.status.set("Original files required")
+        messagebox.showerror(
+            "Original files required",
+            f"{count} game {noun} were already modified before UMML Manager "
+            "could save their originals, and the old UMML backup folder does "
+            f"not contain safe copies for all of them ({usable} of {count} "
+            "usable).\n\n"
+            "Nothing in the game was changed. Restore the original assets with "
+            "legacy UMML or Steam's Verify integrity of game files, then apply "
+            "the profile again.",
+            parent=self.root,
         )

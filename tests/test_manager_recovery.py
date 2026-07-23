@@ -5,7 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from umml_manager.engine import ApplyEngine, ApplyError
+from umml_manager.engine import (
+    ApplyEngine,
+    ApplyError,
+    LegacyBaselineMigrationRequired,
+)
 from umml_manager.models import ModRecord, Profile
 from umml_manager.resolver import resolve_profile
 from umml_manager.safety import atomic_write_json, hash_file
@@ -427,6 +431,288 @@ class RecoveryIntegrityTests(unittest.TestCase):
             self.assertFalse(
                 (store.paths.baseline / "aa" / "aafile").exists()
             )
+
+    def test_legacy_original_is_copied_then_matching_file_is_adopted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "Persistent" / "dat"
+            backup = root / "Persistent" / "dat.backup"
+            target = dat / "aa" / "aafile"
+            legacy_original = backup / "aa" / "aafile"
+            target.parent.mkdir(parents=True)
+            legacy_original.parent.mkdir(parents=True)
+            target.write_text("already-modded")
+            legacy_original.write_text("original")
+
+            prepared = root / "prepared"
+            source = prepared / "aa" / "aafile"
+            source.parent.mkdir(parents=True)
+            source.write_text("already-modded")
+            mod = ModRecord(
+                "same",
+                "Same",
+                prepared_path=str(prepared),
+                files={"aa/aafile": hash_file(source)},
+            )
+            resolution = resolve_profile(
+                Profile("Same", ["same"]),
+                [mod],
+            )
+            engine = ApplyEngine(store, dat, process_check=lambda _game: ())
+
+            with self.assertRaises(LegacyBaselineMigrationRequired) as raised:
+                engine.apply(resolution)
+            self.assertTrue(raised.exception.can_import)
+            self.assertEqual(raised.exception.paths, ("aa/aafile",))
+            self.assertEqual(
+                raised.exception.backup_root,
+                backup,
+            )
+            self.assertFalse(store.paths.state.exists())
+            self.assertFalse(
+                (store.paths.baseline / "aa" / "aafile").exists()
+            )
+
+            result = engine.apply(
+                resolution,
+                import_legacy_baselines=True,
+            )
+
+            self.assertEqual(result.installed, 0)
+            self.assertEqual(result.unchanged, 1)
+            self.assertEqual(result.imported_baselines, 1)
+            self.assertEqual(target.read_text(), "already-modded")
+            self.assertEqual(legacy_original.read_text(), "original")
+            manager_baseline = store.paths.baseline / "aa" / "aafile"
+            self.assertEqual(manager_baseline.read_text(), "original")
+            digest = json.loads(
+                (manager_baseline.parent / "aafile.umml-sha256").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(digest["origin"], "legacy-dat.backup")
+            self.assertEqual(digest["sha256"], hash_file(legacy_original))
+
+            restored = engine.apply(
+                resolve_profile(Profile("Off", []), [mod])
+            )
+            self.assertEqual(restored.restored, 1)
+            self.assertEqual(target.read_text(), "original")
+            self.assertEqual(legacy_original.read_text(), "original")
+
+    def test_legacy_baseline_import_is_all_or_nothing_when_one_is_missing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "Persistent" / "dat"
+            backup = root / "Persistent" / "dat.backup"
+            prepared = root / "prepared"
+            files = {}
+            for relative in ("aa/first", "bb/second"):
+                target = dat / relative
+                source = prepared / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(f"modded-{relative}")
+                source.write_text(f"modded-{relative}")
+                files[relative] = hash_file(source)
+            available = backup / "aa" / "first"
+            available.parent.mkdir(parents=True)
+            available.write_text("original-first")
+            mod = ModRecord(
+                "two",
+                "Two",
+                prepared_path=str(prepared),
+                files=files,
+            )
+            engine = ApplyEngine(store, dat, process_check=lambda _game: ())
+
+            with self.assertRaises(LegacyBaselineMigrationRequired) as raised:
+                engine.apply(
+                    resolve_profile(Profile("Two", ["two"]), [mod]),
+                    import_legacy_baselines=True,
+                )
+
+            self.assertFalse(raised.exception.can_import)
+            self.assertEqual(raised.exception.importable, ("aa/first",))
+            self.assertIn("bb/second", raised.exception.problems)
+            self.assertFalse(
+                (store.paths.baseline / "aa" / "first").exists()
+            )
+            self.assertFalse(store.paths.state.exists())
+
+    def test_nonmatching_legacy_mod_uses_backup_instead_of_modded_baseline(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "Persistent" / "dat"
+            backup = root / "Persistent" / "dat.backup"
+            target = dat / "aa" / "aafile"
+            legacy_original = backup / "aa" / "aafile"
+            source = root / "prepared" / "aa" / "aafile"
+            for path in (target, legacy_original, source):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("old-legacy-mod")
+            legacy_original.write_text("original")
+            source.write_text("new-manager-mod")
+            mod = ModRecord(
+                "new",
+                "New",
+                prepared_path=str(root / "prepared"),
+                files={"aa/aafile": hash_file(source)},
+            )
+            resolution = resolve_profile(
+                Profile("New", ["new"]),
+                [mod],
+            )
+            engine = ApplyEngine(
+                store,
+                dat,
+                process_check=lambda _game: (),
+            )
+
+            with self.assertRaises(LegacyBaselineMigrationRequired) as raised:
+                engine.apply(resolution)
+
+            self.assertTrue(raised.exception.can_import)
+            result = engine.apply(
+                resolution,
+                import_legacy_baselines=True,
+            )
+            self.assertEqual(result.installed, 1)
+            self.assertEqual(result.imported_baselines, 1)
+            self.assertEqual(target.read_text(), "new-manager-mod")
+            self.assertEqual(
+                (store.paths.baseline / "aa" / "aafile").read_text(),
+                "original",
+            )
+            engine.apply(resolve_profile(Profile("Off", []), [mod]))
+            self.assertEqual(target.read_text(), "original")
+
+    def test_known_legacy_mod_without_original_is_not_captured_as_vanilla(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "Persistent" / "dat"
+            target = dat / "aa" / "aafile"
+            target.parent.mkdir(parents=True)
+            target.write_text("old-legacy-mod")
+
+            old_prepared = root / "old-prepared"
+            old_source = old_prepared / "aa" / "aafile"
+            old_source.parent.mkdir(parents=True)
+            old_source.write_text("old-legacy-mod")
+            old = ModRecord(
+                "old",
+                "Old",
+                prepared_path=str(old_prepared),
+                files={"aa/aafile": hash_file(old_source)},
+            )
+            new_prepared = root / "new-prepared"
+            new_source = new_prepared / "aa" / "aafile"
+            new_source.parent.mkdir(parents=True)
+            new_source.write_text("new-manager-mod")
+            new = ModRecord(
+                "new",
+                "New",
+                prepared_path=str(new_prepared),
+                files={"aa/aafile": hash_file(new_source)},
+            )
+
+            with self.assertRaises(
+                LegacyBaselineMigrationRequired
+            ) as raised:
+                ApplyEngine(
+                    store,
+                    dat,
+                    process_check=lambda _game: (),
+                ).apply(
+                    resolve_profile(
+                        Profile("New", ["new"]),
+                        [old, new],
+                    )
+                )
+
+            self.assertFalse(raised.exception.can_import)
+            self.assertFalse(
+                (store.paths.baseline / "aa" / "aafile").exists()
+            )
+            self.assertEqual(target.read_text(), "old-legacy-mod")
+
+    def test_current_original_matching_legacy_backup_needs_no_migration(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "Persistent" / "dat"
+            backup = root / "Persistent" / "dat.backup"
+            target = dat / "aa" / "aafile"
+            legacy_original = backup / "aa" / "aafile"
+            source = root / "prepared" / "aa" / "aafile"
+            for path in (target, legacy_original, source):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("original")
+            legacy_original.write_text("original")
+            source.write_text("new-manager-mod")
+            mod = ModRecord(
+                "new",
+                "New",
+                prepared_path=str(root / "prepared"),
+                files={"aa/aafile": hash_file(source)},
+            )
+
+            result = ApplyEngine(
+                store,
+                dat,
+                process_check=lambda _game: (),
+            ).apply(resolve_profile(Profile("New", ["new"]), [mod]))
+
+            self.assertEqual(result.installed, 1)
+            self.assertEqual(result.imported_baselines, 0)
+            self.assertEqual(
+                (store.paths.baseline / "aa" / "aafile").read_text(),
+                "original",
+            )
+
+    def test_verified_existing_baseline_allows_matching_file_adoption(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "dat"
+            target = dat / "aa" / "aafile"
+            target.parent.mkdir(parents=True)
+            target.write_text("already-modded")
+            store.save_settings({"dat_path": str(dat)})
+
+            baseline = store.paths.baseline / "aa" / "aafile"
+            baseline.parent.mkdir(parents=True)
+            baseline.write_text("original")
+            atomic_write_json(
+                baseline.parent / "aafile.umml-sha256",
+                {
+                    "version": 1,
+                    "sha256": hash_file(baseline),
+                },
+            )
+            prepared = root / "prepared"
+            source = prepared / "aa" / "aafile"
+            source.parent.mkdir(parents=True)
+            source.write_text("already-modded")
+            mod = ModRecord(
+                "same",
+                "Same",
+                prepared_path=str(prepared),
+                files={"aa/aafile": hash_file(source)},
+            )
+            engine = ApplyEngine(store, dat, process_check=lambda _game: ())
+
+            result = engine.apply(
+                resolve_profile(Profile("Same", ["same"]), [mod])
+            )
+            self.assertEqual(result.unchanged, 1)
+            self.assertEqual(result.imported_baselines, 0)
+            engine.apply(resolve_profile(Profile("Off", []), [mod]))
+            self.assertEqual(target.read_text(), "original")
 
     def test_future_active_state_schema_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:

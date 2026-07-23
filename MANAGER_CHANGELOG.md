@@ -1,5 +1,21 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha13 - 2026-07-23
+
+### Legacy takeover and baseline safety
+
+- First apply now recognizes relevant originals in legacy UMML's sibling `dat.backup` tree and offers one explicit migration step instead of an opaque asset-hash failure.
+- Migration preflights the complete required set, copies originals into Manager-owned target-bound baselines, records hash and legacy provenance, and never moves or deletes the old backups.
+- Files carrying a different legacy mod can no longer be silently captured as vanilla merely because they differ from the newly requested winner.
+- Missing, unreadable, or incomplete legacy originals stop before game mutation or partial baseline import and produce a short legacy-restore/Steam-verification action.
+- A verified existing baseline now permits deliberate adoption of an already matching target; normal first adoption without a baseline still fails closed.
+- CLI callers can opt in with `apply --import-legacy-baselines`.
+
+### Compatibility and tests
+
+- Documented that UM:PD Dark Mode is a self-installing UABE patch, not a generic hash-addressed asset package; downloaded executable content remains rejected and is never run.
+- Added regressions for matching and nonmatching legacy mods, untouched originals, all-or-nothing migration, backup preservation, exact restoration, existing-baseline adoption, and concise GUI recovery prompts.
+
 ## 0.2.0~alpha12 - 2026-07-23
 
 ### Transaction and recovery safety

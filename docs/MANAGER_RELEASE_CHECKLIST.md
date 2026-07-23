@@ -16,6 +16,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [x] Verify recovery checks the game before rollback and preserves journals when process inspection fails or the game starts between checks.
 - [x] Verify active ownership and live targets still match captured snapshots immediately before mutation.
 - [x] Refuse first-time ownership of an already matching mod file when no vanilla baseline exists.
+- [x] Migrate a complete legacy `dat.backup` set explicitly, preserve the old backups, and reject incomplete migration without partial baselines.
 - [x] Preserve prepared state across identical immutable re-imports and preserve profile bindings across enable/reorder edits.
 - [x] Reject implicitly saved metadata without a recorded fingerprint and distinguish auto-detected saves from later manual edits.
 - [x] Audit the source installer for the complete Manager, auto-detection, and legacy Studio runtime payload.
@@ -25,7 +26,8 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 ## Real mod corpus
 
 - [ ] Import and prepare at least one ZIP package and one extracted-folder mod.
-- [ ] Import UM:PD Dark Mode through the generic GameBanana provider.
+- [x] Confirm the UM:PD Dark Mode self-installing EXE is rejected by the generic asset importer and is not executed.
+- [ ] Import and prepare a standard hash-addressed ZIP such as Master Chocolate Cake or Doro Hat.
 - [ ] Import and automatically prepare a deeply nested loose legacy GameBanana package such as Cafe Cat Keyhole Bra.
 - [ ] Apply two non-conflicting mods and verify exact vanilla restoration.
 - [ ] Apply two mods replacing the same hash and verify the load-order winner.
@@ -100,7 +102,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [x] Version and CLI smoke tests run without FUSE through extraction mode.
 - [x] Complete frozen runtime matches the shared source bundle and Debian payload.
 - [x] Bundled certifi CA data and Pillow imaging support are present.
-- [ ] Launch the alpha12 graphical interface on Bazzite/KDE.
+- [ ] Launch the alpha13 graphical interface on Bazzite/KDE.
 - [ ] Launch on a second supported distribution.
 - [ ] Verify Library, Discover, Studio, Conflicts, Settings, and diagnostics.
 - [ ] Confirm AppImage and DEB see the same XDG manager data.
@@ -122,7 +124,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Keep runtime/native plugins outside the desktop manager.
 - [ ] Attach sanitized logs and state manifests for release-candidate smoke tests.
 - [x] Generate and verify external SHA-256 checksums for both package artifacts.
-- [x] Update `MANAGER_VERSION`, changelog, READMEs, AppStream metadata, and artifact names together for alpha12.
+- [x] Update `MANAGER_VERSION`, changelog, READMEs, AppStream metadata, and artifact names together for alpha13.
 
 ## Runtime boundary
 

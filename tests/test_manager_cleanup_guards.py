@@ -10,6 +10,7 @@ from umml_manager import store as raw_store
 from umml_manager.cli import (
     _metadata_fingerprint,
     _target_installation_key,
+    build_parser,
 )
 from umml_manager.deployment import ApplyEngine, ApplyError
 from umml_manager.library import (
@@ -27,6 +28,24 @@ from umml_manager.studio import LEGACY_TOOLS
 
 
 class CleanupGuardTests(unittest.TestCase):
+    def test_cli_legacy_baseline_migration_requires_explicit_flag(self):
+        parser = build_parser()
+        normal = parser.parse_args(
+            ["apply", "Default", "--dat", "/game/Persistent/dat"]
+        )
+        migration = parser.parse_args(
+            [
+                "apply",
+                "Default",
+                "--dat",
+                "/game/Persistent/dat",
+                "--import-legacy-baselines",
+            ]
+        )
+
+        self.assertFalse(normal.import_legacy_baselines)
+        self.assertTrue(migration.import_legacy_baselines)
+
     def test_public_and_compatibility_boundaries_are_guarded(self):
         self.assertIs(transaction_engine.ApplyEngine, ApplyEngine)
         self.assertIs(raw_store.ManagerStore, ManagerStore)

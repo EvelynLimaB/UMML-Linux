@@ -7,6 +7,7 @@ This roadmap follows the alpha6/alpha7 audit. Order matters: each phase creates 
 - Versioned critical state and fail-closed schema handling.
 - Immutable source versions, staged preparation, and metadata fingerprints.
 - Target-bound deployment state, baselines, locks, journals, and integrity records.
+- Explicit, all-or-nothing takeover of relevant originals from legacy `dat.backup`.
 - Provider and deployment-backend contracts.
 - Global/Japan GameBanana browsing, exact download provenance, and bounded selected-mod preview images.
 - A preview-aware default GameBanana provider registry and full-dependency regression CI.

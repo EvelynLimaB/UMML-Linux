@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha.13" date="2026-07-23">
+      <description>
+        <p>Adds explicit all-or-nothing migration from legacy dat.backup originals, prevents legacy-modded files from becoming vanilla baselines, and replaces opaque first-apply failures with actionable recovery.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha.12" date="2026-07-23">
       <description>
         <p>Hardens interrupted recovery and snapshot races, refuses unsafe baseline adoption, preserves verified installation and preparation identity, and completes the source-installed Studio runtime.</p>

@@ -137,7 +137,9 @@ It then captures recovery snapshots, checks process state again, compares active
 
 ## Vanilla baseline
 
-The first untouched game file observed for a managed target becomes its vanilla baseline. The baseline is independent from legacy UMML's shared `dat.backup` directory.
+The first untouched game file observed for a managed target becomes its vanilla baseline. Manager owns that target-bound baseline independently from legacy UMML's shared `dat.backup` directory.
+
+When taking over files previously managed by legacy UMML, deployment first compares every unowned target with the corresponding sibling `dat.backup` entry. A complete, explicitly approved migration copies the originals into Manager's baseline, records their hashes and legacy provenance, and leaves `dat.backup` untouched. The complete required set is preflighted before any copy, so a missing or unsafe original cannot produce a partial logical migration.
 
 For a target that did not exist in vanilla, restoration means deleting the manager-created target after verifying it still matches the active deployment.
 

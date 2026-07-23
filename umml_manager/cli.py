@@ -81,6 +81,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_target_options(apply_command, dat_required=True)
     apply_command.add_argument("--game-dir")
     apply_command.add_argument("--force", action="store_true")
+    apply_command.add_argument(
+        "--import-legacy-baselines",
+        action="store_true",
+        help=(
+            "copy required originals from the sibling dat.backup folder before "
+            "adopting files installed by legacy UMML"
+        ),
+    )
 
     updates = sub.add_parser("updates")
     updates.add_argument("mod_id", nargs="?")
@@ -212,10 +220,12 @@ def main(argv: list[str] | None = None) -> int:
                 ).apply(
                     resolution,
                     force=args.force,
+                    import_legacy_baselines=args.import_legacy_baselines,
                 )
                 print(
                     f"Installed {result.installed}; restored "
                     f"{result.restored}; unchanged {result.unchanged}; "
+                    f"imported {result.imported_baselines} legacy baseline(s); "
                     f"recovered {result.recovered_transactions} interrupted "
                     "transaction(s)"
                 )

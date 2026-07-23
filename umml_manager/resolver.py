@@ -29,6 +29,7 @@ class Resolution:
     target_installation_key: str = ""
     metadata_fingerprint: str = ""
     winners: dict[str, Claim] = field(default_factory=dict)
+    known_mod_hashes: dict[str, tuple[str, ...]] = field(default_factory=dict)
     conflicts: list[Conflict] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
     unprepared: list[str] = field(default_factory=list)
@@ -75,6 +76,27 @@ def resolve_profile(
         target_installation_key=installation_key,
         metadata_fingerprint=fingerprint,
     )
+    known_hashes: dict[str, set[str]] = {}
+    for record in mods:
+        if record.package_type != PACKAGE_UMML_ASSETS:
+            continue
+        validated_hashes: list[tuple[str, str]] = []
+        try:
+            for relative, sha256 in record.files.items():
+                validated_hashes.append(
+                    (
+                        normalize_relative_path(relative),
+                        validate_sha256(sha256),
+                    )
+                )
+        except SafetyError:
+            continue
+        for canonical, sha256 in validated_hashes:
+            known_hashes.setdefault(canonical, set()).add(sha256)
+    resolution.known_mod_hashes = {
+        relative: tuple(sorted(hashes))
+        for relative, hashes in known_hashes.items()
+    }
     if profile.installation_key:
         if not installation_key:
             resolution.wrong_installation.append(
