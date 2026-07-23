@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from umml_manager import engine as transaction_engine
+from umml_manager import store as raw_store
 from umml_manager.cli import (
     _metadata_fingerprint,
     _target_installation_key,
@@ -26,8 +27,10 @@ from umml_manager.studio import LEGACY_TOOLS
 
 
 class CleanupGuardTests(unittest.TestCase):
-    def test_public_and_compatibility_engine_are_guarded(self):
+    def test_public_and_compatibility_boundaries_are_guarded(self):
         self.assertIs(transaction_engine.ApplyEngine, ApplyEngine)
+        self.assertIs(raw_store.ManagerStore, ManagerStore)
+        self.assertIs(raw_store.find_mod_root, find_mod_root)
 
     def test_deployment_rejects_every_planner_blocker_category(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -174,6 +177,7 @@ class CleanupGuardTests(unittest.TestCase):
             for thread in threads:
                 thread.join(timeout=10)
 
+            self.assertFalse(any(thread.is_alive() for thread in threads))
             self.assertFalse(errors)
             self.assertEqual(len(records), 2)
             self.assertEqual(len({record.id for record in records}), 2)
@@ -246,6 +250,19 @@ class CleanupGuardTests(unittest.TestCase):
                     "",
                     store=store,
                     dat_path=str(other_dat),
+                ),
+                "",
+            )
+
+    def test_saved_installation_key_is_not_reused_without_saved_dat(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = ManagerStore(Path(temp) / "manager")
+            store.save_settings({"installation_key": "steam-global"})
+            self.assertEqual(
+                _target_installation_key(
+                    "",
+                    store=store,
+                    dat_path=str(Path(temp) / "game" / "dat"),
                 ),
                 "",
             )
