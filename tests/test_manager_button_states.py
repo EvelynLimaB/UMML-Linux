@@ -158,7 +158,7 @@ class ManagerButtonStateTests(unittest.TestCase):
         app.refresh_plan_button = FakeWidget()
         app.studio = SimpleNamespace(
             tool_buttons={"full": FakeWidget(), "database": FakeWidget()},
-            tool_mutating={"full": False, "database": True},
+            tool_mutating={"full": True, "database": True},
         )
         return app, mod, profile
 
@@ -180,7 +180,7 @@ class ManagerButtonStateTests(unittest.TestCase):
         self.assertEqual(app.library.prepare_button.options["state"], "normal")
         self.assertEqual(app.library.apply_button.options["state"], "normal")
 
-    def test_game_running_blocks_apply_and_mutating_studio_only(self):
+    def test_game_running_blocks_apply_and_entire_legacy_studio(self):
         app, _mod, _profile = self._app()
         app._game_running = True
         app.refresh_action_states()
@@ -188,7 +188,8 @@ class ManagerButtonStateTests(unittest.TestCase):
         self.assertEqual(app.library.apply_button.options["text"], "Close game to apply")
         self.assertEqual(app.studio.tool_buttons["database"].options["state"], "disabled")
         self.assertEqual(app.studio.tool_buttons["database"].options["text"], "Close game first")
-        self.assertEqual(app.studio.tool_buttons["full"].options["state"], "normal")
+        self.assertEqual(app.studio.tool_buttons["full"].options["state"], "disabled")
+        self.assertEqual(app.studio.tool_buttons["full"].options["text"], "Close game first")
 
     def test_busy_state_disables_mutating_and_network_actions(self):
         app, _mod, _profile = self._app()
@@ -262,6 +263,84 @@ class ButtonWrapperBehaviorTests(unittest.TestCase):
         self.assertEqual(
             harness.game_status.get(),
             "Game status unknown; writes blocked",
+        )
+
+    def test_typed_target_change_clears_stale_verification(self):
+        saved = {
+            "dat_path": "/old/dat",
+            "meta_path": "/old/meta.db",
+            "game_dir": "/old/game",
+            "region": "global",
+            "installation_key": "steam-global",
+            "metadata_fingerprint": "old-fingerprint",
+        }
+
+        class Store:
+            def load_settings(self):
+                return dict(saved)
+
+        class SaveBase:
+            def save_settings(self, silent=False):
+                self.saved = {
+                    "installation_key": self.installation_key.get(),
+                    "metadata_fingerprint": self.metadata_fingerprint.get(),
+                    "silent": silent,
+                }
+                return self.saved
+
+        class Harness(ButtonStateActions, SaveBase):
+            pass
+
+        harness = Harness()
+        harness.store = Store()
+        harness.dat_path = FakeVar("/new/dat")
+        harness.meta_path = FakeVar("/old/meta.db")
+        harness.game_dir = FakeVar("/old/game")
+        harness.region = FakeVar("global")
+        harness.installation_key = FakeVar("steam-global")
+        harness.metadata_fingerprint = FakeVar("old-fingerprint")
+        harness.installation_status = FakeVar("Using saved installation paths.")
+
+        result = harness.save_settings(silent=True)
+        self.assertEqual(result["installation_key"], "")
+        self.assertEqual(result["metadata_fingerprint"], "")
+        self.assertIn("Auto-detect again", harness.installation_status.get())
+
+    def test_detected_target_save_preserves_new_verification(self):
+        class Store:
+            def load_settings(self):
+                return {
+                    "dat_path": "/old/dat",
+                    "meta_path": "/old/meta.db",
+                    "game_dir": "/old/game",
+                    "region": "global",
+                    "installation_key": "steam-global",
+                    "metadata_fingerprint": "old",
+                }
+
+        class SaveBase:
+            def save_settings(self, silent=False):
+                return (
+                    self.installation_key.get(),
+                    self.metadata_fingerprint.get(),
+                )
+
+        class Harness(ButtonStateActions, SaveBase):
+            pass
+
+        harness = Harness()
+        harness.store = Store()
+        harness.dat_path = FakeVar("/new/dat")
+        harness.meta_path = FakeVar("/new/meta.db")
+        harness.game_dir = FakeVar("/new/game")
+        harness.region = FakeVar("global")
+        harness.installation_key = FakeVar("steam-global-new")
+        harness.metadata_fingerprint = FakeVar("new")
+        harness.installation_status = FakeVar("Detected Steam Global. Metadata is ready.")
+
+        self.assertEqual(
+            harness.save_settings(),
+            ("steam-global-new", "new"),
         )
 
 
