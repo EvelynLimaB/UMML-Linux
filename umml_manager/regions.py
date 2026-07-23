@@ -35,7 +35,9 @@ def legacy_region(value: str) -> str:
 
 
 def region_from_game_name(value: str) -> str:
-    text = str(value or "").casefold()
+    """Infer the provider region without treating plain Japanese listings as global."""
+
+    text = str(value or "").strip().casefold()
     if "global" in text or "international" in text:
         return "global"
     if "taiwan" in text:
@@ -43,5 +45,9 @@ def region_from_game_name(value: str) -> str:
     if "korea" in text:
         return "korea"
     if "japan" in text or "japanese" in text:
+        return "japan"
+    # GameBanana's original Japanese game is often named only "Umamusume
+    # Pretty Derby". The Global listing includes an explicit Global marker.
+    if "pretty derby" in text:
         return "japan"
     return ""
