@@ -22,6 +22,42 @@ class ButtonStateActions:
             self.refresh_action_states()
         return result
 
+    def save_settings(self, silent: bool = False):
+        """Clear stale installation verification after typed path/region edits."""
+
+        try:
+            saved = self.store.load_settings()
+        except Exception:
+            saved = {}
+        saved_target = (
+            str(saved.get("dat_path", "")),
+            str(saved.get("meta_path", "")),
+            str(saved.get("game_dir", "")),
+            str(saved.get("region", "global")),
+        )
+        current_target = (
+            self.dat_path.get(),
+            self.meta_path.get(),
+            self.game_dir.get(),
+            self.region.get(),
+        )
+        detected_save = self.installation_status.get().startswith("Detected ")
+        had_verified_identity = bool(
+            saved.get("installation_key") or saved.get("metadata_fingerprint")
+        )
+        if (
+            had_verified_identity
+            and current_target != saved_target
+            and not detected_save
+        ):
+            self.installation_key.set("")
+            self.metadata_fingerprint.set("")
+            self.installation_status.set(
+                "Manual target changes were saved. Auto-detect again to restore "
+                "verified installation identity and metadata fingerprinting."
+            )
+        return super().save_settings(silent=silent)
+
     def browse_gamebanana(self):
         signature = (
             self.gb_region.get().strip().casefold(),
