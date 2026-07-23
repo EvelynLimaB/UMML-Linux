@@ -30,6 +30,14 @@ def _running_game(gui) -> tuple:
     return running_game_processes(game_dir or None)
 
 
+def _inspection_failure_message(exc: Exception) -> str:
+    return (
+        "UMML could not verify whether Umamusume is running. Legacy Studio writes "
+        "are blocked until process inspection works again.\n\n"
+        f"Process inspection error: {exc}"
+    )
+
+
 def _install_guard(cls) -> None:
     for name in _MUTATING_METHODS:
         original = getattr(cls, name, None)
@@ -38,7 +46,15 @@ def _install_guard(cls) -> None:
 
         @functools.wraps(original)
         def guarded(self, *args, __original=original, __name=name, **kwargs):
-            running = _running_game(self)
+            try:
+                running = _running_game(self)
+            except Exception as exc:
+                messagebox.showerror(
+                    "Process inspection unavailable",
+                    _inspection_failure_message(exc),
+                    parent=getattr(self, "root", None),
+                )
+                return None
             if running:
                 names = ", ".join(sorted({item.name for item in running}))
                 messagebox.showwarning(
@@ -59,8 +75,15 @@ def _watch_game(root: tk.Tk, gui) -> None:
         return
     try:
         running = _running_game(gui)
-    except Exception:
-        running = ()
+    except Exception as exc:
+        messagebox.showerror(
+            "Studio closed for safety",
+            _inspection_failure_message(exc)
+            + "\n\nThe compatibility Studio will now close.",
+            parent=root,
+        )
+        root.destroy()
+        return
     if running:
         names = ", ".join(sorted({item.name for item in running}))
         messagebox.showwarning(
