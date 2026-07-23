@@ -75,14 +75,16 @@ def resolve_profile(
         target_installation_key=installation_key,
         metadata_fingerprint=fingerprint,
     )
-    if (
-        profile.installation_key
-        and installation_key
-        and profile.installation_key != installation_key
-    ):
-        resolution.wrong_installation.append(
-            f"profile is bound to {profile.installation_key}, not {installation_key}"
-        )
+    if profile.installation_key:
+        if not installation_key:
+            resolution.wrong_installation.append(
+                f"profile is bound to {profile.installation_key}, but the target "
+                "installation identity is unverified"
+            )
+        elif profile.installation_key != installation_key:
+            resolution.wrong_installation.append(
+                f"profile is bound to {profile.installation_key}, not {installation_key}"
+            )
     enabled = _deduplicate_profile(profile.enabled, resolution)
     enabled_set = set(enabled)
 
