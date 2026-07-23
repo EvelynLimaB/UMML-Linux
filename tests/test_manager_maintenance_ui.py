@@ -31,6 +31,13 @@ class MaintenanceUiTests(unittest.TestCase):
             dat.mkdir()
 
             class Base:
+                @staticmethod
+                def _configure_button(widget, *, enabled, text=None):
+                    options = {"state": "normal" if enabled else "disabled"}
+                    if text is not None:
+                        options["text"] = text
+                    widget.configure(**options)
+
                 def refresh_action_states(self):
                     self.library.apply_button.configure(
                         state="normal",
