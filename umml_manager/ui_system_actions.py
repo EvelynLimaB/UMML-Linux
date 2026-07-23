@@ -9,12 +9,27 @@ from typing import Any, Callable
 from .installations import ManagerInstallation, detect_preferred_installation
 from .network import tls_diagnostics
 from .process import running_game_processes
-from .studio import LegacyToolLauncher, open_path
+from .studio import LEGACY_TOOLS, LegacyToolLauncher, open_path
 from .ui_theme import SURFACE, TEXT
 
 
 class SystemActions:
     def launch_legacy_tool(self, tool_id: str):
+        tool = next((item for item in LEGACY_TOOLS if item.id == tool_id), None)
+        if tool is None:
+            messagebox.showerror(
+                "Unknown Studio tool",
+                f"The requested Studio tool is not registered: {tool_id}",
+                parent=self.root,
+            )
+            return
+        if tool.mutating and getattr(self, "_game_running", False):
+            messagebox.showwarning(
+                "Close the game first",
+                f"{tool.name} can change game data. Close Umamusume and try again.",
+                parent=self.root,
+            )
+            return
         try:
             LegacyToolLauncher().launch(
                 tool_id,
@@ -50,6 +65,8 @@ class SystemActions:
             )
             self.save_settings(silent=True)
             self.status.set(f"Auto-detected {installation.label}")
+            self.refresh()
+            self.refresh_action_states()
 
         def failed(exc: Exception):
             self.installation_status.set(
@@ -57,6 +74,7 @@ class SystemActions:
                 "the paths manually."
             )
             self.status.set("Automatic game detection failed")
+            self.refresh_action_states()
             if not automatic:
                 messagebox.showerror(
                     "Could not auto-detect Umamusume",
@@ -91,6 +109,7 @@ class SystemActions:
                 "verified installation identity."
             )
             self.save_settings(silent=True)
+            self.refresh_action_states()
 
     def choose_meta(self):
         path = filedialog.askopenfilename(
@@ -104,6 +123,8 @@ class SystemActions:
                 "Using manually selected metadata. Re-detect to fingerprint it."
             )
             self.save_settings(silent=True)
+            self.refresh()
+            self.refresh_action_states()
 
     def choose_game_dir(self):
         path = filedialog.askdirectory(parent=self.root)
@@ -115,6 +136,7 @@ class SystemActions:
                 "a verified installation identity."
             )
             self.save_settings(silent=True)
+            self.refresh_action_states()
 
     def save_settings(self, silent: bool = False):
         roots = [
@@ -122,21 +144,33 @@ class SystemActions:
             for item in self.scan_roots.get().split(";")
             if item.strip()
         ]
-        self.store.save_settings(
-            {
-                "profile": self.profile_name.get(),
-                "dat_path": self.dat_path.get(),
-                "meta_path": self.meta_path.get(),
-                "game_dir": self.game_dir.get(),
-                "region": self.region.get(),
-                "installation_key": self.installation_key.get(),
-                "metadata_fingerprint": self.metadata_fingerprint.get(),
-                "gamebanana_region": self.gb_region.get(),
-                "scan_roots": roots,
-            }
-        )
+        try:
+            self.store.save_settings(
+                {
+                    "profile": self.profile_name.get(),
+                    "dat_path": self.dat_path.get(),
+                    "meta_path": self.meta_path.get(),
+                    "game_dir": self.game_dir.get(),
+                    "region": self.region.get(),
+                    "installation_key": self.installation_key.get(),
+                    "metadata_fingerprint": self.metadata_fingerprint.get(),
+                    "gamebanana_region": self.gb_region.get(),
+                    "scan_roots": roots,
+                }
+            )
+        except Exception as exc:
+            if silent:
+                self.status.set(f"Could not save settings: {exc}")
+                return
+            messagebox.showerror(
+                "Could not save settings",
+                str(exc),
+                parent=self.root,
+            )
+            return
         if not silent:
             self.status.set("Settings saved")
+        self.refresh_action_states()
 
     def open_manager_path(self, name: str):
         allowed = {
@@ -147,10 +181,22 @@ class SystemActions:
             "transactions",
         }
         if name not in allowed:
-            raise ValueError(f"Unsupported manager path: {name}")
-        path = getattr(self.store.paths, name)
-        path.mkdir(parents=True, exist_ok=True)
-        open_path(path)
+            messagebox.showerror(
+                "Unsupported manager path",
+                f"The requested manager path is not available: {name}",
+                parent=self.root,
+            )
+            return
+        try:
+            path = getattr(self.store.paths, name)
+            path.mkdir(parents=True, exist_ok=True)
+            open_path(path)
+        except Exception as exc:
+            messagebox.showerror(
+                "Could not open folder",
+                str(exc),
+                parent=self.root,
+            )
 
     def run_diagnostics(self):
         try:
@@ -252,6 +298,7 @@ class SystemActions:
             running = running_game_processes(
                 self.game_dir.get() or None
             )
+            self._game_running = bool(running)
             if running:
                 self.game_status.set("Game running")
                 self.game_badge.configure(
@@ -261,8 +308,10 @@ class SystemActions:
                 self.game_status.set("Game closed")
                 self.game_badge.configure(style="Good.Badge.TLabel")
         except Exception:
+            self._game_running = False
             self.game_status.set("Game status unknown")
             self.game_badge.configure(style="Badge.TLabel")
+        self.refresh_action_states()
         try:
             self.root.after(5000, self._refresh_game_status)
         except tk.TclError:
@@ -297,6 +346,7 @@ class SystemActions:
         task_id = self._task_serial
         self.status.set(label)
         self.progress.start(10)
+        self.refresh_action_states()
 
         def worker():
             try:
@@ -349,10 +399,13 @@ class SystemActions:
             return
         self._busy = False
         self.progress.stop()
+        self.refresh_action_states()
         try:
             completed(result)
         except Exception as exc:
             self._task_failed(exc, task_id=task_id)
+        else:
+            self.refresh_action_states()
 
     def _task_failed(
         self,
@@ -367,8 +420,10 @@ class SystemActions:
             return
         self._busy = False
         self.progress.stop()
+        self.refresh_action_states()
         if failed:
             failed(exc)
+            self.refresh_action_states()
             return
         self.status.set("Operation failed")
         messagebox.showerror(
