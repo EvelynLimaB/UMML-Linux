@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tkinter import messagebox
 
 from .models import PACKAGE_UMML_ASSETS
 from .process import running_game_processes
@@ -25,6 +26,49 @@ class MaintenanceActions(ButtonStateActions):
         if not current:
             return "prepared; target unverified"
         return "prepared"
+
+    def refresh_action_states(self) -> None:
+        super().refresh_action_states()
+        if self._closing or self._busy or self._game_running:
+            return
+        try:
+            profile = self.profile()
+            resolution = self.current_resolution()
+            dat_ready = Path(self.dat_path.get()).expanduser().is_dir()
+        except Exception:
+            return
+        if (
+            profile.enabled
+            and not self.metadata_fingerprint.get().strip()
+            and not resolution.blocking_issues
+            and dat_ready
+        ):
+            self._configure_button(
+                self.library.apply_button,
+                enabled=False,
+                text="Verify metadata to apply",
+            )
+
+    def apply_profile(self):
+        try:
+            profile = self.profile()
+            resolution = self.current_resolution()
+        except Exception:
+            return super().apply_profile()
+        if (
+            profile.enabled
+            and not self.metadata_fingerprint.get().strip()
+            and not resolution.blocking_issues
+        ):
+            messagebox.showinfo(
+                "Verified metadata required",
+                "Run installation auto-detection in Settings before applying "
+                "enabled mods. An empty profile may still restore managed files.",
+                parent=self.root,
+            )
+            self.show_page("settings")
+            return
+        return super().apply_profile()
 
     def _manager_diagnostics(self) -> tuple[str, bool]:
         report, ready = super()._manager_diagnostics()
