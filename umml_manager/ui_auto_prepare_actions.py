@@ -5,10 +5,10 @@ from tkinter import messagebox
 
 from .legacy_adapter import LegacyAssetAdapter
 from .models import PACKAGE_UMML_ASSETS
-from .ui_button_actions import ButtonStateActions
+from .ui_maintenance_actions import MaintenanceActions
 
 
-class AutoPrepareActions(ButtonStateActions):
+class AutoPrepareActions(MaintenanceActions):
     """Automatically prepare compatible imports while keeping apply explicit."""
 
     def _finish_import(self, record):
