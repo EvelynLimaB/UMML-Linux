@@ -5,9 +5,10 @@ from tkinter import messagebox
 
 from .legacy_adapter import LegacyAssetAdapter
 from .models import PACKAGE_UMML_ASSETS
+from .ui_button_actions import ButtonStateActions
 
 
-class AutoPrepareActions:
+class AutoPrepareActions(ButtonStateActions):
     """Automatically prepare compatible imports while keeping apply explicit."""
 
     def _finish_import(self, record):
@@ -17,6 +18,7 @@ class AutoPrepareActions:
                 self.status.set(
                     f"Imported {record.name}; preparation is waiting for valid metadata"
                 )
+            self.refresh_action_states()
             return
 
         self._run_task(
@@ -39,6 +41,7 @@ class AutoPrepareActions:
             f"Imported and prepared {prepared.name}: {len(prepared.files)} asset(s)"
         )
         self.show_page("library")
+        self.refresh_action_states()
 
     def _automatic_preparation_failed(self, record, exc: Exception):
         self.refresh()
@@ -56,6 +59,7 @@ class AutoPrepareActions:
             parent=self.root,
         )
         self.show_page("library")
+        self.refresh_action_states()
 
 
 def should_prepare_automatically(record, meta_path: str) -> bool:
