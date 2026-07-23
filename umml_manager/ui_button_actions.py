@@ -3,7 +3,6 @@ from __future__ import annotations
 import webbrowser
 from tkinter import messagebox
 
-from .deployment import ApplyEngine
 from .studio import open_path
 
 
@@ -22,63 +21,6 @@ class ButtonStateActions:
             self.game_status.set("Game status unknown; writes blocked")
             self.refresh_action_states()
         return result
-
-    def apply_profile(self):
-        """Apply through the complete fail-closed deployment boundary."""
-
-        if getattr(self, "_game_running", False):
-            messagebox.showwarning(
-                "Close the game first",
-                "Close Umamusume before applying a profile.",
-                parent=self.root,
-            )
-            return
-        if not self.dat_path.get().strip():
-            messagebox.showinfo(
-                "Game data required",
-                "Run installation auto-detection in Settings first.",
-                parent=self.root,
-            )
-            return
-        resolution = self.current_resolution()
-        if resolution.blocking_issues:
-            messagebox.showwarning(
-                "Profile is not ready",
-                "The profile was not applied. Open Conflicts for the complete "
-                f"list of {len(resolution.blocking_issues)} blocking issue(s).",
-                parent=self.root,
-            )
-            self.show_page("conflicts")
-            return
-
-        def operation():
-            return ApplyEngine(
-                self.store,
-                self.dat_path.get(),
-                game_dir=self.game_dir.get() or None,
-            ).apply(resolution)
-
-        def finished(result):
-            recovery = (
-                f"; recovered {result.recovered_transactions} interrupted "
-                "transaction(s)"
-                if result.recovered_transactions
-                else ""
-            )
-            messagebox.showinfo(
-                "Profile applied",
-                f"Installed {result.installed}; restored {result.restored}; "
-                f"unchanged {result.unchanged}{recovery}",
-                parent=self.root,
-            )
-            self.status.set(f"Applied {resolution.profile}")
-            self.refresh_action_states()
-
-        self._run_task(
-            "Applying profile transactionally…",
-            operation,
-            finished,
-        )
 
     def save_settings(self, silent: bool = False):
         """Clear stale installation verification after typed path/region edits."""
