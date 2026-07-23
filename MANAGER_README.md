@@ -1,15 +1,15 @@
 # UMML Manager
 
-UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML, but preserves the loader's editing tools instead of replacing them with a polished list that cannot actually do anything.
+UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML while preserving the original loader's editing tools through a guarded compatibility Studio.
 
-> **Preview:** `0.2.0~alpha10`. The manager includes audited persistent state, bounded imports, provider browsing, automatic preparation of compatible imports, contextual action controls, profile planning, verified deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
+> **Preview:** `0.2.0~alpha11`. The manager includes bounded imports, immutable versions, provider browsing, automatic preparation, profiles, verified metadata provenance, fail-closed deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha10_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha11_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -18,27 +18,25 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha10_x86_64.AppImage
-./umml-manager_0.2.0-alpha10_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha11_x86_64.AppImage
+./umml-manager_0.2.0-alpha11_x86_64.AppImage
 ```
 
 The same file exposes the CLI:
 
 ```bash
-./umml-manager_0.2.0-alpha10_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha10_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha10_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha11_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha11_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha11_x86_64.AppImage --cli browse --region global
 ```
 
-The DEB and AppImage are built from one PyInstaller bundle. CI extracts both finished packages and compares their complete frozen runtime trees with the source bundle and each other.
-
-Both formats use:
+Both formats use the same data directory:
 
 ```text
 ~/.local/share/umml-manager
 ```
 
-Changing package format does not create another library. Verify downloads with the separate `SHA256SUMS` artifact:
+CI builds both packages from one PyInstaller bundle, extracts the completed DEB and AppImage, compares their complete runtime trees, and verifies external checksums.
 
 ```bash
 sha256sum -c SHA256SUMS
@@ -46,7 +44,7 @@ sha256sum -c SHA256SUMS
 
 ### Historical source-install cleanup
 
-Early previews installed application code into the same directory as manager data. **Do not use an old alpha1 `uninstall-manager.sh`**, because it could delete that mixed directory.
+Early previews mixed application code with manager data. Do not use an old alpha1 `uninstall-manager.sh`, because it could delete that mixed directory.
 
 Remove only stale alpha1 launchers while preserving the library and recovery state:
 
@@ -57,32 +55,32 @@ update-desktop-database ~/.local/share/applications 2>/dev/null || true
 hash -r
 ```
 
-The current source installer stores code in `~/.local/share/umml-manager-app` and user state in `~/.local/share/umml-manager`. It creates `umml-manager-source` and `umml-manager-source-cli`; generic compatibility launchers prefer the Debian package when installed.
+The current source installer stores code in `~/.local/share/umml-manager-app` and state in `~/.local/share/umml-manager`. Its source-specific launchers do not replace an installed Debian package.
 
 ## Interface
 
-- **Library:** immutable installed versions, profiles, load order, preparation state, stale-cache status, editable copies, and deployment.
-- **Discover:** browse Global/Japan GameBanana or scan bounded local roots for recognizable packages.
-- **Studio:** launch the legacy character, dress, training, story, model-swap, translation, cleanup, database, preview, manual-load, and restore tools.
-- **Conflicts:** inspect exact file winners and every deployment blocker.
-- **Settings:** installation detection, game paths, prepared metadata, region, diagnostics, manager data, and workspaces.
+- **Library:** immutable versions, profiles, load order, preparation provenance, editable copies, and deployment.
+- **Discover:** Global/Japan GameBanana browsing and bounded local package discovery.
+- **Studio:** the complete legacy editor and loader interface behind process guards.
+- **Conflicts:** exact file winners and every deployment blocker.
+- **Settings:** installation detection, target paths, prepared metadata, diagnostics, manager data, and workspaces.
 
 ### Context-aware controls
 
-Alpha10 keeps visible controls synchronized with actual prerequisites instead of allowing silent no-op clicks:
+Visible controls follow actual prerequisites instead of silently doing nothing:
 
-- selection actions remain disabled until a valid Library or local-discovery row is selected;
-- **Enable** changes to **Disable** for an enabled mod;
+- selection actions require a valid Library or local-discovery row;
+- **Enable** changes to **Disable** for enabled mods;
 - load-order arrows follow the selected mod's real position;
-- **Prepare now** and **Re-prepare** reflect package and metadata readiness;
-- **Apply profile** explains whether game data, blocker resolution, or closing the game is required;
-- GameBanana paging and installation controls restore correctly after background work;
-- a changed GameBanana query, sort, or region starts on page 1;
-- mutating Studio tools disable while the game runs;
-- unknown process status blocks writes rather than pretending the game is closed;
-- all operation buttons disable while one manager task owns the shared state.
+- **Prepare now** and **Re-prepare** reflect package and metadata state;
+- **Apply profile** explains whether target data, metadata verification, blocker resolution, or closing the game is required;
+- GameBanana paging and installation states survive background tasks;
+- changed GameBanana search, sort, or region restarts on page 1;
+- all Studio cards disable while the game runs;
+- unknown process status blocks writes;
+- operation controls disable while one manager task owns shared state.
 
-Backend validation remains authoritative. Disabled-state logic improves the interface but does not replace deployment locks, process checks, path validation, or transaction safety.
+Backend validation remains authoritative. Disabled-state logic improves the interface but does not replace locks, process checks, path validation, resolver blockers, or transaction safety.
 
 ## First run
 
@@ -91,135 +89,125 @@ Backend validation remains authoritative. Disabled-state logic improves the inte
 3. The manager detects Steam/Proton or DMM, validates paths, prepares `meta_decrypted_*.db`, records an installation key, and fingerprints the metadata.
 4. When detection does not complete, use **Settings → Auto-detect installation**, then **Run diagnostics**.
 5. Browse GameBanana or scan local folders from **Discover**.
-6. Import a compatible package. Legacy UMML assets are prepared automatically when readable metadata is available.
-7. Enable prepared mods in a profile and arrange load order.
+6. Import a compatible package. Legacy UMML assets prepare automatically when readable metadata is available.
+7. Enable prepared mods and arrange load order.
 8. Inspect **Conflicts**. The plan must have zero blockers.
-9. Close the game and apply the profile explicitly.
+9. Close the game and apply explicitly.
 
-Manual path selection remains available for unusual layouts. Manual changes deliberately clear the verified installation key and metadata fingerprint until detection runs again.
+Manual path changes clear verified installation identity and metadata fingerprints. Run auto-detection again before deploying enabled mods.
 
-The three paths are:
+The three target paths are:
 
 - `.../Persistent/dat` for game asset files;
 - UMML's prepared `meta_decrypted_*.db`, not the encrypted file named `meta`;
 - the game installation directory containing its executable.
 
-## Import, preparation, and deployment are separate stages
+## Import, preparation, and deployment
 
-The manager deliberately separates three operations:
+The manager separates three operations:
 
-1. **Import** preserves an immutable copy of the downloaded or selected source package.
-2. **Prepare** converts compatible source assets into verified game-hash targets. Alpha10 performs this automatically after import when the package and metadata are compatible.
-3. **Apply** writes an enabled profile to the game. This remains a separate explicit action and requires the game to be closed.
+1. **Import** preserves an immutable source version.
+2. **Prepare** resolves source assets into hash-addressed targets using readable metadata.
+3. **Apply** writes the enabled profile to the game through a verified transaction.
 
-If automatic preparation fails, the imported source is not deleted. It stays in Library with **needs prepare**, and the existing manual preparation action becomes a retry and diagnostic tool rather than required routine work.
+Import commits before automatic preparation. A preparation failure therefore preserves the downloaded archive and immutable source in Library with a retryable **Prepare now** action.
 
-Prepared records store the file manifest, SHA-256 values, metadata fingerprint, and preparation time. A changed game metadata fingerprint marks the cache stale and blocks deployment until it is prepared again.
+Prepared records retain file hashes, preparation time, and the metadata fingerprint used to build them. When current metadata is known, a missing or mismatched preparation fingerprint blocks deployment and requires re-preparation.
 
-## HTTPS, GameBanana, and preview images
+## Immutable library and concurrency
 
-UMML resolves certificate trust in this order:
+An imported ID/version is immutable. Re-importing the same identity with different bytes is rejected; different versions coexist under safe storage components.
 
-1. validated `SSL_CERT_FILE` and `SSL_CERT_DIR` values;
-2. usable target-system OpenSSL defaults;
-3. known Fedora/Bazzite, RHEL, Debian, Ubuntu, Mint, Alpine, SUSE, and BSD-style CA locations;
-4. the bundled `certifi` Mozilla CA bundle.
-
-Certificate verification is never disabled. **Run diagnostics** reports the selected trust source and CA path.
-
-Discover supports paging, search, sorting, descriptions, authors, versions, statistics, downloadable-file selection, original-page links, verified download, direct import, and selected-mod preview images.
-
-Catalogue rows do not always include their complete file list. When that happens, the manager immediately offers **Install latest**, fetches the full submission details in a separate background task, and replaces the fallback with the real file selector when available. A failed prefetch does not permanently disable installation; clicking **Install latest** retries the detail request.
-
-GameBanana file containers are normalized from array, mapping, and nested response shapes before they reach the selector. Stale detail responses are ignored after changing selection or page.
-
-Some older GameBanana uploads contain the loose files accepted by the legacy UMML manual loader but omit a modern `assets/` wrapper or manifest. Alpha10 normalizes this layout only when all of the following are true:
-
-- the archive came through the verified GameBanana provider path;
-- it contains recognizable UnityFS, audio, video, bundle, or hashed asset evidence;
-- it contains no executable, script, or native-library payloads.
-
-Deep wrapper layouts are accepted after normalization through a bounded, symlink-safe traversal rather than an arbitrary shallow directory cutoff.
-
-Plain documents and unrelated archives remain rejected. The normalized package is stored immutably before automatic preparation begins.
-
-Preview images:
-
-- are normalized through the preview-aware registered GameBanana provider;
-- accept only GameBanana-owned HTTPS URLs and redirects;
-- load off the UI path with stale-selection protection;
-- use a bounded 24-image session cache;
-- are limited to 12 MiB and 40 megapixels;
-- fail nonfatally so mod details and installation remain usable.
-
-Downloads use temporary partial files under immutable per-submission/per-file locations. Final redirects must remain HTTPS; response and download sizes are bounded; SHA-256, filename, byte size, file ID, submission ID, and fetch time are retained.
-
-```bash
-umml-manager-cli browse --region global --sort popular
-umml-manager-cli browse --region japan --query texture
-umml-manager-cli gamebanana https://gamebanana.com/mods/123456
-```
-
-## Automatic mod discovery and imports
-
-The scanner uses Downloads, Documents, Desktop, XDG user directories, and user-added roots. It is depth- and entry-limited and skips Steam libraries, Proton prefixes, VCS directories, caches, dependencies, hidden directories, and symbolic links.
-
-Automatic detection requires recognizable evidence. An ordinary `setting.json` or unrelated ZIP is not listed merely because it exists.
-
-Recognized content includes:
-
-- `umml-mod.json`;
-- valid UMML metadata combined with real `assets/` content;
-- populated legacy `assets/` layouts;
-- populated Hachimi layouts;
-- ZIP and TAR archives containing those markers.
-
-Imports reject traversal, absolute paths, drive prefixes, symlinks, devices, FIFOs, sockets, duplicate archive paths, encrypted ZIP entries, extremely long names, more than 20,000 entries, and more than 8 GiB declared or actual extraction.
-
-Local folder copies are revalidated and hashed after copying. Ambiguous wrappers containing multiple nearest mod roots are rejected.
-
-A Hachimi package may be detected and preserved, but the current backend cannot deploy it. Detection is not treated as support; profiles containing it remain blocked.
-
-## Immutable versions and workspaces
-
-Imported source versions are immutable. Re-importing the same ID and version with different contents is rejected. Different versions coexist under safe storage components.
+The public library boundary serializes the complete identity-selection, source-copy, and registry transaction. Threads in one process wait on a local mutex; separate manager processes use an advisory file lock. Concurrent imports therefore cannot select one record ID and leave a different source orphaned from the registry.
 
 **Edit copy** creates a timestamped workspace with provenance. Change the edited package's ID or version before importing it as a new immutable version.
 
-Legacy hashed assets are decoded into staging. The previous prepared cache remains until the replacement is complete, non-empty, duplicate-free, hashed, and registered.
+## GameBanana and loose legacy packages
 
-## Profiles and conflict planning
+Discover supports paging, search, sorting, authors, versions, statistics, file selection, original-page links, verified downloads, and bounded preview images.
 
-Profiles are ordered lists; later mods win overlapping paths. Profiles retain target region, installation identity, and future per-mod option space.
+Catalogue rows do not always contain full file lists. The manager offers **Install latest** while details load and replaces it with the real selector when available. Stale detail responses are ignored after selection or page changes.
 
-The plan blocks deployment for:
+Some older uploads contain loose files accepted by legacy UMML but omit a modern `assets/` wrapper or manifest. Compatibility normalization runs only when:
+
+- strict import raises the typed unrecognized-package result;
+- the archive came through the verified GameBanana provider path;
+- recognizable UnityFS, audio, video, bundle, or hashed-asset evidence exists;
+- no executable, script, or native-library payload exists.
+
+Other storage, permission, or registry failures are not reinterpreted as legacy package layouts. Deep wrappers are handled through bounded, symlink-safe traversal.
+
+Preview images are GameBanana-owned HTTPS content, load off the UI thread, use stale-selection tokens and a bounded session cache, and are limited by bytes and pixels. Preview failure remains nonfatal.
+
+## Local discovery and archive safety
+
+The scanner checks Downloads, Documents, Desktop, XDG user directories, and user-added roots. It is depth- and entry-limited and skips Steam libraries, Proton prefixes, VCS data, caches, dependency trees, hidden directories, and symbolic links.
+
+Automatic detection requires recognizable evidence. Ordinary settings files and unrelated archives are not promoted to mods merely because their filenames look promising.
+
+Imports reject traversal, absolute paths, drive prefixes, links, devices, FIFOs, sockets, duplicate archive paths, encrypted ZIP entries, excessive path lengths, more than 20,000 entries, and more than 8 GiB declared or actual extraction.
+
+Hachimi packages may be discovered and preserved, but remain deployment blockers until a native Hachimi backend exists.
+
+## Profiles and planning
+
+Profiles are ordered lists; later mods win overlapping paths. Profiles retain target region and installation identity.
+
+The resolver blocks:
 
 - missing or unprepared mods;
-- stale prepared caches;
+- stale or unverified prepared caches;
 - unsupported backends;
 - wrong-region mods;
-- a profile bound to another installation;
+- wrong or unverified installation identity for a bound profile;
 - invalid paths or hashes;
 - missing declared dependencies;
 - declared incompatibilities.
 
-Duplicate profile entries are removed and reported rather than creating self-conflicts.
+Duplicate profile entries are removed and reported instead of creating self-conflicts.
 
-## Verified transactional deployment
+## Fail-closed deployment
 
-Before mutation, the engine validates the plan, verifies target identity, acquires a cross-process lock, recovers earlier transactions, verifies prepared sources, confirms the game is closed, and snapshots every affected target with integrity records.
+GUI, CLI, and compatibility imports resolve to the same public deployment boundary. It rejects every resolver blocker before entering the transaction core.
 
-During deployment it uses contained paths and atomic replacement, verifies installed files, captures untouched vanilla files once, stores baseline integrity records, and writes target-scoped active ownership state.
+Before mutation, the engine:
 
-An empty profile restores managed paths from verified baselines. Active files changed by another tool are not overwritten unless force recovery is explicitly requested from the CLI.
+- verifies process inspection succeeded and the game is closed;
+- verifies target installation identity;
+- acquires a cross-process deployment lock;
+- recovers interrupted transactions;
+- verifies prepared source hashes;
+- validates contained target paths;
+- verifies active state and external changes;
+- snapshots affected targets with integrity records.
 
-Unreadable, future-version, wrong-target, malformed, or tampered critical state fails closed. Corrupt preferences are quarantined and reset because losing a preference is not the same class of event as guessing deployment ownership.
+Deployment uses atomic replacement, verifies installed files, captures untouched vanilla files once, writes target-scoped ownership state, and rolls back failed transactions.
+
+An empty profile may restore managed paths from verified baselines without metadata. Enabled mods require verified metadata provenance. Active files changed outside UMML Manager are not overwritten unless explicit force recovery is requested from the CLI.
+
+Unreadable, future-version, wrong-target, malformed, or tampered critical state fails closed. Corrupt preferences are quarantined and reset because losing a preference is not equivalent to guessing file ownership.
+
+## Diagnostics
+
+**Run diagnostics** verifies more than stored strings. It reports:
+
+- installation detection and writable paths;
+- HTTPS trust source;
+- settings, mod, and profile registries;
+- installation identity;
+- actual `dat`, game, and metadata path existence;
+- metadata fingerprint integrity;
+- interrupted transaction directories;
+- active deployment state;
+- process-inspection readiness and whether the game is running.
+
+A failed process check is reported as failed and blocks writes. It is never converted into “game closed.”
 
 ## Legacy Studio
 
-The compatibility host includes the complete legacy loader interface and direct launch cards. Mutating entry points check the game process, and the host watches for Umamusume throughout its lifetime.
+Every Studio card launches the same compatibility host, which can mutate game data. The entire Studio therefore requires the game closed. Individual callbacks retain guards, and the host watches for Umamusume throughout its lifetime.
 
-Native Studio pages will replace these editors incrementally. The compatibility host remains until every feature has a tested equivalent and restoration coverage.
+Native Studio pages may replace legacy editors incrementally, but the compatibility host remains until every feature has a tested equivalent and restoration coverage.
 
 ## CLI
 
@@ -228,7 +216,6 @@ umml-manager-cli list
 umml-manager-cli scan ~/Downloads
 umml-manager-cli browse --region global --sort updated
 umml-manager-cli workspace creator.mod
-umml-manager-cli studio attributes --dat /path/to/Persistent/dat
 umml-manager-cli prepare creator.mod --meta /path/to/meta_decrypted.db
 umml-manager-cli profile Default creator.mod another.mod \
   --region global --installation-key steam-global
@@ -241,6 +228,8 @@ umml-manager-cli apply Default \
   --region global --installation-key steam-global \
   --meta /path/to/meta_decrypted.db
 ```
+
+CLI apply requires explicit metadata or a saved metadata path whose actual hash still matches the saved fingerprint. A saved installation key is reused only when the requested `dat` path matches the saved target.
 
 For AppImage use, prefix CLI arguments with the AppImage filename and `--cli`.
 
@@ -258,16 +247,15 @@ bash scripts/build_manager_deb.sh
 bash scripts/build_manager_appimage.sh
 ```
 
-CI installs the complete pinned runtime dependency set before manager regressions. Package inspection verifies matching frozen runtime trees, certifi trust data, and Pillow's compiled imaging extension in both formats. The static audit also verifies that every visible button callback resolves to a ManagerGUI or action-mixin method.
+CI compiles every manager file, audits architecture and dangerous calls, runs adversarial and failure-injection tests, validates desktop/AppStream metadata, builds one frozen runtime, compares complete DEB/AppImage payloads, checks certifi and Pillow, and verifies external checksums.
 
 Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMENT.md`, `docs/MANAGER_AUDIT.md`, `docs/MANAGER_FEATURE_ROADMAP.md`, and `docs/PACKAGING.md` before changing state, providers, deployment, recovery, or packaging.
 
 ## Remaining alpha release gates
 
 - live Bazzite GameBanana browse, preview, detail hydration, deep loose-package normalization, automatic preparation, and import without certificate overrides;
-- real-desktop button-state smoke testing across every page;
-- visual preview sizing and rapid-selection testing on KDE;
-- a broader real-mod corpus;
+- real-desktop state and diagnostics smoke testing across every page;
+- a broader current-mod corpus;
 - packaged apply/disable/restore/update tests on disposable game data;
 - deliberate process-kill recovery drills at transaction boundaries;
 - explicit multi-installation target UI and separately scoped state directories;
@@ -277,7 +265,7 @@ Read `CONTRIBUTING.md`, `docs/MANAGER_ARCHITECTURE.md`, `docs/MANAGER_DEVELOPMEN
 
 ## Safety
 
-- Keep the game closed during apply, restore, database editing, and other mutating Studio operations.
+- Keep the game closed during apply, restore, database editing, and all legacy Studio use.
 - Treat archives, provider responses, manifests, manager state, and recovery material as untrusted input.
 - Do not delete interrupted transaction directories until diagnostics or recovery explains them.
 - Do not commit game files, decrypted metadata, downloaded archives, manager state, or user paths.
