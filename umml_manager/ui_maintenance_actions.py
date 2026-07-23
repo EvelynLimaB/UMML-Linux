@@ -30,22 +30,33 @@ class MaintenanceActions(ButtonStateActions):
         report, ready = super()._manager_diagnostics()
         lines = [report, "", "Target verification:"]
 
-        dat = Path(self.dat_path.get()).expanduser()
-        game = Path(self.game_dir.get()).expanduser()
-        meta = Path(self.meta_path.get()).expanduser()
+        raw_dat = self.dat_path.get().strip()
+        raw_game = self.game_dir.get().strip()
+        raw_meta = self.meta_path.get().strip()
+        dat = Path(raw_dat).expanduser() if raw_dat else None
+        game = Path(raw_game).expanduser() if raw_game else None
+        meta = Path(raw_meta).expanduser() if raw_meta else None
         for label, path, expected in (
             ("Game asset data", dat, "directory"),
             ("Game installation", game, "directory"),
             ("Prepared metadata", meta, "file"),
         ):
-            exists = path.is_dir() if expected == "directory" else path.is_file()
+            exists = bool(
+                path
+                and (
+                    path.is_dir()
+                    if expected == "directory"
+                    else path.is_file()
+                )
+            )
+            display = str(path) if path is not None else "not set"
             lines.append(
-                f"{label}: {'READY' if exists else 'CHECK'} ({path or 'not set'})"
+                f"{label}: {'READY' if exists else 'CHECK'} ({display})"
             )
             ready = ready and exists
 
         recorded = self.metadata_fingerprint.get().strip()
-        if meta.is_file() and recorded:
+        if meta is not None and meta.is_file() and recorded:
             try:
                 expected = validate_sha256(recorded)
                 actual = hash_file(meta)
@@ -66,7 +77,7 @@ class MaintenanceActions(ButtonStateActions):
             ready = False
 
         try:
-            running = running_game_processes(self.game_dir.get() or None)
+            running = running_game_processes(raw_game or None)
         except Exception as exc:
             lines.append(f"Game process inspection: FAILED ({exc})")
             ready = False
