@@ -1,5 +1,36 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha11 - 2026-07-23
+
+### Deployment safety
+
+- Added one public deployment boundary for GUI, CLI, package-level, and compatibility callers.
+- The backend now rejects every resolver blocker, including stale preparation caches and wrong or unverified installation identity.
+- Process-inspection failures block writes instead of being interpreted as proof that the game is closed.
+- CLI apply now requires explicit metadata or a saved metadata database whose actual hash still matches the recorded fingerprint.
+- Bound profiles no longer deploy when the target installation identity is missing.
+- Prepared caches with no metadata provenance are treated as unverified when current metadata is known.
+
+### Library and provider safety
+
+- Immutable import identity selection, source copying, and registry updates are serialized across threads and processes.
+- Added a typed unrecognized-package exception so GameBanana compatibility normalization no longer matches human-readable error strings.
+- Malformed source metadata now fails through the normal StoreError boundary instead of leaking an AttributeError.
+- Plain GameBanana game names map to the original Japanese listing; the Global listing still requires its explicit marker.
+
+### Interface and diagnostics
+
+- Library rows distinguish prepared, stale, and unverified preparation state.
+- Enabled profiles require verified metadata before Apply becomes available; an empty profile may still restore managed files from verified baselines.
+- Diagnostics now verify actual target-path existence, metadata fingerprint integrity, and process-inspection readiness.
+- The full legacy Studio is marked as game-data capable and remains disabled while the game runs.
+
+### Maintenance and tests
+
+- Documented the guarded `library.py` and `deployment.py` public boundaries above the mature storage and transaction cores.
+- Added real-class regressions for blocker enforcement, process-backend failures, malformed state, typed provider fallback, installation scoping, metadata verification, compatibility aliases, and concurrent imports.
+- Kept the public compatibility bridges reload-safe while historical raw imports are migrated incrementally.
+
 ## 0.2.0~alpha10 - 2026-07-23
 
 ### Import compatibility
@@ -188,7 +219,7 @@
 ### Changed
 
 - Conflict plans explicitly list missing and unprepared enabled mods.
-- Workspace instructions require a new version or ID before importing it as a new immutable local mod.
+- Workspace instructions require a new version or ID before importing edited content.
 - GameBanana and local discovery tables now include vertical scrollbars.
 
 ## 0.2.0~alpha2 - 2026-07-21
