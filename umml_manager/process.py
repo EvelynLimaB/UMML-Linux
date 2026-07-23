@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Iterable
 
 
+class ProcessInspectionError(RuntimeError):
+    """Raised when UMML cannot determine whether the game is running safely."""
+
+
 @dataclass(frozen=True)
 class ProcessInfo:
     pid: int
@@ -34,15 +38,30 @@ def _iter_processes() -> Iterable[ProcessInfo]:
 def _procfs_processes() -> Iterable[ProcessInfo]:
     proc = Path("/proc")
     if not proc.is_dir():
-        return ()
+        raise ProcessInspectionError(
+            "Process inspection is unavailable because /proc is not mounted"
+        )
+    try:
+        entries = tuple(proc.iterdir())
+    except OSError as exc:
+        raise ProcessInspectionError(f"Could not inspect /proc: {exc}") from exc
+
     found: list[ProcessInfo] = []
-    for entry in proc.iterdir():
+    for entry in entries:
         if not entry.name.isdigit() or int(entry.name) == os.getpid():
             continue
         try:
             name = (entry / "comm").read_text(errors="replace").strip()
-            command = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+            command = (
+                (entry / "cmdline")
+                .read_bytes()
+                .replace(b"\0", b" ")
+                .decode(errors="replace")
+            )
         except OSError:
+            # Processes routinely disappear or become unreadable while /proc is
+            # traversed. Skipping one entry is safe; failing to inspect /proc at
+            # all is not.
             continue
         found.append(ProcessInfo(int(entry.name), name, command))
     return found
@@ -57,10 +76,14 @@ def _windows_processes() -> Iterable[ProcessInfo]:
             text=True,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError):
-        return ()
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ProcessInspectionError(f"Could not run tasklist: {exc}") from exc
     if result.returncode:
-        return ()
+        detail = (result.stderr or result.stdout or "unknown tasklist error").strip()
+        raise ProcessInspectionError(
+            f"tasklist failed with exit code {result.returncode}: {detail}"
+        )
+
     found: list[ProcessInfo] = []
     for row in csv.reader(result.stdout.splitlines()):
         if len(row) < 2:
