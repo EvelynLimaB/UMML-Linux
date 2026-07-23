@@ -27,7 +27,10 @@ class SourceSpec:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "SourceSpec":
-        data = data or {}
+        if data is None:
+            data = {}
+        elif not isinstance(data, dict):
+            raise ValueError("Source specification must be an object")
         return cls(
             provider=str(data.get("provider", "local")),
             url=str(data.get("url", "")),
