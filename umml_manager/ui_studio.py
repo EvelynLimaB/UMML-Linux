@@ -16,8 +16,9 @@ class StudioPage(ttk.Frame):
             self,
             text=(
                 "All legacy editing features remain available through the "
-                "compatibility Studio. Mutating tools are disabled while the game "
-                "is running."
+                "compatibility Studio. The legacy host requires the game to be "
+                "closed because it contains mutating callbacks even when opened at "
+                "the full workspace."
             ),
             style="Muted.TLabel",
             wraplength=850,
@@ -53,4 +54,6 @@ class StudioPage(ttk.Frame):
             )
             button.grid(row=2, column=0, sticky="w")
             self.tool_buttons[tool.id] = button
-            self.tool_mutating[tool.id] = tool.mutating
+            # Every card launches the same compatibility host. Its lifetime watcher
+            # closes the entire host when Umamusume runs, including the full workspace.
+            self.tool_mutating[tool.id] = True
