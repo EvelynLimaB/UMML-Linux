@@ -245,6 +245,31 @@ class ManagerTests(unittest.TestCase):
                 "original",
             )
 
+    def test_identical_reimport_preserves_prepared_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            mod = root / "mod"
+            (mod / "assets").mkdir(parents=True)
+            (mod / "assets" / "file").write_text("original")
+            (mod / "setting.json").write_text(
+                '{"title":"Idempotent","mod_version":"1"}'
+            )
+            store = ManagerStore(root / "manager")
+            record = store.import_folder(mod)
+            record.prepared_path = str(root / "prepared")
+            record.files = {"aa/aafile": "0" * 64}
+            record.prepared_against = "1" * 64
+            record.prepared_at = "2026-07-23T12:00:00+00:00"
+            store.save_mod(record)
+
+            repeated = store.import_folder(mod)
+            saved = store.get_mod(record.id)
+
+            self.assertEqual(repeated.prepared_path, record.prepared_path)
+            self.assertEqual(repeated.files, record.files)
+            self.assertEqual(saved.prepared_against, record.prepared_against)
+            self.assertEqual(saved.prepared_at, record.prepared_at)
+
     def test_different_versions_coexist_under_distinct_record_ids(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

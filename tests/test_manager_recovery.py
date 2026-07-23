@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from umml_manager.engine import ApplyEngine, ApplyError
@@ -12,6 +13,86 @@ from umml_manager.store import ManagerStore, StoreError
 
 
 class RecoveryIntegrityTests(unittest.TestCase):
+    def _pending_recovery(
+        self,
+        root: Path,
+        *,
+        process_check,
+    ) -> tuple[ApplyEngine, Path, Path]:
+        store = ManagerStore(root / "manager")
+        dat = root / "dat"
+        target = dat / "aa" / "aafile"
+        target.parent.mkdir(parents=True)
+        target.write_text("currently-modded")
+        engine = ApplyEngine(store, dat, process_check=process_check)
+        transaction = (
+            store.paths.transactions
+            / f"apply-{engine.target_id}-pending"
+        )
+        snapshot = transaction / "snapshots" / "aa" / "aafile"
+        snapshot.parent.mkdir(parents=True)
+        snapshot.write_text("snapshot-before-apply")
+        atomic_write_json(
+            transaction / "journal.json",
+            {
+                "version": 2,
+                "transaction_id": transaction.name,
+                "target_id": engine.target_id,
+                "phase": "applying",
+                "manifest": {
+                    "aa/aafile": {
+                        "existed": True,
+                        "sha256": hash_file(snapshot),
+                    }
+                },
+            },
+        )
+        return engine, target, transaction
+
+    def test_running_game_blocks_recovery_before_snapshot_restore(self):
+        with tempfile.TemporaryDirectory() as temp:
+            checks = 0
+
+            def game_starts_before_recovery(_game):
+                nonlocal checks
+                checks += 1
+                if checks == 1:
+                    return ()
+                return (SimpleNamespace(name="umamusume.exe"),)
+
+            engine, target, transaction = self._pending_recovery(
+                Path(temp),
+                process_check=game_starts_before_recovery,
+            )
+
+            with self.assertRaisesRegex(ApplyError, "Game is running"):
+                engine.apply(resolve_profile(Profile("Off", []), []))
+
+            self.assertEqual(target.read_text(), "currently-modded")
+            self.assertTrue(transaction.is_dir())
+
+    def test_process_check_failure_blocks_recovery_before_snapshot_restore(self):
+        with tempfile.TemporaryDirectory() as temp:
+            checks = 0
+
+            def failed(_game):
+                nonlocal checks
+                checks += 1
+                if checks == 1:
+                    return ()
+                raise OSError("inspection unavailable")
+
+            engine, target, transaction = self._pending_recovery(
+                Path(temp),
+                process_check=failed,
+            )
+
+            with self.assertRaisesRegex(ApplyError, "writes were blocked"):
+                engine.apply(resolve_profile(Profile("Off", []), []))
+
+            self.assertEqual(target.read_text(), "currently-modded")
+            self.assertTrue(transaction.is_dir())
+
     def test_future_registry_schema_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             store = ManagerStore(Path(temp) / "manager")
@@ -175,6 +256,177 @@ class RecoveryIntegrityTests(unittest.TestCase):
                 )
             )
             self.assertEqual(remaining, [])
+
+    def test_external_change_after_snapshot_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "dat"
+            target = dat / "aa" / "aafile"
+            target.parent.mkdir(parents=True)
+            target.write_text("vanilla")
+
+            first_prepared = root / "prepared-first"
+            first_source = first_prepared / "aa" / "aafile"
+            first_source.parent.mkdir(parents=True)
+            first_source.write_text("first-mod")
+            first = ModRecord(
+                "first",
+                "First",
+                prepared_path=str(first_prepared),
+                files={"aa/aafile": hash_file(first_source)},
+            )
+            ApplyEngine(store, dat, process_check=lambda _game: ()).apply(
+                resolve_profile(Profile("First", ["first"]), [first])
+            )
+
+            second_prepared = root / "prepared-second"
+            second_source = second_prepared / "aa" / "aafile"
+            second_source.parent.mkdir(parents=True)
+            second_source.write_text("second-mod")
+            second = ModRecord(
+                "second",
+                "Second",
+                prepared_path=str(second_prepared),
+                files={"aa/aafile": hash_file(second_source)},
+            )
+            checks = 0
+
+            def mutate_after_snapshot(_game):
+                nonlocal checks
+                checks += 1
+                if checks == 3:
+                    target.write_text("external-during-apply")
+                return ()
+
+            engine = ApplyEngine(
+                store,
+                dat,
+                process_check=mutate_after_snapshot,
+            )
+            with self.assertRaisesRegex(
+                ApplyError,
+                "changed after UMML Manager captured",
+            ):
+                engine.apply(
+                    resolve_profile(
+                        Profile("Second", ["second"]),
+                        [first, second],
+                    ),
+                    force=True,
+                )
+
+            self.assertEqual(target.read_text(), "external-during-apply")
+            state = json.loads(store.paths.state.read_text(encoding="utf-8"))
+            self.assertEqual(state["files"]["aa/aafile"]["owner"], "first")
+            self.assertEqual(
+                list(
+                    store.paths.transactions.glob(
+                        f"apply-{engine.target_id}-*"
+                    )
+                ),
+                [],
+            )
+
+    def test_external_change_before_snapshot_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "dat"
+            target = dat / "aa" / "aafile"
+            target.parent.mkdir(parents=True)
+            target.write_text("first-mod")
+
+            base_engine = ApplyEngine(
+                store,
+                dat,
+                process_check=lambda _game: (),
+            )
+            atomic_write_json(
+                store.paths.state,
+                {
+                    "version": 2,
+                    "target_id": base_engine.target_id,
+                    "dat_path": str(dat.resolve()),
+                    "files": {
+                        "aa/aafile": {
+                            "owner": "first",
+                            "version": "1",
+                            "profile": "First",
+                            "sha256": hash_file(target),
+                        }
+                    },
+                },
+            )
+
+            prepared = root / "prepared"
+            source = prepared / "aa" / "aafile"
+            source.parent.mkdir(parents=True)
+            source.write_text("second-mod")
+            second = ModRecord(
+                "second",
+                "Second",
+                prepared_path=str(prepared),
+                files={"aa/aafile": hash_file(source)},
+            )
+
+            class RacingEngine(ApplyEngine):
+                def _apply_transaction(self, *args, **kwargs):
+                    target.write_text("external-before-snapshot")
+                    return super()._apply_transaction(*args, **kwargs)
+
+            engine = RacingEngine(
+                store,
+                dat,
+                process_check=lambda _game: (),
+            )
+            with self.assertRaisesRegex(
+                ApplyError,
+                "changed while UMML Manager was preparing",
+            ):
+                engine.apply(
+                    resolve_profile(
+                        Profile("Second", ["second"]),
+                        [second],
+                    )
+                )
+
+            self.assertEqual(target.read_text(), "external-before-snapshot")
+            state = json.loads(store.paths.state.read_text(encoding="utf-8"))
+            self.assertEqual(state["files"]["aa/aafile"]["owner"], "first")
+
+    def test_identical_unmanaged_target_is_not_adopted_without_baseline(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            dat = root / "dat"
+            target = dat / "aa" / "aafile"
+            target.parent.mkdir(parents=True)
+            target.write_text("already-modded")
+            prepared = root / "prepared"
+            source = prepared / "aa" / "aafile"
+            source.parent.mkdir(parents=True)
+            source.write_text("already-modded")
+            mod = ModRecord(
+                "same",
+                "Same",
+                prepared_path=str(prepared),
+                files={"aa/aafile": hash_file(source)},
+            )
+            engine = ApplyEngine(store, dat, process_check=lambda _game: ())
+
+            with patch.object(engine, "_rollback") as rollback:
+                with self.assertRaisesRegex(ApplyError, "no vanilla baseline"):
+                    engine.apply(
+                        resolve_profile(Profile("Same", ["same"]), [mod])
+                    )
+                rollback.assert_not_called()
+
+            self.assertEqual(target.read_text(), "already-modded")
+            self.assertFalse(store.paths.state.exists())
+            self.assertFalse(
+                (store.paths.baseline / "aa" / "aafile").exists()
+            )
 
     def test_future_active_state_schema_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:

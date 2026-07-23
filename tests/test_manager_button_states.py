@@ -13,6 +13,7 @@ if Image is not None:
     from umml_manager.models import ModRecord, Profile
     from umml_manager.resolver import Resolution
     from umml_manager.ui_button_actions import ButtonStateActions
+    from umml_manager.ui_library_actions import LibraryActions
 
 
 class FakeVar:
@@ -147,6 +148,7 @@ class ManagerButtonStateTests(unittest.TestCase):
                 "meta_browse_button",
                 "game_browse_button",
                 "save_button",
+                "bind_profile_button",
                 "diagnostics_button",
                 "open_data_button",
                 "open_workspaces_button",
@@ -337,11 +339,100 @@ class ButtonWrapperBehaviorTests(unittest.TestCase):
         harness.installation_key = FakeVar("steam-global-new")
         harness.metadata_fingerprint = FakeVar("new")
         harness.installation_status = FakeVar("Detected Steam Global. Metadata is ready.")
+        harness._saving_detected_installation = True
 
         self.assertEqual(
             harness.save_settings(),
             ("steam-global-new", "new"),
         )
+
+    def test_manual_edit_after_detection_clears_stale_verification(self):
+        class Store:
+            def load_settings(self):
+                return {
+                    "dat_path": "/detected/dat",
+                    "meta_path": "/detected/meta.db",
+                    "game_dir": "/detected/game",
+                    "region": "global",
+                    "installation_key": "steam-global",
+                    "metadata_fingerprint": "old",
+                }
+
+        class SaveBase:
+            def save_settings(self, silent=False):
+                return (
+                    self.installation_key.get(),
+                    self.metadata_fingerprint.get(),
+                )
+
+        class Harness(ButtonStateActions, SaveBase):
+            pass
+
+        harness = Harness()
+        harness.store = Store()
+        harness.dat_path = FakeVar("/manually-edited/dat")
+        harness.meta_path = FakeVar("/detected/meta.db")
+        harness.game_dir = FakeVar("/detected/game")
+        harness.region = FakeVar("global")
+        harness.installation_key = FakeVar("steam-global")
+        harness.metadata_fingerprint = FakeVar("old")
+        harness.installation_status = FakeVar(
+            "Detected Steam Global. Metadata is ready."
+        )
+        harness._saving_detected_installation = False
+
+        self.assertEqual(harness.save_settings(), ("", ""))
+        self.assertIn("Auto-detect again", harness.installation_status.get())
+
+    def test_profile_edits_preserve_existing_installation_binding(self):
+        saved = []
+
+        class Store:
+            def save_profile(self, profile):
+                saved.append(profile)
+
+        harness = SimpleNamespace(
+            store=Store(),
+            region=FakeVar("global"),
+            installation_key=FakeVar("steam-global-new"),
+        )
+        profile = Profile(
+            "Japan",
+            ["mod-a"],
+            region="japan",
+            installation_key="steam-japan",
+        )
+
+        LibraryActions._save_profile(harness, profile)
+
+        self.assertEqual(saved, [profile])
+        self.assertEqual(profile.region, "japan")
+        self.assertEqual(profile.installation_key, "steam-japan")
+
+    def test_profile_rebind_is_an_explicit_verified_target_action(self):
+        saved = []
+        profile = Profile("Portable", ["mod-a"], region="japan")
+
+        class Store:
+            def save_profile(self, value):
+                saved.append(value)
+
+        harness = SimpleNamespace(
+            root=None,
+            store=Store(),
+            profile=lambda: profile,
+            region=FakeVar("global"),
+            installation_key=FakeVar("steam-global"),
+            status=FakeVar(),
+            refresh=lambda: None,
+        )
+
+        LibraryActions.rebind_profile(harness)
+
+        self.assertEqual(saved, [profile])
+        self.assertEqual(profile.region, "global")
+        self.assertEqual(profile.installation_key, "steam-global")
+        self.assertIn("Bound Portable", harness.status.get())
 
 
 if __name__ == "__main__":

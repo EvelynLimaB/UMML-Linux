@@ -41,7 +41,9 @@ class ButtonStateActions:
             self.game_dir.get(),
             self.region.get(),
         )
-        detected_save = self.installation_status.get().startswith("Detected ")
+        detected_save = bool(
+            getattr(self, "_saving_detected_installation", False)
+        )
         had_verified_identity = bool(
             saved.get("installation_key") or saved.get("metadata_fingerprint")
         )

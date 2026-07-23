@@ -313,7 +313,9 @@ class ManagerStore:
             or "0"
         )
         existing = self.list_mods()
+        existing_by_id = {record.id: record for record in existing}
         chosen_id = _available_record_id(base_id, version, existing)
+        existing_record = existing_by_id.get(chosen_id)
         destination = self.source_destination(chosen_id, version)
         try:
             incoming_digest = tree_digest(selected)
@@ -324,6 +326,13 @@ class ManagerStore:
                         "with different contents. Change the mod version or import "
                         "it with a different ID."
                     )
+                if (
+                    existing_record is not None
+                    and existing_record.version == version
+                    and Path(existing_record.source_path).expanduser().resolve()
+                    == destination.resolve()
+                ):
+                    return existing_record
             else:
                 _copy_tree_atomic(
                     selected,

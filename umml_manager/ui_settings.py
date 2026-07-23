@@ -90,6 +90,12 @@ class SettingsPage(ttk.Frame):
             command=app.save_settings,
         )
         self.save_button.pack(side="left")
+        self.bind_profile_button = ttk.Button(
+            actions,
+            text="Bind profile here",
+            command=app.rebind_profile,
+        )
+        self.bind_profile_button.pack(side="left", padx=8)
         self.diagnostics_button = ttk.Button(
             actions,
             text="Run diagnostics",

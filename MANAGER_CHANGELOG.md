@@ -1,5 +1,31 @@
 # UMML Manager changelog
 
+## 0.2.0~alpha12 - 2026-07-23
+
+### Transaction and recovery safety
+
+- Recovery now verifies that process inspection works and the game is closed before restoring an interrupted transaction, then checks again immediately before rollback.
+- Apply revalidates active ownership against captured snapshots and verifies the live targets still match those snapshots immediately before mutation begins.
+- External changes made while a transaction is being prepared are preserved and reported, including when explicit force recovery was requested.
+- A pre-existing file that already matches a requested mod is no longer adopted as manager-owned unless a valid vanilla baseline already exists.
+
+### Installation and profile identity
+
+- CLI apply no longer treats a saved metadata path without a recorded fingerprint as implicitly verified; explicit `--meta` or a fresh auto-detection is required.
+- Auto-detection uses an explicit one-shot save authorization, so typing a path after detection cannot retain stale installation identity merely because the status text still says “Detected”.
+- Enabling, disabling, and reordering mods preserve a profile's existing region and installation binding.
+- Settings now exposes an explicit **Bind profile here** action for intentional profile rebinding to a verified installation.
+
+### Library and source installation
+
+- Re-importing an identical immutable ID/version returns the existing record without discarding prepared files or metadata provenance.
+- The source installer now carries `UMML.py`, `UMML_core.py`, `UMML_data`, `umml_platform.py`, and `umml_autodetect` alongside the manager package.
+- Source installation requires Pillow for the graphical manager, reports the `certifi` fallback state, and clearly distinguishes missing optional preparation/Studio dependencies.
+
+### Tests
+
+- Added regressions for recovery ordering, process-inspection failure, snapshot races, unsafe first adoption, unverified saved metadata, post-detection manual edits, profile-binding preservation, idempotent re-import, and complete source-install payloads.
+
 ## 0.2.0~alpha11 - 2026-07-23
 
 ### Deployment safety

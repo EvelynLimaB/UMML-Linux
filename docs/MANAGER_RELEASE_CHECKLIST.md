@@ -13,6 +13,12 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [x] Exercise selection, busy-task, paging, blocker, game-running, unknown-status, Studio-host, and Settings target-edit button states headlessly.
 - [x] Verify changed GameBanana region/sort/query starts from page 1 and stale availability is restored after tasks.
 - [x] Verify typed target path or region changes revoke stale installation verification while detected targets retain it.
+- [x] Verify recovery checks the game before rollback and preserves journals when process inspection fails or the game starts between checks.
+- [x] Verify active ownership and live targets still match captured snapshots immediately before mutation.
+- [x] Refuse first-time ownership of an already matching mod file when no vanilla baseline exists.
+- [x] Preserve prepared state across identical immutable re-imports and preserve profile bindings across enable/reorder edits.
+- [x] Reject implicitly saved metadata without a recorded fingerprint and distinguish auto-detected saves from later manual edits.
+- [x] Audit the source installer for the complete Manager, auto-detection, and legacy Studio runtime payload.
 - [x] Build one frozen runtime and compare it against complete DEB/AppImage runtime trees.
 - [x] Verify bundled certifi data and Pillow's compiled imaging extension in both packages.
 
@@ -94,7 +100,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [x] Version and CLI smoke tests run without FUSE through extraction mode.
 - [x] Complete frozen runtime matches the shared source bundle and Debian payload.
 - [x] Bundled certifi CA data and Pillow imaging support are present.
-- [ ] Launch the alpha10 graphical interface on Bazzite/KDE.
+- [ ] Launch the alpha12 graphical interface on Bazzite/KDE.
 - [ ] Launch on a second supported distribution.
 - [ ] Verify Library, Discover, Studio, Conflicts, Settings, and diagnostics.
 - [ ] Confirm AppImage and DEB see the same XDG manager data.
@@ -116,7 +122,7 @@ PR #2 remains draft until these real-machine checks are completed. CI proves tha
 - [ ] Keep runtime/native plugins outside the desktop manager.
 - [ ] Attach sanitized logs and state manifests for release-candidate smoke tests.
 - [x] Generate and verify external SHA-256 checksums for both package artifacts.
-- [x] Update `MANAGER_VERSION`, changelog, READMEs, AppStream metadata, and artifact names together for alpha10.
+- [x] Update `MANAGER_VERSION`, changelog, READMEs, AppStream metadata, and artifact names together for alpha12.
 
 ## Runtime boundary
 

@@ -37,6 +37,7 @@ class ManagerGUI(
         self._gb_install_text = "Install"
         self._gb_can_previous = False
         self._gb_can_next = False
+        self._saving_detected_installation = False
         settings = self.store.load_settings()
         self.profile_name = tk.StringVar(
             value=str(settings.get("profile", "Default"))
@@ -446,6 +447,13 @@ class ManagerGUI(
             self.refresh_plan_button,
         ):
             self._configure_button(button, enabled=not busy)
+        self._configure_button(
+            self.settings.bind_profile_button,
+            enabled=(
+                not busy
+                and bool(self.installation_key.get().strip())
+            ),
+        )
         self.settings.region_box.configure(state="disabled" if busy else "readonly")
 
         for tool_id, button in self.studio.tool_buttons.items():

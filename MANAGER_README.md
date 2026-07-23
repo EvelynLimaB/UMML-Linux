@@ -2,14 +2,14 @@
 
 UMML Manager is the full desktop manager and editing workspace for **Umamusume Pretty Derby** mods. It is packaged separately from legacy UMML while preserving the original loader's editing tools through a guarded compatibility Studio.
 
-> **Preview:** `0.2.0~alpha11`. The manager includes bounded imports, immutable versions, provider browsing, automatic preparation, profiles, verified metadata provenance, fail-closed deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
+> **Preview:** `0.2.0~alpha12`. The manager includes bounded imports, immutable versions, provider browsing, automatic preparation, profiles, verified metadata provenance, fail-closed deployment, recovery journals, automatic installation detection, legacy Studio compatibility, and matching DEB/AppImage packages. Real-game and destructive recovery testing remain required before a stable release.
 
 ## Install
 
 ### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha11_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha12_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -18,16 +18,16 @@ The package can coexist with `umml-linux`. It owns `/usr/lib/umml-manager`, `/us
 ### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha11_x86_64.AppImage
-./umml-manager_0.2.0-alpha11_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha12_x86_64.AppImage
+./umml-manager_0.2.0-alpha12_x86_64.AppImage
 ```
 
 The same file exposes the CLI:
 
 ```bash
-./umml-manager_0.2.0-alpha11_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha11_x86_64.AppImage --cli list
-./umml-manager_0.2.0-alpha11_x86_64.AppImage --cli browse --region global
+./umml-manager_0.2.0-alpha12_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha12_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha12_x86_64.AppImage --cli browse --region global
 ```
 
 Both formats use the same data directory:
@@ -55,7 +55,7 @@ update-desktop-database ~/.local/share/applications 2>/dev/null || true
 hash -r
 ```
 
-The current source installer stores code in `~/.local/share/umml-manager-app` and state in `~/.local/share/umml-manager`. Its source-specific launchers do not replace an installed Debian package.
+The current source installer stores the complete Manager and legacy Studio source runtime in `~/.local/share/umml-manager-app` and state in `~/.local/share/umml-manager`. It requires Tk and Pillow and reports when optional preparation/Studio dependencies are unavailable. Its source-specific launchers do not replace an installed Debian package.
 
 ## Interface
 
@@ -96,6 +96,8 @@ Backend validation remains authoritative. Disabled-state logic improves the inte
 
 Manual path changes clear verified installation identity and metadata fingerprints. Run auto-detection again before deploying enabled mods.
 
+Enabling, disabling, and reordering mods never changes an existing profile binding. To intentionally move a profile to the currently detected installation, use **Settings → Bind profile here** and confirm the rebind.
+
 The three target paths are:
 
 - `.../Persistent/dat` for game asset files;
@@ -116,7 +118,7 @@ Prepared records retain file hashes, preparation time, and the metadata fingerpr
 
 ## Immutable library and concurrency
 
-An imported ID/version is immutable. Re-importing the same identity with different bytes is rejected; different versions coexist under safe storage components.
+An imported ID/version is immutable. Re-importing the same identity with different bytes is rejected; re-importing identical bytes preserves the existing record and prepared cache; different versions coexist under safe storage components.
 
 The public library boundary serializes the complete identity-selection, source-copy, and registry transaction. Threads in one process wait on a local mutex; separate manager processes use an advisory file lock. Concurrent imports therefore cannot select one record ID and leave a different source orphaned from the registry.
 
@@ -172,18 +174,18 @@ GUI, CLI, and compatibility imports resolve to the same public deployment bounda
 
 Before mutation, the engine:
 
-- verifies process inspection succeeded and the game is closed;
-- verifies target installation identity;
 - acquires a cross-process deployment lock;
-- recovers interrupted transactions;
+- verifies process inspection succeeded and the game is closed before recovery;
+- rechecks immediately before restoring any interrupted transaction;
+- verifies target installation identity;
 - verifies prepared source hashes;
 - validates contained target paths;
 - verifies active state and external changes;
 - snapshots affected targets with integrity records.
 
-Deployment uses atomic replacement, verifies installed files, captures untouched vanilla files once, writes target-scoped ownership state, and rolls back failed transactions.
+After snapshotting, deployment checks the game again, verifies active ownership against the snapshots, and confirms the live targets still match those snapshots before mutation starts. Deployment then uses atomic replacement, verifies installed files, captures untouched vanilla files once, writes target-scoped ownership state, and rolls back failed transactions.
 
-An empty profile may restore managed paths from verified baselines without metadata. Enabled mods require verified metadata provenance. Active files changed outside UMML Manager are not overwritten unless explicit force recovery is requested from the CLI.
+An empty profile may restore managed paths from verified baselines without metadata. Enabled mods require verified metadata provenance. A matching pre-existing modded file is not adopted without a known vanilla baseline. Explicit force recovery may override a pre-existing active-state mismatch, but it never overrides a target change detected after recovery snapshots were captured.
 
 Unreadable, future-version, wrong-target, malformed, or tampered critical state fails closed. Corrupt preferences are quarantined and reset because losing a preference is not equivalent to guessing file ownership.
 
@@ -229,7 +231,7 @@ umml-manager-cli apply Default \
   --meta /path/to/meta_decrypted.db
 ```
 
-CLI apply requires explicit metadata or a saved metadata path whose actual hash still matches the saved fingerprint. A saved installation key is reused only when the requested `dat` path matches the saved target.
+CLI apply requires explicit metadata or a saved metadata path whose actual hash still matches a recorded fingerprint. A saved path without a fingerprint is unverified and requires explicit `--meta` or installation auto-detection. A saved installation key is reused only when the requested `dat` path matches the saved target.
 
 For AppImage use, prefix CLI arguments with the AppImage filename and `--cli`.
 

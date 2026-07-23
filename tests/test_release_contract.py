@@ -41,6 +41,19 @@ class ReleaseContractTests(unittest.TestCase):
         for name in ("UMML.py", "UMML_core.py", "umml_platform.py", "UMML_data"):
             self.assertIn(name, installer)
 
+    def test_manager_source_installer_contains_complete_runtime(self):
+        installer = (ROOT / "install-manager.sh").read_text(encoding="utf-8")
+        for copy_command in (
+            'install -m 0644 "$SOURCE_ROOT/UMML.py" "$APP_DIR/UMML.py"',
+            'install -m 0644 "$SOURCE_ROOT/UMML_core.py" "$APP_DIR/UMML_core.py"',
+            'install -m 0644 "$SOURCE_ROOT/umml_platform.py" "$APP_DIR/umml_platform.py"',
+            'cp -a "$SOURCE_ROOT/umml_autodetect" "$APP_DIR/umml_autodetect"',
+            'cp -a "$SOURCE_ROOT/UMML_data" "$APP_DIR/UMML_data"',
+        ):
+            self.assertIn(copy_command, installer)
+        self.assertIn("from PIL import Image, ImageTk", installer)
+        self.assertIn("import certifi", installer)
+
     def test_source_release_includes_packaging_and_reference_files(self):
         builder = (ROOT / "scripts" / "build_release.sh").read_text(encoding="utf-8")
         for name in (
@@ -89,6 +102,26 @@ class ReleaseContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(version, readme)
         self.assertIn(version, metainfo)
+
+    def test_manager_docs_and_appstream_mention_current_version(self):
+        version = (ROOT / "MANAGER_VERSION").read_text(
+            encoding="utf-8"
+        ).strip()
+        appstream_version = version.replace("~alpha", "-alpha.")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manager_readme = (ROOT / "MANAGER_README.md").read_text(
+            encoding="utf-8"
+        )
+        metainfo = (
+            ROOT
+            / "packaging"
+            / "linux"
+            / "io.github.evelynlimab.ummlmanager.metainfo.xml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(version, readme)
+        self.assertIn(version, manager_readme)
+        self.assertIn(appstream_version, metainfo)
 
 
 if __name__ == "__main__":

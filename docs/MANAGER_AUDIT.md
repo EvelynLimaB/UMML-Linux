@@ -1,8 +1,8 @@
 # UMML Manager code audit
 
-Audit target: `agent/umml-manager-foundation`, manager `0.2.0~alpha6`.
+Audit target: `agent/umml-manager-foundation`, manager `0.2.0~alpha12`.
 
-This document records the code-level audit performed after the first Bazzite AppImage test. It separates corrected defects from remaining release and architecture work. A green build is evidence for one revision, not a ceremonial declaration that bugs have become extinct.
+This document began with the code-level audit performed after the first Bazzite AppImage test and now includes the alpha12 recovery and identity follow-up. It separates corrected defects from remaining release and architecture work. A green build is evidence for one revision, not a ceremonial declaration that bugs have become extinct.
 
 ## Method
 
@@ -67,6 +67,28 @@ Correction:
 - the active-state document records the committing transaction ID;
 - a later apply recovers or finalizes interrupted transactions before creating a new one;
 - unreadable recovery material blocks further deployment instead of being deleted.
+
+### Recovery could restore files before checking the game process
+
+Interrupted `applying` or `committed` journals were rolled back before process inspection. A running game or failed process backend could therefore still be followed by manager-owned file writes.
+
+Correction:
+
+- apply checks process state before entering recovery;
+- recovery checks again immediately before each rollback;
+- a running game or inspection failure preserves both target bytes and recovery material;
+- tests cover a process starting and process inspection failing between the outer check and rollback.
+
+### Targets could change between verification and mutation
+
+Active files were checked before transaction setup, but snapshots were captured later and then trusted. Another tool could change a target in that window and have its change overwritten.
+
+Correction:
+
+- captured snapshot hashes are compared with the active ownership manifest unless explicit force recovery was requested;
+- live targets are compared with every snapshot after the final process check and immediately before mutation begins;
+- a post-snapshot change blocks even force recovery and is preserved without rollback;
+- an already matching unmanaged mod file is not adopted when no vanilla baseline exists.
 
 ## Corrected high-severity findings
 
@@ -165,7 +187,7 @@ Profiles now have schema space for:
 - installation key;
 - per-mod options.
 
-The current single-installation UI uses the region immediately. Installation keys and options are preserved for the multi-target and generated-mod work described in the feature roadmap.
+The current UI enforces installation keys for bound profiles. Membership and load-order edits preserve existing bindings, while **Bind profile here** performs an explicit verified-target rebind. Per-mod options remain reserved for the generated-mod work described in the feature roadmap.
 
 ## Remaining risks and release blockers
 
@@ -187,7 +209,7 @@ GameBanana response compatibility, redirects, archive names, very large download
 
 ### Metadata/game-update rebasing needs a user workflow
 
-Prepared records store the metadata database hash. The UI still needs a clear stale-cache badge, bulk re-prepare operation, and explicit baseline refresh/rebase flow after verified game updates.
+Prepared records store the metadata database hash and the UI exposes stale/unverified state. It still needs a bulk re-prepare operation and explicit baseline refresh/rebase flow after verified game updates.
 
 ### Recovery needs destructive real-machine drills
 

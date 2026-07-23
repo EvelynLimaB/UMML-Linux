@@ -65,6 +65,8 @@ Updating a mod must not replace the bytes representing an already imported versi
 
 Identity allocation is part of the import transaction. Threads in one process serialize through a mutex; separate processes serialize through an advisory file lock. This prevents two simultaneous imports from selecting the same record ID and leaving one immutable source orphaned from the registry.
 
+An identical re-import of the same ID/version is idempotent: it returns the existing record instead of replacing preparation paths, target manifests, or metadata provenance with an unprepared record.
+
 ## Package recognition
 
 Strict import accepts recognizable UMML or Hachimi roots. Provider-confirmed loose legacy archives may use a compatibility normalizer, but only after strict import raises the typed `UnrecognizedModError`. Other storage failures, registry failures, and permission errors are not reinterpreted as legacy archive layouts.
@@ -98,6 +100,8 @@ A profile is an ordered list of stable mod IDs. Profiles do not contain imperati
 
 Later entries have higher priority for overlapping target paths. A bound profile cannot deploy when the target installation identity is missing or different.
 
+Ordinary membership and load-order edits preserve the binding already stored on the profile. Rebinding is a separate user action and requires a verified current installation, so browsing another target cannot silently retarget a profile.
+
 ## Resolver
 
 The resolver is a pure planning stage. Given the same profile, target identity, metadata fingerprint, and library records, it produces the same result regardless of filesystem enumeration order, network availability, locale, or current time.
@@ -121,14 +125,15 @@ The public deployment engine receives a complete resolution and refuses it when 
 
 Before writing, deployment verifies:
 
-- process inspection succeeded and the game is closed;
+- process inspection succeeded and the game is closed before any interrupted recovery;
+- process state is checked again immediately before a recovery rollback;
 - prepared sources still match their recorded hashes;
 - target paths are safe and relative;
 - the target installation matches active state and baselines;
 - active managed files still match the previous deployment manifest;
 - the vanilla baseline needed for restoration is available.
 
-It then stages replacements, commits them atomically, records target ownership and hashes, and rolls back if a transaction fails.
+It then captures recovery snapshots, checks process state again, compares active ownership with the snapshots, and confirms the live targets still match those snapshots. Only then does mutation begin. Replacements commit atomically, installed hashes and target ownership are recorded, and a failed transaction rolls back to the verified snapshots.
 
 ## Vanilla baseline
 
@@ -138,11 +143,13 @@ For a target that did not exist in vanilla, restoration means deleting the manag
 
 The manager must never refresh vanilla from a modded file merely because a game update or another tool changed the target.
 
+Likewise, a pre-existing target that already has the requested mod hash is not adopted as manager-owned unless a valid baseline for that path already exists. Matching mod bytes are not evidence of known vanilla bytes.
+
 ## External-change protection
 
 The active deployment manifest records the hash and owning mod for each managed target. If the target later differs, UMML Manager assumes another tool, game update, or manual operation changed it.
 
-Normal apply stops instead of overwriting that file. Recovery may explicitly force a desired state, but the UI and CLI must make that decision visible.
+Normal apply stops instead of overwriting that file. Recovery may explicitly force a desired state, but the UI and CLI must make that decision visible. Force can override a mismatch that existed before snapshot capture; it cannot override another change detected after the snapshots were taken.
 
 ## Providers
 
@@ -163,6 +170,8 @@ umml-manager-bin gui
 umml-manager-bin cli <arguments>
 umml-manager-bin --legacy-host
 ```
+
+The source installer carries the same Python application boundary, including the legacy Studio entry point, auto-detection package, platform helpers, and `UMML_data`. Tk and Pillow are required for the graphical manager; missing preparation/Studio dependencies are reported rather than hidden behind a nominally successful install.
 
 ## Legacy Studio
 

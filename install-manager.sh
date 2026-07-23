@@ -25,7 +25,11 @@ fatal() {
 }
 
 [[ -d "$SOURCE_ROOT/umml_manager" ]] || fatal "umml_manager/ must be beside this installer."
+[[ -d "$SOURCE_ROOT/umml_autodetect" ]] || fatal "umml_autodetect/ must be beside this installer."
+[[ -d "$SOURCE_ROOT/UMML_data" ]] || fatal "UMML_data/ must be beside this installer."
+[[ -f "$SOURCE_ROOT/UMML.py" ]] || fatal "UMML.py must be beside this installer."
 [[ -f "$SOURCE_ROOT/UMML_core.py" ]] || fatal "UMML_core.py must be beside this installer."
+[[ -f "$SOURCE_ROOT/umml_platform.py" ]] || fatal "umml_platform.py must be beside this installer."
 [[ -f "$SOURCE_ROOT/MANAGER_VERSION" ]] || fatal "MANAGER_VERSION must be beside this installer."
 [[ -f "$SOURCE_ROOT/assets/umml-manager.svg" ]] || fatal "Manager icon is missing."
 
@@ -42,10 +46,19 @@ import tkinter
 print("Tk", tkinter.TkVersion)
 PY
 
+"$PYTHON" - <<'PY' || fatal "Pillow is required by the Manager interface. Install requirements.txt in the selected Python environment."
+from PIL import Image, ImageTk
+print("Pillow", Image.__version__)
+PY
+
 mkdir -p "$APP_DIR" "$DATA_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR"
-rm -rf "$APP_DIR/umml_manager"
+rm -rf "$APP_DIR/umml_manager" "$APP_DIR/umml_autodetect" "$APP_DIR/UMML_data"
 cp -a "$SOURCE_ROOT/umml_manager" "$APP_DIR/umml_manager"
+cp -a "$SOURCE_ROOT/umml_autodetect" "$APP_DIR/umml_autodetect"
+cp -a "$SOURCE_ROOT/UMML_data" "$APP_DIR/UMML_data"
+install -m 0644 "$SOURCE_ROOT/UMML.py" "$APP_DIR/UMML.py"
 install -m 0644 "$SOURCE_ROOT/UMML_core.py" "$APP_DIR/UMML_core.py"
+install -m 0644 "$SOURCE_ROOT/umml_platform.py" "$APP_DIR/umml_platform.py"
 install -m 0644 "$SOURCE_ROOT/MANAGER_VERSION" "$APP_DIR/MANAGER_VERSION"
 install -m 0644 "$SOURCE_ROOT/assets/umml-manager.svg" "$ICON_FILE"
 [[ -f "$SOURCE_ROOT/requirements.txt" ]] && install -m 0644 "$SOURCE_ROOT/requirements.txt" "$APP_DIR/requirements.txt"
@@ -128,10 +141,21 @@ if [[ -f "$OLD_DESKTOP_FILE" ]] && grep -Eq "Exec=($BIN_DIR/)?umml-manager|Path=
     rm -f "$OLD_DESKTOP_FILE"
 fi
 
-"$PYTHON" -m py_compile "$APP_DIR"/umml_manager/*.py "$APP_DIR"/umml_manager/providers/*.py
+"$PYTHON" -m py_compile \
+    "$APP_DIR"/UMML.py \
+    "$APP_DIR"/UMML_core.py \
+    "$APP_DIR"/umml_platform.py \
+    "$APP_DIR"/umml_autodetect/*.py \
+    "$APP_DIR"/umml_manager/*.py \
+    "$APP_DIR"/umml_manager/providers/*.py
 "$SOURCE_CLI_LAUNCHER" --version >/dev/null
 
-if ! "$PYTHON" - <<'PY'
+if ! "$PYTHON" -c 'import certifi' >/dev/null 2>&1; then
+    printf '\nWARNING: certifi is not installed in %s.\n' "$PYTHON" >&2
+    printf 'GameBanana access will require a usable system CA bundle; install requirements.txt for the portable fallback.\n' >&2
+fi
+
+if "$PYTHON" - <<'PY'
 import importlib
 missing = []
 for name in ("UnityPy", "yaml", "apsw", "vdf"):
@@ -143,8 +167,13 @@ if missing:
     raise SystemExit(", ".join(missing))
 PY
 then
+    (
+        cd "$APP_DIR"
+        "$PYTHON" -c 'import UMML'
+    ) || fatal "The installed legacy Studio runtime could not import UMML."
+else
     printf '\nWARNING: asset preparation dependencies are missing in %s.\n' "$PYTHON" >&2
-    printf 'Install legacy UMML first, then rerun this installer to reuse its tested environment.\n' >&2
+    printf 'The Manager GUI is installed, but preparation and legacy Studio require the complete requirements.txt environment.\n' >&2
 fi
 
 command -v update-desktop-database >/dev/null 2>&1 && \

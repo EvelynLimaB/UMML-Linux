@@ -223,6 +223,29 @@ class CleanupGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(StoreError, "Apply requires"):
                 _metadata_fingerprint("", store=store, required=True)
 
+    def test_cli_does_not_implicitly_trust_unfingerprinted_saved_metadata(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = ManagerStore(root / "manager")
+            meta = root / "meta.db"
+            meta.write_bytes(b"metadata")
+            store.save_settings({"meta_path": str(meta)})
+
+            with self.assertRaisesRegex(StoreError, "no verified fingerprint"):
+                _metadata_fingerprint("", store=store, required=True)
+            self.assertEqual(
+                _metadata_fingerprint("", store=store, required=False),
+                "",
+            )
+            self.assertEqual(
+                _metadata_fingerprint(
+                    str(meta),
+                    store=store,
+                    required=True,
+                ),
+                hash_file(meta),
+            )
+
     def test_saved_installation_key_is_scoped_to_saved_dat_path(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

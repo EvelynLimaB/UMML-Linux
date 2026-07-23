@@ -63,7 +63,11 @@ class SystemActions:
             self.installation_status.set(
                 f"Detected {installation.label}. Metadata is ready."
             )
-            self.save_settings(silent=True)
+            self._saving_detected_installation = True
+            try:
+                self.save_settings(silent=True)
+            finally:
+                self._saving_detected_installation = False
             self.status.set(f"Auto-detected {installation.label}")
             self.refresh()
             self.refresh_action_states()

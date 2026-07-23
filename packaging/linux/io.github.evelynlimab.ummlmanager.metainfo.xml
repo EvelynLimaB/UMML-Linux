@@ -21,6 +21,11 @@
     <category>Utility</category>
   </categories>
   <releases>
+    <release version="0.2.0-alpha.12" date="2026-07-23">
+      <description>
+        <p>Hardens interrupted recovery and snapshot races, refuses unsafe baseline adoption, preserves verified installation and preparation identity, and completes the source-installed Studio runtime.</p>
+      </description>
+    </release>
     <release version="0.2.0-alpha.11" date="2026-07-23">
       <description>
         <p>Centralizes fail-closed deployment and import safety, enforces every planner blocker for GUI and CLI callers, hardens legacy Studio process inspection, and adds concurrency and migration regressions.</p>

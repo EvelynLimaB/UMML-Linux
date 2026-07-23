@@ -189,9 +189,50 @@ class LibraryActions:
         self.refresh()
 
     def _save_profile(self, profile: Profile) -> None:
-        profile.region = self.region.get()
-        profile.installation_key = self.installation_key.get()
         self.store.save_profile(profile)
+
+    def rebind_profile(self) -> None:
+        installation_key = self.installation_key.get().strip()
+        if not installation_key:
+            messagebox.showwarning(
+                "Verified installation required",
+                "Auto-detect the current installation before binding a profile "
+                "to it.",
+                parent=self.root,
+            )
+            return
+
+        profile = self.profile()
+        region = self.region.get().strip()
+        if (
+            profile.installation_key == installation_key
+            and profile.region == region
+        ):
+            self.status.set(
+                f"{profile.name} is already bound to this installation"
+            )
+            return
+
+        if (
+            profile.installation_key
+            and profile.installation_key != installation_key
+            and not messagebox.askyesno(
+                "Rebind profile?",
+                f"{profile.name} is currently bound to "
+                f"{profile.installation_key}.\n\nBind it to "
+                f"{installation_key} instead?",
+                parent=self.root,
+            )
+        ):
+            return
+
+        profile.region = region
+        profile.installation_key = installation_key
+        self.store.save_profile(profile)
+        self.status.set(
+            f"Bound {profile.name} to {installation_key}"
+        )
+        self.refresh()
 
     def toggle_mod(self):
         mod_id = self.selected_id()

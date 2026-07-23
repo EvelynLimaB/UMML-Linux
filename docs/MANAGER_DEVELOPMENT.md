@@ -61,13 +61,16 @@ Changes to the store, resolver, or engine must preserve these rules:
 4. **Resolution is complete before writes.** The engine receives a full desired
    target map, not a stream of imperative install operations.
 5. **Vanilla is captured once.** The first untouched game file for a managed path
-   is the restoration baseline.
+   is the restoration baseline. Already matching mod bytes must not be adopted
+   without a previously verified baseline.
 6. **External changes are protected.** If the current target does not match the
-   previous deployment manifest, normal apply refuses to overwrite it.
+   previous deployment manifest or changes after snapshot capture, apply refuses
+   to overwrite it.
 7. **Apply is transactional.** A failed operation restores the last known valid
    state or leaves enough transaction information for deterministic recovery.
 8. **The game must be closed for writes.** Importing, downloading, preparing, and
-   planning are allowed while it runs; apply and restore are not.
+   planning are allowed while it runs; apply and recovery restore are not.
+   Process-inspection failure is a write blocker.
 9. **Providers do not deploy.** GameBanana and future providers return metadata and
    archives to the store. They never write game files.
 10. **Runtime code is outside the manager.** Native plugins, injection, and Unity
@@ -137,6 +140,9 @@ Test at least:
 - newly created targets with no vanilla file;
 - missing prepared source;
 - external target mutation;
+- target mutation between initial verification and transaction commit;
+- interrupted recovery while the game is running or process inspection fails;
+- an already matching target with no known vanilla baseline;
 - failure during staging;
 - failure during commit and rollback;
 - repeated application of an unchanged profile.

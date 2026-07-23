@@ -32,7 +32,7 @@ Download the DEB or AppImage from [GitHub Releases](https://github.com/EvelynLim
 
 ### UMML Manager preview
 
-Current manager preview: **`0.2.0~alpha11`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
+Current manager preview: **`0.2.0~alpha12`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
 
 Until it becomes a permanent Release asset, open the [manager branch workflow runs](https://github.com/EvelynLimaB/UMML-Linux/actions/workflows/manager-checks.yml?query=branch%3Aagent%2Fumml-manager-foundation) and download:
 
@@ -43,7 +43,7 @@ Until it becomes a permanent Release asset, open the [manager branch workflow ru
 #### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha11_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha12_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -52,15 +52,15 @@ The absolute command is useful when testing upgrades from early source previews.
 #### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha11_x86_64.AppImage
-./umml-manager_0.2.0-alpha11_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha12_x86_64.AppImage
+./umml-manager_0.2.0-alpha12_x86_64.AppImage
 ```
 
 CLI mode is available from the same file:
 
 ```bash
-./umml-manager_0.2.0-alpha11_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha11_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha12_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha12_x86_64.AppImage --cli list
 ```
 
 The DEB and AppImage are built from the same frozen runtime and use the same user data directory, `~/.local/share/umml-manager`. CI extracts both finished packages and compares their complete embedded runtime trees.
@@ -81,7 +81,7 @@ sha256sum -c SHA256SUMS
 - automatic preparation of compatible imports while profile application remains explicit;
 - safe normalization of provider-confirmed loose legacy UMML asset archives, including deeply nested layouts;
 - context-aware buttons that follow selection, paging, background-task, profile-blocker, metadata-verification, and live game-process state;
-- named profiles with explicit load order, target region, and installation identity;
+- named profiles with explicit load order and preserved installation identity, plus an explicit verified-target rebinding action;
 - blockers for missing dependencies, declared incompatibilities, wrong regions, wrong or unverified installations, unsupported backends, stale or unverified prepared caches, and invalid manifests;
 - fail-closed GUI and CLI deployment through one guarded public engine boundary;
 - path-contained, hash-verified deployment with target-scoped active state and vanilla baselines;
@@ -104,7 +104,7 @@ Read [MANAGER_README.md](MANAGER_README.md) for the user workflow, [docs/MANAGER
 1. Open the manager and let **Settings** detect the installation and prepare metadata.
 2. Browse GameBanana or scan Downloads/custom folders in **Discover**.
 3. Import a compatible mod; the manager prepares it automatically when metadata is ready.
-4. Enable and order mods in a profile bound to the intended installation.
+4. Enable and order mods in a profile bound to the intended installation. Use **Settings → Bind profile here** only when intentionally moving a profile to the currently detected target.
 5. Inspect **Conflicts** for file winners and every deployment blocker.
 6. Close the game and apply the profile.
 7. Use **Studio** for the original loader's editing tools.
@@ -121,7 +121,7 @@ chmod +x install-manager.sh uninstall-manager.sh
 ./install-manager.sh
 ```
 
-The source installer keeps application code in `~/.local/share/umml-manager-app`, manager data in `~/.local/share/umml-manager`, and exposes explicit `umml-manager-source` commands. Generic compatibility commands prefer the Debian package whenever it is installed.
+The source installer keeps the complete Manager and legacy Studio source runtime in `~/.local/share/umml-manager-app`, manager data in `~/.local/share/umml-manager`, and exposes explicit `umml-manager-source` commands. It requires Tk and Pillow; missing preparation/Studio dependencies are reported explicitly. Generic compatibility commands prefer the Debian package whenever it is installed.
 
 ## Development
 

@@ -263,21 +263,27 @@ def _metadata_fingerprint(
     saved_meta = str(settings.get("meta_path", "")).strip()
     saved_path = Path(saved_meta).expanduser() if saved_meta else None
     if saved_path is not None and saved_path.is_file():
-        actual = hash_file(saved_path)
         recorded = str(settings.get("metadata_fingerprint", "")).strip()
-        if recorded:
-            try:
-                expected = validate_sha256(recorded)
-            except SafetyError as exc:
+        if not recorded:
+            if required:
                 raise StoreError(
-                    "Saved metadata fingerprint is invalid; run installation "
-                    "auto-detection again"
-                ) from exc
-            if actual != expected:
-                raise StoreError(
-                    "Saved metadata changed since installation detection; run "
-                    "auto-detection and re-prepare affected mods"
+                    "Saved metadata has no verified fingerprint; pass --meta "
+                    "explicitly or run installation auto-detection again"
                 )
+            return ""
+        actual = hash_file(saved_path)
+        try:
+            expected = validate_sha256(recorded)
+        except SafetyError as exc:
+            raise StoreError(
+                "Saved metadata fingerprint is invalid; run installation "
+                "auto-detection again"
+            ) from exc
+        if actual != expected:
+            raise StoreError(
+                "Saved metadata changed since installation detection; run "
+                "auto-detection and re-prepare affected mods"
+            )
         return actual
 
     if required:

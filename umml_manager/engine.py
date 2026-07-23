@@ -64,6 +64,7 @@ class ApplyEngine:
                 self.store.paths.locks / f"deployment-{self.target_id}.lock",
                 purpose="applying or recovering a profile",
             ):
+                self._assert_game_closed()
                 recovered = self._recover_incomplete_transactions()
                 self._assert_game_closed()
                 self._ensure_baseline_scope()
@@ -79,6 +80,7 @@ class ApplyEngine:
                     active,
                     affected,
                     recovered,
+                    force=force,
                 )
         except LockError as exc:
             raise ApplyError(str(exc)) from exc
@@ -139,6 +141,8 @@ class ApplyEngine:
         active: dict,
         affected: list[str],
         recovered: int,
+        *,
+        force: bool,
     ) -> ApplyResult:
         self.store.paths.transactions.mkdir(parents=True, exist_ok=True)
         transaction = Path(
@@ -174,7 +178,17 @@ class ApplyEngine:
                 journal_path,
                 self._journal(transaction_id, "applying", manifest),
             )
+            self._validate_first_adoptions(
+                resolution,
+                active,
+                manifest,
+            )
             self._assert_game_closed()
+            self._validate_snapshot_state(
+                active,
+                manifest,
+                force=force,
+            )
             mutation_started = True
 
             installed = restored = unchanged = 0
@@ -188,6 +202,11 @@ class ApplyEngine:
                     continue
                 source = path_under(claim.source_path, relative)
                 if target.is_file() and hash_file(target) == claim.sha256:
+                    if relative not in active:
+                        self._require_existing_baseline_for_adoption(
+                            relative,
+                            target,
+                        )
                     unchanged += 1
                 else:
                     self._capture_baseline(relative, target, active.get(relative))
@@ -244,6 +263,42 @@ class ApplyEngine:
             if isinstance(exc, ApplyError):
                 raise
             raise ApplyError(f"Apply failed and was rolled back: {exc}") from exc
+
+    def _require_existing_baseline_for_adoption(
+        self,
+        relative: str,
+        target: Path,
+    ) -> None:
+        baseline, marker, digest = self._baseline_paths(relative)
+        if not (baseline.exists() or marker.exists() or digest.exists()):
+            raise ApplyError(
+                f"The current game file for {relative} already matches the requested "
+                "mod, but UMML Manager has no vanilla baseline for it. The file cannot "
+                "be adopted safely. Restore the original game file before applying, or "
+                "use an explicit recovery workflow."
+            )
+        self._capture_baseline(relative, target, None)
+
+    def _validate_first_adoptions(
+        self,
+        resolution: Resolution,
+        active: dict,
+        manifest: dict[str, dict[str, object]],
+    ) -> None:
+        for relative, claim in resolution.winners.items():
+            if relative in active:
+                continue
+            entry = manifest.get(relative)
+            if entry is None:
+                raise ApplyError(
+                    f"Transaction snapshot metadata is missing for {relative}"
+                )
+            existed, snapshot_hash = self._snapshot_entry(entry, relative)
+            if existed and snapshot_hash == claim.sha256:
+                self._require_existing_baseline_for_adoption(
+                    relative,
+                    path_under(self.dat_path, relative),
+                )
 
     def _baseline_paths(self, relative: str) -> tuple[Path, Path, Path]:
         baseline = path_under(self.store.paths.baseline, relative)
@@ -422,6 +477,52 @@ class ApplyEngine:
                 f"({sample}). Refusing to overwrite them without --force."
             )
 
+    def _validate_snapshot_state(
+        self,
+        active: dict,
+        manifest: dict[str, dict[str, object]],
+        *,
+        force: bool,
+    ) -> None:
+        if not force:
+            stale_active: list[str] = []
+            for relative, record in active.items():
+                entry = manifest.get(relative)
+                if not isinstance(record, dict) or entry is None:
+                    continue
+                existed, snapshot_hash = self._snapshot_entry(entry, relative)
+                if not existed or snapshot_hash != str(record["sha256"]):
+                    stale_active.append(relative)
+            if stale_active:
+                sample = ", ".join(stale_active[:5])
+                raise ApplyError(
+                    f"{len(stale_active)} active asset(s) changed while UMML Manager "
+                    f"was preparing the transaction ({sample}). Refusing to overwrite "
+                    "them without --force."
+                )
+
+        changed_after_snapshot: list[str] = []
+        for relative, entry in manifest.items():
+            existed, snapshot_hash = self._snapshot_entry(entry, relative)
+            target = path_under(self.dat_path, relative)
+            try:
+                matches = (
+                    target.is_file() and hash_file(target) == snapshot_hash
+                    if existed
+                    else not target.exists()
+                )
+            except OSError:
+                matches = False
+            if not matches:
+                changed_after_snapshot.append(relative)
+        if changed_after_snapshot:
+            sample = ", ".join(changed_after_snapshot[:5])
+            raise ApplyError(
+                f"{len(changed_after_snapshot)} target asset(s) changed after UMML "
+                f"Manager captured its recovery snapshots ({sample}). No game files "
+                "were changed; retry after the target is stable."
+            )
+
     def _rollback(self, snapshots: Path, manifest: dict) -> None:
         failures: list[str] = []
         for relative, raw_entry in manifest.items():
@@ -500,6 +601,7 @@ class ApplyEngine:
                 recovered += 1
                 continue
             if phase in {"applying", "committed"}:
+                self._assert_game_closed()
                 self._rollback(transaction / "snapshots", normalized_manifest)
                 shutil.rmtree(transaction, ignore_errors=True)
                 recovered += 1
