@@ -28,6 +28,7 @@ UI_FILES = {
 ACTION_CLASS_NAMES = {
     "ManagerGUI",
     "AutoPrepareActions",
+    "MaintenanceActions",
     "ButtonStateActions",
     "LibraryActions",
     "DiscoverActions",
@@ -51,8 +52,10 @@ LAYER_RULES = {
     "umml_manager.safety": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
     "umml_manager.locking": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
     "umml_manager.engine": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
+    "umml_manager.deployment": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
     "umml_manager.resolver": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
     "umml_manager.store": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
+    "umml_manager.library": {"tkinter", "umml_manager.gui", "umml_manager.providers"},
 }
 
 
