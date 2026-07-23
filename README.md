@@ -32,7 +32,7 @@ Download the DEB or AppImage from [GitHub Releases](https://github.com/EvelynLim
 
 ### UMML Manager preview
 
-Current manager preview: **`0.2.0~alpha9`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
+Current manager preview: **`0.2.0~alpha10`**, developed in [draft PR #2](https://github.com/EvelynLimaB/UMML-Linux/pull/2).
 
 Until it becomes a permanent Release asset, open the [manager branch workflow runs](https://github.com/EvelynLimaB/UMML-Linux/actions/workflows/manager-checks.yml?query=branch%3Aagent%2Fumml-manager-foundation) and download:
 
@@ -43,7 +43,7 @@ Until it becomes a permanent Release asset, open the [manager branch workflow ru
 #### Debian package
 
 ```bash
-sudo apt install ./umml-manager_0.2.0~alpha9_amd64.deb
+sudo apt install ./umml-manager_0.2.0~alpha10_amd64.deb
 /usr/bin/umml-manager
 ```
 
@@ -52,15 +52,15 @@ The absolute command is useful when testing upgrades from early source previews.
 #### AppImage
 
 ```bash
-chmod +x ./umml-manager_0.2.0-alpha9_x86_64.AppImage
-./umml-manager_0.2.0-alpha9_x86_64.AppImage
+chmod +x ./umml-manager_0.2.0-alpha10_x86_64.AppImage
+./umml-manager_0.2.0-alpha10_x86_64.AppImage
 ```
 
 CLI mode is available from the same file:
 
 ```bash
-./umml-manager_0.2.0-alpha9_x86_64.AppImage --version
-./umml-manager_0.2.0-alpha9_x86_64.AppImage --cli list
+./umml-manager_0.2.0-alpha10_x86_64.AppImage --version
+./umml-manager_0.2.0-alpha10_x86_64.AppImage --cli list
 ```
 
 The DEB and AppImage are built from the same frozen runtime and use the same user data directory, `~/.local/share/umml-manager`. CI extracts both finished packages and compares their complete embedded runtime trees.
@@ -78,7 +78,8 @@ sha256sum -c SHA256SUMS
 - guided Steam/Proton/DMM installation detection and prepared-metadata fingerprinting;
 - immutable installed source versions and editable workspace copies;
 - automatic preparation of compatible imports while profile application remains explicit;
-- safe normalization of provider-confirmed loose legacy UMML asset archives;
+- safe normalization of provider-confirmed loose legacy UMML asset archives, including deeply nested layouts;
+- context-aware buttons that follow selection, paging, background-task, profile-blocker, and live game-process state;
 - named profiles with explicit load order, target region, and installation identity;
 - blockers for missing dependencies, declared incompatibilities, wrong regions, unsupported backends, stale prepared caches, and invalid manifests;
 - path-contained, hash-verified deployment with target-scoped active state and vanilla baselines;
@@ -90,7 +91,7 @@ sha256sum -c SHA256SUMS
 - complete legacy editing features through the built-in Studio compatibility host;
 - a lifetime game-process watcher around mutating legacy Studio tools;
 - explicit provider and deployment-backend contracts for future GameBanana alternatives, Hachimi support, staged updates, and native Studio pages;
-- a standard-library AST audit plus adversarial regression and failure-injection tests;
+- a standard-library AST audit, visible-button callback audit, and adversarial regression/failure-injection tests;
 - manager tests run against the same pinned runtime dependencies bundled into one matching DEB/AppImage runtime.
 
 Read [MANAGER_README.md](MANAGER_README.md) for the user workflow, [docs/MANAGER_AUDIT.md](docs/MANAGER_AUDIT.md) for the code audit, and [docs/MANAGER_FEATURE_ROADMAP.md](docs/MANAGER_FEATURE_ROADMAP.md) for planned work.
