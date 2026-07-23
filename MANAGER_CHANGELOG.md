@@ -2,15 +2,29 @@
 
 ## 0.2.0~alpha10 - 2026-07-23
 
-### Fixed
+### Import compatibility
 
 - Normalized legacy GameBanana packages are no longer rejected merely because their first regular asset is nested more than four directories below `assets/`.
 - Mod-root recognition now uses a bounded, symlink-safe breadth-first traversal with explicit entry and depth limits instead of an arbitrary four-component shortcut.
 - Deep wrapper layouts accepted by the legacy UMML manual loader can now continue from normalization into immutable import and automatic preparation.
 
-### Tests
+### Interface controls
+
+- Library selection controls now disable until a valid row is selected, and **Enable**, load-order arrows, **Prepare now**, **Re-prepare**, and **Apply profile** reflect the selected mod and profile state.
+- Apply explains whether the game must close, blockers must be fixed, or the game data path must be configured instead of remaining as an apparently dead button.
+- GameBanana install and paging controls preserve their semantic state across background tasks; changed region, sort, or query starts again on page 1.
+- Local discovery open/import buttons follow the selected candidate and report invalid calls instead of silently returning.
+- Every operation that owns shared manager state disables competing actions until completion or failure.
+- The full legacy Studio and every direct Studio tool are disabled while the game runs because they all share the same compatibility host and lifetime watcher.
+- Unknown game-process status now blocks Apply and legacy Studio writes instead of being interpreted as game closed.
+- Directly typed target paths or region changes clear stale installation identity and metadata fingerprints when settings are saved; a completed auto-detection preserves its newly verified values.
+- Browser and folder launch failures now produce visible feedback rather than disappearing into a failed desktop subprocess.
+
+### Tests and audit
 
 - Added a regression archive whose UnityFS payload remains deeply nested after the compatibility normalizer unwraps its first four wrapper directories.
+- Added a static audit that verifies every visible Tk button callback resolves to the manager or an action mixin.
+- Added headless state regressions for selection, busy tasks, paging, blockers, GameBanana search reset, game-running and unknown-status safety, full Studio behavior, and typed Settings edits.
 - Retained executable-content rejection, document-only rejection, automatic-preparation policy, offline-CLI, structural-audit, and package-parity coverage.
 
 ## 0.2.0~alpha9 - 2026-07-22
@@ -174,7 +188,7 @@
 ### Changed
 
 - Conflict plans explicitly list missing and unprepared enabled mods.
-- Workspace instructions require a new version or ID before importing edited content.
+- Workspace instructions require a new version or ID before importing it as a new immutable local mod.
 - GameBanana and local discovery tables now include vertical scrollbars.
 
 ## 0.2.0~alpha2 - 2026-07-21
