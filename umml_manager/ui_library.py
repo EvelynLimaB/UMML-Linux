@@ -3,7 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from .ui_theme import MUTED, SURFACE, SURFACE_2, TEXT
+from .ui_theme import SURFACE_2, TEXT
 
 
 class LibraryPage(ttk.Frame):
@@ -38,31 +38,37 @@ class LibraryPage(ttk.Frame):
             "<<ComboboxSelected>>",
             profile_selected,
         )
-        ttk.Button(
+        self.new_profile_button = ttk.Button(
             toolbar,
             text="New profile",
             command=app.new_profile,
-        ).grid(row=0, column=2, padx=4)
-        ttk.Entry(
+        )
+        self.new_profile_button.grid(row=0, column=2, padx=4)
+        self.search_entry = ttk.Entry(
             toolbar,
             textvariable=app.search_library,
             width=26,
-        ).grid(row=0, column=3, padx=(14, 4))
-        ttk.Button(
+        )
+        self.search_entry.grid(row=0, column=3, padx=(14, 4))
+        self.search_entry.bind("<Return>", lambda _event: app.refresh())
+        self.search_button = ttk.Button(
             toolbar,
             text="Search",
             command=app.refresh,
-        ).grid(row=0, column=4)
-        ttk.Button(
+        )
+        self.search_button.grid(row=0, column=4)
+        self.import_folder_button = ttk.Button(
             toolbar,
             text="Import folder",
             command=app.import_folder,
-        ).grid(row=0, column=5, padx=(14, 4))
-        ttk.Button(
+        )
+        self.import_folder_button.grid(row=0, column=5, padx=(14, 4))
+        self.import_archive_button = ttk.Button(
             toolbar,
             text="Import archive",
             command=app.import_archive,
-        ).grid(row=0, column=6, padx=4)
+        )
+        self.import_archive_button.grid(row=0, column=6, padx=4)
 
         left = ttk.Frame(
             self,
@@ -155,57 +161,77 @@ class LibraryPage(ttk.Frame):
         self.description.configure(state="disabled")
         buttons = ttk.Frame(details, style="Surface.TFrame")
         buttons.grid(row=5, column=0, sticky="ew", pady=(12, 0))
-        ttk.Button(
+        self.toggle_button = ttk.Button(
             buttons,
-            text="Enable / disable",
+            text="Enable",
             command=app.toggle_mod,
-        ).pack(side="left")
-        ttk.Button(
+            state="disabled",
+        )
+        self.toggle_button.pack(side="left")
+        self.move_up_button = ttk.Button(
             buttons,
             text="↑",
             width=3,
             command=lambda: app.move_mod(-1),
-        ).pack(side="left", padx=(6, 2))
-        ttk.Button(
+            state="disabled",
+        )
+        self.move_up_button.pack(side="left", padx=(6, 2))
+        self.move_down_button = ttk.Button(
             buttons,
             text="↓",
             width=3,
             command=lambda: app.move_mod(1),
-        ).pack(side="left", padx=2)
-        ttk.Button(
+            state="disabled",
+        )
+        self.move_down_button.pack(side="left", padx=2)
+        self.prepare_button = ttk.Button(
             buttons,
             text="Prepare",
             command=app.prepare_selected,
-        ).pack(side="left", padx=(8, 2))
-        ttk.Button(
+            state="disabled",
+        )
+        self.prepare_button.pack(side="left", padx=(8, 2))
+        self.workspace_button = ttk.Button(
             buttons,
             text="Edit copy",
             command=app.create_workspace,
-        ).pack(side="left", padx=2)
-        ttk.Button(
+            state="disabled",
+        )
+        self.workspace_button.pack(side="left", padx=2)
+        self.remove_button = ttk.Button(
             buttons,
             text="Remove",
             style="Danger.TButton",
             command=app.remove_selected,
-        ).pack(side="right")
+            state="disabled",
+        )
+        self.remove_button.pack(side="right")
 
         actions = ttk.Frame(self, padding=(0, 10, 0, 0))
         actions.grid(row=2, column=0, columnspan=2, sticky="ew")
-        ttk.Button(
+        self.preview_conflicts_button = ttk.Button(
             actions,
             text="Preview conflicts",
             command=app.show_plan,
-        ).pack(side="left")
-        ttk.Button(
+        )
+        self.preview_conflicts_button.pack(side="left")
+        self.apply_button = ttk.Button(
             actions,
             text="Apply profile",
             style="Accent.TButton",
             command=app.apply_profile,
-        ).pack(side="right")
+        )
+        self.apply_button.pack(side="right")
 
     def selected_id(self):
         selected = self.tree.selection()
         return selected[0] if selected else None
+
+    def clear_details(self) -> None:
+        self.mod_title.configure(text="Select a mod")
+        self.mod_meta.configure(text="")
+        self.mod_state.configure(text="")
+        self.set_description("")
 
     def set_description(self, value: str) -> None:
         self.description.configure(state="normal")
