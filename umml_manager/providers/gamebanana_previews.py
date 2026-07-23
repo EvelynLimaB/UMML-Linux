@@ -5,6 +5,7 @@ from dataclasses import replace
 from typing import Any
 
 from ..legacy_archive import import_loose_legacy_archive
+from ..regions import region_from_game_name
 from ..store import ManagerStore, StoreError
 from .gamebanana import GameBananaClient, GameBananaMod
 
@@ -31,8 +32,7 @@ class PreviewGameBananaClient(GameBananaClient):
             store.paths.root / "downloads",
             file_id=file_id,
         )
-        game_name = mod.game_name.casefold()
-        region = "global" if "global" in game_name else "japan" if "japan" in game_name else ""
+        region = region_from_game_name(mod.game_name)
         metadata = {
             "title": mod.name,
             "author": mod.author,
